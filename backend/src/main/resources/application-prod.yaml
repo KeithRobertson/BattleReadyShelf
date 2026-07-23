@@ -1,0 +1,31 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate.ddl-auto: validate
+    show-sql: false
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: profile,email
+            redirect-uri: ${OAUTH_REDIRECT_URI}
+        provider:
+          google:
+            user-name-attribute: email
+
+app:
+  storage:
+    uploads:
+      enabled: ${STORAGE_UPLOADS_ENABLED:true}
+      max-file-size-mb: 10
+      max-storage-per-user-mb: 500
+      max-uploads-per-hour: 100
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-ms: 86400000

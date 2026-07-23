@@ -1,0 +1,31 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/battlereadyshelf
+    username: keith
+    password: password
+  jpa:
+    hibernate.ddl-auto: create-drop
+    show-sql: true
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:local-dev-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:local-dev-secret}
+            scope: profile,email
+            redirect-uri: http://localhost:8080/login/oauth2/code/google
+        provider:
+          google:
+            user-name-attribute: email
+
+app:
+  storage:
+    uploads:
+      enabled: true
+      max-file-size-mb: 10
+      max-storage-per-user-mb: 500
+      max-uploads-per-hour: 100
+  jwt:
+    secret: ${JWT_SECRET:local-secret-key-for-development-only}
+    expiration-ms: 86400000

@@ -56,6 +56,24 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation("org.assertj:assertj-core:3.27.7")
     testImplementation(libs.mockito)
+
+    // Google OAuth 2.0 & Security
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.security:spring-security-oauth2-jose'
+
+    // JWT Token Management
+    implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.13.0'
+
+    // AWS S3 SDK
+    implementation 'software.amazon.awssdk:s3:2.25.0'
+    implementation 'software.amazon.awssdk:auth:2.25.0'
+
+    // Utilities
+    implementation 'commons-io:commons-io:2.15.1'
+    implementation 'commons-codec:commons-codec:1.15'
     mockitoAgent(libs.mockito) {
         transitive = false
     }

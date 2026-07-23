@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/BattleReadyShelf.iml" filepath="$PROJECT_DIR$/BattleReadyShelf.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/battlereadyshelf.main.iml" filepath="$PROJECT_DIR$/.idea/modules/battlereadyshelf.main.iml" />
     </modules>
   </component>
 </project>
