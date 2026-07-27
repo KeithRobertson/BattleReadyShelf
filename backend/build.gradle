@@ -109,12 +109,12 @@ tasks.named('test') {
 
 // Ensure OpenAPI generated sources are produced before compilation
 tasks.named('compileJava') {
-    dependsOn openApiGenerate
+    dependsOn tasks.named('openApiGenerate')
 }
 tasks.named('processResources') {
-    dependsOn openApiGenerate
+    dependsOn tasks.named('openApiGenerate')
 }
 // Make the build task also depend on the generator to be safe
 tasks.named('build') {
-    dependsOn openApiGenerate
+    dependsOn tasks.named('openApiGenerate')
 }
