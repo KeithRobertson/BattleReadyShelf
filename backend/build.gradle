@@ -106,3 +106,15 @@ tasks {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+// Ensure OpenAPI generated sources are produced before compilation
+tasks.named('compileJava') {
+    dependsOn openApiGenerate
+}
+tasks.named('processResources') {
+    dependsOn openApiGenerate
+}
+// Make the build task also depend on the generator to be safe
+tasks.named('build') {
+    dependsOn openApiGenerate
+}
