@@ -1,18 +1,22 @@
 import { useEffect, useState } from 'react'
-import { fetchCollections, createCollection, Collection } from './collectionsApi'
+import { ArmyCollectionsApi, Configuration } from './generated'
+import type { ArmyCollection } from './generated'
 
 export default function CollectionsPage() {
-  const [collections, setCollections] = useState<Collection[]>([])
+  const [collections, setCollections] = useState<ArmyCollection[]>([])
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  const api = new ArmyCollectionsApi(new Configuration({ basePath: '' }))
+
   useEffect(() => {
     setLoading(true)
-    fetchCollections()
-      .then((data) => setCollections(data))
+    api
+      .getArmyCollections()
+      .then((r) => setCollections(r.data))
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
   }, [])
@@ -21,7 +25,7 @@ export default function CollectionsPage() {
     e.preventDefault()
     setError(null)
     try {
-      const created = await createCollection({ name, description })
+      const created = (await api.createArmyCollection({ name, description })).data
       setCollections((s) => [created, ...s])
       setName('')
       setDescription('')
@@ -71,7 +75,7 @@ export default function CollectionsPage() {
             </thead>
             <tbody>
               {collections.map((c) => (
-                <tr key={c.id}>
+                <tr key={c.id || c.name}>
                   <td>{c.name}</td>
                   <td>{c.description}</td>
                 </tr>
