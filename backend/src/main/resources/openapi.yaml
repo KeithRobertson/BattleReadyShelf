@@ -1,0 +1,62 @@
+openapi: 3.0.3
+info:
+  title: BattleReadyShelf API
+  version: 0.1.0
+  description: Minimal API surface for Collections (mocked)
+servers:
+  - url: /
+paths:
+  /api/v1/collections:
+    get:
+      summary: Get all collections
+      operationId: getCollections
+      responses:
+        '200':
+          description: A list of collections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Collection'
+              example:
+                - id: "11111111-1111-1111-1111-111111111111"
+                  name: "Starter Collection"
+                  description: "A static example collection"
+    post:
+      summary: Create a new collection (mocked)
+      operationId: createCollection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionCreate'
+      responses:
+        '201':
+          description: Created collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Collection'
+components:
+  schemas:
+    Collection:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+      required: [id, name]
+    CollectionCreate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+      required: [name]
