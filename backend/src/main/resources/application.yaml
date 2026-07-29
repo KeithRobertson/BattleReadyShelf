@@ -1,9 +1,11 @@
 spring:
+  profiles:
+    active: local
   application:
     name: battlereadyshelf
   mvc:
     servlet:
-      path: /battlereadyshelf/api
+      path: /battlereadyshelf
   flyway:
     schemas: battlereadyshelf
     default-schema: battlereadyshelf

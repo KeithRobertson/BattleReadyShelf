@@ -2,8 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/BattleReadyShelf.iml" filepath="$PROJECT_DIR$/BattleReadyShelf.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/battlereadyshelf.main.iml" filepath="$PROJECT_DIR$/.idea/modules/battlereadyshelf.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/battlereadyshelf.test.iml" filepath="$PROJECT_DIR$/.idea/modules/battlereadyshelf.test.iml" />
     </modules>
   </component>
 </project>

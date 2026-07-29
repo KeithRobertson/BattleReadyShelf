@@ -2,61 +2,56 @@ openapi: 3.0.3
 info:
   title: BattleReadyShelf API
   version: 0.1.0
-  description: Minimal API surface for Collections (mocked)
+  description: BattleReadyShelf API
 servers:
   - url: /
 paths:
-  /api/v1/collections:
+  /api/v1/army-collections:
     get:
-      summary: Get all collections
-      operationId: getCollections
+      tags: [ "ArmyCollections" ]
+      summary: Get all army collections
+      operationId: getArmyCollections
       responses:
         '200':
-          description: A list of collections
+          description: A list of army collections
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Collection'
+                  $ref: '#/components/schemas/ArmyCollection'
               example:
                 - id: "11111111-1111-1111-1111-111111111111"
                   name: "Starter Collection"
-                  description: "A static example collection"
+                  description: "An example collection"
     post:
-      summary: Create a new collection (mocked)
-      operationId: createCollection
+      tags: [ "ArmyCollections" ]
+      summary: Create a new army collection
+      operationId: createArmyCollection
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CollectionCreate'
+              $ref: '#/components/schemas/ArmyCollection'
       responses:
         '201':
-          description: Created collection
+          description: Created army collections
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Collection'
+                $ref: '#/components/schemas/ArmyCollection'
 components:
   schemas:
-    Collection:
+    ArmyCollection:
       type: object
       properties:
         id:
           type: string
           format: uuid
+          readOnly: true
         name:
           type: string
         description:
           type: string
-      required: [id, name]
-    CollectionCreate:
-      type: object
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-      required: [name]
+      required: [ name ]
