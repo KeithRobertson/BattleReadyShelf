@@ -424,3 +424,10 @@ From day one, the system is **game-agnostic**:
 - `docs/PLAN.md` – Detailed phase breakdown
 - `docs/ARCHITECTURE.md` – Infrastructure and deployment details
 - `docs/MODEL.md` – Complete entity relationship diagram and descriptions
+
+## 🤖 Agent Git Policy
+
+- Agents MUST NOT create commits or push changes to the repository without explicit, pre-authorized approval from the repository owner.
+- Any code or file changes suggested by an agent should be provided as patches, diff snippets, or draft pull requests and require human review and explicit consent before being committed or pushed.
+- This restriction applies to all automated agents, background tasks, and sub-agents operating on the repository.
+- If an agent needs a change to be made, it should request approval and provide the exact git commands or a ready-to-apply patch; it must not run those commands itself.
