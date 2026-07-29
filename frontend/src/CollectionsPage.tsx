@@ -1,25 +1,31 @@
-import {useEffect, useState} from 'react'
-import {ArmyCollectionsApi, Configuration} from './generated'
+import React, {useEffect, useState} from 'react'
 import type {ArmyCollection} from './generated'
+import {ArmyCollectionsApi, Configuration} from './generated'
 
 export default function CollectionsPage() {
     const [collections, setCollections] = useState<ArmyCollection[]>([])
-    const [loading, setLoading] = useState(false)
+    const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
     const [name, setName] = useState('')
     const [description, setDescription] = useState('')
     const [error, setError] = useState<string | null>(null)
 
-    const api = new ArmyCollectionsApi(new Configuration({basePath: ''}))
-
     useEffect(() => {
-        setLoading(true)
+        const ac = new AbortController()
+        const api = new ArmyCollectionsApi(new Configuration({basePath: ''}))
         api
-            .getArmyCollections()
-            .then((r) => setCollections(r.data))
-            .catch((e) => setError(String(e)))
-            .finally(() => setLoading(false))
-    }, [api])
+            .getArmyCollections({signal: ac.signal})
+            .then((r) => {
+                if (!ac.signal.aborted) setCollections(r.data)
+            })
+            .catch((e) => {
+                if (!ac.signal.aborted) setError(String(e))
+            })
+            .finally(() => {
+                if (!ac.signal.aborted) setLoading(false)
+            })
+        return () => ac.abort()
+    }, [])
 
     async function handleCreate(e: React.FormEvent) {
         e.preventDefault()
