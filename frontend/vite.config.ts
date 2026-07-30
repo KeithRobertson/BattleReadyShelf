@@ -6,6 +6,10 @@ export default defineConfig({
 	// Base public path when served from GitHub Pages under a repo path
 	base: "/BattleReadyShelf/",
 	plugins: [react()],
+	build: {
+		target: "esnext",
+		sourcemap: true,
+	},
 	// Dev server proxy: forward /api to local backend during development
 	server: {
 		proxy: {
