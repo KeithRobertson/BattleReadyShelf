@@ -15,7 +15,7 @@ export default function CollectionsPage() {
     const ac = new AbortController();
     getArmyCollections({ signal: ac.signal })
       .then((r) => {
-        if (!ac.signal.aborted) setCollections(r.data);
+        if (!ac.signal.aborted && r.data) setCollections(r.data);
       })
       .catch((e) => {
         if (!ac.signal.aborted) setError(String(e));
@@ -31,6 +31,9 @@ export default function CollectionsPage() {
     setError(null);
     try {
       const created = (await createArmyCollection({ body: { name, description } })).data;
+      if(!created) {
+        throw new Error("Failed to create collection");
+      }
       setCollections((s) => [created, ...s]);
       setName("");
       setDescription("");
