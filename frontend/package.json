@@ -10,7 +10,7 @@
 		"format": "biome format",
 		"lint": "biome lint",
 		"preview": "vite preview",
-		"openapi-ts": "openapi-ts -i ../backend/src/main/resources/openapi/openapi.yaml -o src/generated"
+		"openapi-ts": "openapi-ts"
 	},
 	"dependencies": {
 		"@react-oauth/google": "^0.12.1",
