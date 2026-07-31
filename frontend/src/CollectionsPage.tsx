@@ -1,7 +1,7 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import type { ArmyCollection } from "./generated";
-import { ArmyCollectionsApi, Configuration } from "./generated";
+import { createArmyCollection, getArmyCollections } from "./generated";
 
 export default function CollectionsPage() {
   const [collections, setCollections] = useState<ArmyCollection[]>([]);
@@ -13,9 +13,7 @@ export default function CollectionsPage() {
 
   useEffect(() => {
     const ac = new AbortController();
-    const api = new ArmyCollectionsApi(new Configuration({ basePath: "" }));
-    api
-      .getArmyCollections({ signal: ac.signal })
+    getArmyCollections({ signal: ac.signal })
       .then((r) => {
         if (!ac.signal.aborted) setCollections(r.data);
       })
@@ -29,11 +27,10 @@ export default function CollectionsPage() {
   }, []);
 
   async function handleCreate(e: React.FormEvent) {
-    const api = new ArmyCollectionsApi(new Configuration({ basePath: "" }));
     e.preventDefault();
     setError(null);
     try {
-      const created = (await api.createArmyCollection({ name, description })).data;
+      const created = (await createArmyCollection({ body: { name, description } })).data;
       setCollections((s) => [created, ...s]);
       setName("");
       setDescription("");
