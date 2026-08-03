@@ -9,6 +9,8 @@ spring:
 app:
   storage:
     uploads:
+      bucket: battlereadyshelf-dev
+      prefix: keith
       enabled: true
       max-file-size-mb: 10
       max-storage-per-user-mb: 500
