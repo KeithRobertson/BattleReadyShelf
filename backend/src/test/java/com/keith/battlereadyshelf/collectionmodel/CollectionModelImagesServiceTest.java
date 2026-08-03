@@ -99,6 +99,8 @@ class CollectionModelImagesServiceTest {
                         });
         when(presignedUrlService.presignUpload(anyString(), anyString()))
                 .thenReturn(expectedUploadUrl);
+        var expectedDownloadUrl = URI.create("https://example-r2-endpoint/download");
+        when(presignedUrlService.presignDownload(anyString())).thenReturn(expectedDownloadUrl);
 
         var result =
                 collectionModelImagesService.createUploadUrl(
@@ -115,6 +117,7 @@ class CollectionModelImagesServiceTest {
 
         assertThat(result.image().getId()).isEqualTo(createdImageId);
         assertThat(result.image().getContentType()).isEqualTo("image/jpeg");
+        assertThat(result.image().getUrl()).isEqualTo(expectedDownloadUrl);
         assertThat(result.uploadUrl()).isEqualTo(expectedUploadUrl);
     }
 

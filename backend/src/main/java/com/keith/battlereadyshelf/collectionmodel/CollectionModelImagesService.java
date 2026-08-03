@@ -78,7 +78,10 @@ public class CollectionModelImagesService {
 
         var uploadUrl = presignedUrlService.presignUpload(storageKey, contentType);
 
-        return new UploadUrlResult(collectionModelImageMapper.toDto(savedImage), uploadUrl);
+        var imageDto = collectionModelImageMapper.toDto(savedImage);
+        imageDto.setUrl(presignedUrlService.presignDownload(storageKey));
+
+        return new UploadUrlResult(imageDto, uploadUrl);
     }
 
     public void deleteImage(UUID userId, UUID collectionModelId, UUID imageId) {
