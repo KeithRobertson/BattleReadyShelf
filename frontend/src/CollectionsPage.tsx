@@ -1,3 +1,19 @@
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from "@mui/material";
 import type React from "react";
 import { useEffect, useState } from "react";
 import type { ArmyCollection } from "./generated";
@@ -44,58 +60,71 @@ export default function CollectionsPage() {
   }
 
   return (
-    <div style={{ padding: 24 }}>
-      <h1>Collections</h1>
-      <p>Create and manage your miniature collections.</p>
-      <button type={"button"} onClick={() => setShowForm((s) => !s)}>
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Collections
+      </Typography>
+      <Typography variant="body1" color="text.secondary" gutterBottom>
+        Create and manage your miniature collections.
+      </Typography>
+      <Button variant="contained" onClick={() => setShowForm((s) => !s)}>
         {showForm ? "Cancel" : "Create collection"}
-      </button>
+      </Button>
       {showForm && (
-        <form onSubmit={handleCreate} style={{ marginTop: 12 }}>
-          <div>
-            <label>
-              Name
-              <br />
-              <input value={name} onChange={(e) => setName(e.target.value)} required />
-            </label>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <label>
-              Description
-              <br />
-              <input value={description} onChange={(e) => setDescription(e.target.value)} />
-            </label>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <button type="submit">Create</button>
-          </div>
-        </form>
+        <Box component="form" onSubmit={handleCreate} sx={{ mt: 2 }}>
+          <Stack spacing={2} sx={{ maxWidth: 400 }}>
+            <TextField
+              label="Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              fullWidth
+            />
+            <TextField
+              label="Description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              fullWidth
+            />
+            <Box>
+              <Button type="submit" variant="contained" color="primary">
+                Create
+              </Button>
+            </Box>
+          </Stack>
+        </Box>
       )}
 
-      {error && <div style={{ color: "red" }}>{error}</div>}
+      {error && (
+        <Alert severity="error" sx={{ mt: 2 }}>
+          {error}
+        </Alert>
+      )}
 
-      <div style={{ marginTop: 20 }}>
+      <Box sx={{ mt: 3 }}>
         {loading ? (
-          <div>Loading...</div>
+          <CircularProgress />
         ) : (
-          <table border={1} cellPadding={6}>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Description</th>
-              </tr>
-            </thead>
-            <tbody>
-              {collections.map((c) => (
-                <tr key={c.id || c.name}>
-                  <td>{c.name}</td>
-                  <td>{c.description}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Description</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {collections.map((c) => (
+                  <TableRow key={c.id || c.name}>
+                    <TableCell>{c.name}</TableCell>
+                    <TableCell>{c.description}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 }
