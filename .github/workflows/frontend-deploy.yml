@@ -45,6 +45,7 @@ jobs:
       working-directory: frontend
       env:
         VITE_API_BASE_URL: https://battlereadyshelf.onrender.com/battlereadyshelf
+        VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
       run: npm run build
     
     - name: Setup Pages
