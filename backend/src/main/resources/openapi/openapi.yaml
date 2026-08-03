@@ -95,6 +95,81 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArmyCollection'
+  /api/v1/model-definitions:
+    get:
+      tags: [ "ModelDefinitions" ]
+      summary: Get all available model types (e.g. Poxwalker)
+      operationId: getModelDefinitions
+      responses:
+        '200':
+          description: A list of model definitions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModelDefinition'
+  /api/v1/army-collections/{armyCollectionId}/models:
+    get:
+      tags: [ "CollectionModels" ]
+      summary: Get all models in an army collection
+      operationId: getCollectionModels
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: armyCollectionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: A list of models in the army collection
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CollectionModel'
+        '404':
+          description: Army collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    post:
+      tags: [ "CollectionModels" ]
+      summary: Add a new model to an army collection
+      operationId: createCollectionModel
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: armyCollectionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionModel'
+      responses:
+        '201':
+          description: The created collection model
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionModel'
+        '404':
+          description: Army collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
 components:
   securitySchemes:
     bearerAuth:
@@ -120,6 +195,51 @@ components:
         description:
           type: string
       required: [ name ]
+    ModelDefinition:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+      required: [ name ]
+    CollectionModelImage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+    CollectionModel:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        modelDefinitionId:
+          type: string
+          format: uuid
+        modelDefinition:
+          readOnly: true
+          allOf:
+            - $ref: '#/components/schemas/ModelDefinition'
+        name:
+          type: string
+        description:
+          type: string
+        images:
+          readOnly: true
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectionModelImage'
+      required: [ modelDefinitionId ]
     GoogleAuthRequest:
       type: object
       properties:

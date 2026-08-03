@@ -38,6 +38,9 @@ public class SecurityConfiguration {
                                         .permitAll()
                                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/google")
                                         .permitAll()
+                                        .requestMatchers(
+                                                HttpMethod.GET, "/api/v1/model-definitions")
+                                        .permitAll()
                                         .anyRequest()
                                         .authenticated())
                 .addFilterBefore(
