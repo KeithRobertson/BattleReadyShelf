@@ -1,7 +1,13 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="BattleReadyShelfApplication [local]" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <option name="envFilePaths">
+      <option value="$PROJECT_DIR$/backend/.env.local" />
+    </option>
     <option name="FRAME_DEACTIVATION_UPDATE_POLICY" value="UnknownPolicyInFreeMode" />
     <module name="battlereadyshelf.main" />
+    <selectedOptions>
+      <option name="environmentVariables" />
+    </selectedOptions>
     <option name="SPRING_BOOT_MAIN_CLASS" value="com.keith.battlereadyshelf.BattleReadyShelfApplication" />
     <extension name="coverage">
       <pattern>

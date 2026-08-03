@@ -170,6 +170,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /api/v1/collection-models/{collectionModelId}/images:
+    post:
+      tags: [ "CollectionModelImages" ]
+      summary: Request a presigned URL to upload a new image for a collection model
+      operationId: createCollectionModelImageUploadUrl
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: collectionModelId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionModelImageUploadRequest'
+      responses:
+        '201':
+          description: The created image record and a presigned upload URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionModelImageUploadResponse'
+        '400':
+          description: Invalid content type, file too large, or uploads disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Collection model not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/collection-models/{collectionModelId}/images/{imageId}:
+    delete:
+      tags: [ "CollectionModelImages" ]
+      summary: Delete an image attached to a collection model
+      operationId: deleteCollectionModelImage
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: collectionModelId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: imageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Image deleted
+        '404':
+          description: Collection model or image not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
 components:
   securitySchemes:
     bearerAuth:
@@ -216,6 +284,40 @@ components:
           type: string
           format: date-time
           readOnly: true
+        contentType:
+          type: string
+          readOnly: true
+        sizeBytes:
+          type: integer
+          format: int64
+          readOnly: true
+        url:
+          type: string
+          format: uri
+          readOnly: true
+          description: A short-lived presigned URL to download/view the image.
+    CollectionModelImageUploadRequest:
+      type: object
+      properties:
+        contentType:
+          type: string
+          example: "image/jpeg"
+        fileName:
+          type: string
+        contentLengthBytes:
+          type: integer
+          format: int64
+      required: [ contentType, contentLengthBytes ]
+    CollectionModelImageUploadResponse:
+      type: object
+      properties:
+        image:
+          $ref: '#/components/schemas/CollectionModelImage'
+        uploadUrl:
+          type: string
+          format: uri
+          description: A short-lived presigned URL. PUT the raw image bytes here with a matching Content-Type header.
+      required: [ image, uploadUrl ]
     CollectionModel:
       type: object
       properties:

@@ -1,0 +1,357 @@
+package com.keith.battlereadyshelf.collectionmodel;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.keith.battlereadyshelf.armycollection.ArmyCollectionEntity;
+import com.keith.battlereadyshelf.armycollection.ArmyCollectionRepository;
+import com.keith.battlereadyshelf.error.ApiException;
+import com.keith.battlereadyshelf.error.NotFoundException;
+import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionMapperImpl;
+import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionRepository;
+import com.keith.battlereadyshelf.storage.PresignedUrlService;
+import com.keith.battlereadyshelf.storage.StorageKeyGenerator;
+import com.keith.battlereadyshelf.storage.StorageProperties;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.net.URI;
+import java.util.Optional;
+import java.util.UUID;
+
+@ExtendWith(MockitoExtension.class)
+class CollectionModelImagesServiceTest {
+    @Mock private CollectionModelRepository collectionModelRepository;
+    @Mock private ArmyCollectionRepository armyCollectionRepository;
+    @Mock private ModelDefinitionRepository modelDefinitionRepository;
+    @Mock private CollectionModelImageRepository collectionModelImageRepository;
+    @Mock private PresignedUrlService presignedUrlService;
+
+    @Captor private ArgumentCaptor<CollectionModelImageEntity> collectionModelImageEntityCaptor;
+
+    private CollectionModelsService collectionModelsService;
+    private CollectionModelImagesService collectionModelImagesService;
+
+    @BeforeEach
+    void setUp() {
+        collectionModelsService =
+                new CollectionModelsService(
+                        collectionModelRepository,
+                        armyCollectionRepository,
+                        modelDefinitionRepository,
+                        collectionModelImageRepository,
+                        new CollectionModelMapperImpl(new ModelDefinitionMapperImpl()),
+                        new CollectionModelImageMapperImpl(),
+                        presignedUrlService);
+
+        var storageProperties =
+                new StorageProperties("battlereadyshelf-dev", "keith", true, 10);
+
+        collectionModelImagesService =
+                new CollectionModelImagesService(
+                        collectionModelsService,
+                        collectionModelImageRepository,
+                        new CollectionModelImageMapperImpl(),
+                        storageProperties,
+                        new StorageKeyGenerator(storageProperties),
+                        presignedUrlService);
+    }
+
+    @Test
+    void createUploadUrl_persistsImageAndReturnsPresignedUrl_whenCollectionModelIsOwned() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var createdImageId = UUID.randomUUID();
+        var expectedUploadUrl = URI.create("https://example-r2-endpoint/upload");
+
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelImageRepository.save(any(CollectionModelImageEntity.class)))
+                .thenAnswer(
+                        invocation -> {
+                            CollectionModelImageEntity entity = invocation.getArgument(0);
+                            entity.setId(createdImageId);
+                            return entity;
+                        });
+        when(presignedUrlService.presignUpload(anyString(), anyString()))
+                .thenReturn(expectedUploadUrl);
+
+        var result =
+                collectionModelImagesService.createUploadUrl(
+                        userId, collectionModelId, "image/jpeg", 1024L);
+
+        verify(collectionModelImageRepository).save(collectionModelImageEntityCaptor.capture());
+        var savedEntity = collectionModelImageEntityCaptor.getValue();
+        assertThat(savedEntity.getCollectionModelId()).isEqualTo(collectionModelId);
+        assertThat(savedEntity.getContentType()).isEqualTo("image/jpeg");
+        assertThat(savedEntity.getSizeBytes()).isEqualTo(1024L);
+        assertThat(savedEntity.getStorageKey())
+                .startsWith("keith/users/" + userId + "/models/" + collectionModelId + "/")
+                .endsWith(".jpg");
+
+        assertThat(result.image().getId()).isEqualTo(createdImageId);
+        assertThat(result.image().getContentType()).isEqualTo("image/jpeg");
+        assertThat(result.uploadUrl()).isEqualTo(expectedUploadUrl);
+    }
+
+    @Test
+    void createUploadUrl_throwsNotFound_whenCollectionModelNotOwnedByUser() {
+        var userId = UUID.randomUUID();
+        var otherUserId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(otherUserId)
+                                        .name("Someone else's collection")
+                                        .build()));
+
+        assertThatThrownBy(
+                        () ->
+                                collectionModelImagesService.createUploadUrl(
+                                        userId, collectionModelId, "image/jpeg", 1024L))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void createUploadUrl_throwsBadRequest_whenContentTypeUnsupported() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+
+        assertThatThrownBy(
+                        () ->
+                                collectionModelImagesService.createUploadUrl(
+                                        userId,
+                                        collectionModelId,
+                                        "application/pdf",
+                                        1024L))
+                .isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void createUploadUrl_throwsBadRequest_whenFileTooLarge() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+
+        var tooManyBytes = 11L * 1024 * 1024;
+
+        assertThatThrownBy(
+                        () ->
+                                collectionModelImagesService.createUploadUrl(
+                                        userId, collectionModelId, "image/jpeg", tooManyBytes))
+                .isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void createUploadUrl_throwsBadRequest_whenUploadsDisabled() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+
+        var disabledStorageProperties =
+                new StorageProperties("battlereadyshelf-dev", "keith", false, 10);
+        var serviceWithDisabledUploads =
+                new CollectionModelImagesService(
+                        collectionModelsService,
+                        collectionModelImageRepository,
+                        new CollectionModelImageMapperImpl(),
+                        disabledStorageProperties,
+                        new StorageKeyGenerator(disabledStorageProperties),
+                        presignedUrlService);
+
+        assertThatThrownBy(
+                        () ->
+                                serviceWithDisabledUploads.createUploadUrl(
+                                        userId, collectionModelId, "image/jpeg", 1024L))
+                .isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void deleteImage_deletesFromStorageAndRepository_whenImageIsOwned() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var imageId = UUID.randomUUID();
+
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        var imageEntity =
+                CollectionModelImageEntity.builder()
+                        .id(imageId)
+                        .collectionModelId(collectionModelId)
+                        .storageKey("keith/users/" + userId + "/models/" + collectionModelId + "/" + imageId + ".jpg")
+                        .contentType("image/jpeg")
+                        .build();
+        when(collectionModelImageRepository.findById(imageId)).thenReturn(Optional.of(imageEntity));
+
+        collectionModelImagesService.deleteImage(userId, collectionModelId, imageId);
+
+        verify(presignedUrlService).deleteObject(imageEntity.getStorageKey());
+        verify(collectionModelImageRepository).delete(imageEntity);
+    }
+
+    @Test
+    void deleteImage_throwsNotFound_whenImageDoesNotBelongToCollectionModel() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var otherCollectionModelId = UUID.randomUUID();
+        var imageId = UUID.randomUUID();
+
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelImageRepository.findById(imageId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelImageEntity.builder()
+                                        .id(imageId)
+                                        .collectionModelId(otherCollectionModelId)
+                                        .storageKey("some/other/key.jpg")
+                                        .contentType("image/jpeg")
+                                        .build()));
+
+        assertThatThrownBy(
+                        () -> collectionModelImagesService.deleteImage(userId, collectionModelId, imageId))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void deleteImage_throwsNotFound_whenCollectionModelNotOwnedByUser() {
+        var userId = UUID.randomUUID();
+        var otherUserId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var imageId = UUID.randomUUID();
+
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(otherUserId)
+                                        .name("Someone else's collection")
+                                        .build()));
+
+        assertThatThrownBy(
+                        () -> collectionModelImagesService.deleteImage(userId, collectionModelId, imageId))
+                .isInstanceOf(NotFoundException.class);
+    }
+}

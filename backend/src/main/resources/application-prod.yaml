@@ -14,6 +14,10 @@ app:
       max-file-size-mb: 10
       max-storage-per-user-mb: 500
       max-uploads-per-hour: 100
+    r2:
+      endpoint: https://1cf9acd78e6fcc9adf43e48014502ee5.r2.cloudflarestorage.com
+      access-key-id: ${R2_ACCESS_KEY_ID}
+      secret-access-key: ${R2_SECRET_ACCESS_KEY}
   jwt:
     secret: ${JWT_SECRET}
     expiration-ms: 86400000

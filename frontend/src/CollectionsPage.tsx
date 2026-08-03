@@ -20,13 +20,17 @@ import {
 } from "@mui/material";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import DeleteIcon from "@mui/icons-material/Delete";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
 import type React from "react";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useAuth } from "./auth/useAuth";
 import type { ArmyCollection, CollectionModel, ModelDefinition } from "./generated";
 import {
   createArmyCollection,
   createCollectionModel,
+  createCollectionModelImageUploadUrl,
+  deleteCollectionModelImage,
   getArmyCollections,
   getCollectionModels,
   getModelDefinitions,
@@ -40,6 +44,9 @@ function CollectionModelsPanel({ armyCollectionId }: { armyCollectionId: string 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [uploadingModelId, setUploadingModelId] = useState<string | null>(null);
+  const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
     const ac = new AbortController();
@@ -83,6 +90,52 @@ function CollectionModelsPanel({ armyCollectionId }: { armyCollectionId: string 
       setDescription("");
     } catch (e) {
       setError(String(e));
+    }
+  }
+
+  async function handleUploadImage(modelId: string, file: File) {
+    setError(null);
+    setUploadingModelId(modelId);
+    try {
+      const created = (
+        await createCollectionModelImageUploadUrl({
+          path: { collectionModelId: modelId },
+          body: { contentType: file.type, fileName: file.name, contentLengthBytes: file.size },
+        })
+      ).data;
+      if (!created) {
+        throw new Error("Failed to request upload URL");
+      }
+      const putResponse = await fetch(created.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!putResponse.ok) {
+        throw new Error(`Upload to storage failed: ${putResponse.status}`);
+      }
+      setModels((s) =>
+        s.map((m) => (m.id === modelId ? { ...m, images: [...(m.images ?? []), created.image] } : m)),
+      );
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setUploadingModelId(null);
+    }
+  }
+
+  async function handleDeleteImage(modelId: string, imageId: string) {
+    setError(null);
+    setDeletingImageId(imageId);
+    try {
+      await deleteCollectionModelImage({ path: { collectionModelId: modelId, imageId } });
+      setModels((s) =>
+        s.map((m) => (m.id === modelId ? { ...m, images: (m.images ?? []).filter((img) => img.id !== imageId) } : m)),
+      );
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setDeletingImageId(null);
     }
   }
 
@@ -141,13 +194,76 @@ function CollectionModelsPanel({ armyCollectionId }: { armyCollectionId: string 
       ) : (
         <Stack spacing={1}>
           {models.map((m) => (
-            <Stack key={m.id} direction="row" spacing={1} sx={{ alignItems: "center" }}>
-              <Chip label={m.modelDefinition?.name ?? "Unknown type"} size="small" />
-              <Typography variant="body2">{m.name || <em>Unnamed</em>}</Typography>
-              {m.description && (
-                <Typography variant="body2" color="text.secondary">
-                  &mdash; {m.description}
-                </Typography>
+            <Stack key={m.id} spacing={1}>
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                <Chip label={m.modelDefinition?.name ?? "Unknown type"} size="small" />
+                <Typography variant="body2">{m.name || <em>Unnamed</em>}</Typography>
+                {m.description && (
+                  <Typography variant="body2" color="text.secondary">
+                    &mdash; {m.description}
+                  </Typography>
+                )}
+                {m.id && (
+                  <>
+                    <input
+                      ref={(el) => {
+                        fileInputRefs.current[m.id ?? ""] = el;
+                      }}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif,image/heic"
+                      hidden
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file && m.id) void handleUploadImage(m.id, file);
+                        e.target.value = "";
+                      }}
+                    />
+                    <IconButton
+                      size="small"
+                      title="Upload image"
+                      disabled={uploadingModelId === m.id}
+                      onClick={() => fileInputRefs.current[m.id ?? ""]?.click()}
+                    >
+                      {uploadingModelId === m.id ? <CircularProgress size={16} /> : <UploadFileIcon fontSize="small" />}
+                    </IconButton>
+                  </>
+                )}
+              </Stack>
+              {m.images && m.images.length > 0 && (
+                <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+                  {m.images.map((img) => (
+                    <Box key={img.id} sx={{ position: "relative", width: 80, height: 80 }}>
+                      <Box
+                        component="img"
+                        src={img.url}
+                        alt={m.name || "Model image"}
+                        sx={{ width: 80, height: 80, objectFit: "cover", borderRadius: 1, display: "block" }}
+                      />
+                      {img.id && m.id && (
+                        <IconButton
+                          size="small"
+                          title="Delete image"
+                          disabled={deletingImageId === img.id}
+                          onClick={() => m.id && img.id && void handleDeleteImage(m.id, img.id)}
+                          sx={{
+                            position: "absolute",
+                            top: -8,
+                            right: -8,
+                            bgcolor: "background.paper",
+                            "&:hover": { bgcolor: "background.paper" },
+                            boxShadow: 1,
+                          }}
+                        >
+                          {deletingImageId === img.id ? (
+                            <CircularProgress size={14} />
+                          ) : (
+                            <DeleteIcon fontSize="small" color="error" />
+                          )}
+                        </IconButton>
+                      )}
+                    </Box>
+                  ))}
+                </Stack>
               )}
             </Stack>
           ))}

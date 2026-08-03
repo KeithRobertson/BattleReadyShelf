@@ -14,10 +14,7 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Placeholder entity for images attached to a {@link CollectionModelEntity}. No upload capability
- * exists yet; this table will be populated once Cloudflare R2 presigned-url uploads are wired up.
- */
+/** An image attached to a {@link CollectionModelEntity}, stored in Cloudflare R2. */
 @Entity
 @Table(name = "collection_model_images")
 @Data
@@ -31,6 +28,15 @@ public class CollectionModelImageEntity {
 
     @Column(name = "collection_model_id", nullable = false)
     private UUID collectionModelId;
+
+    @Column(name = "storage_key", nullable = false)
+    private String storageKey;
+
+    @Column(name = "content_type", nullable = false)
+    private String contentType;
+
+    @Column(name = "size_bytes")
+    private Long sizeBytes;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;

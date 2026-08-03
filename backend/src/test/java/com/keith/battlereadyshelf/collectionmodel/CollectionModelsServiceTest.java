@@ -3,6 +3,7 @@ package com.keith.battlereadyshelf.collectionmodel;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -14,6 +15,7 @@ import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionEntity;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionMapperImpl;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionRepository;
+import com.keith.battlereadyshelf.storage.PresignedUrlService;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,6 +34,8 @@ class CollectionModelsServiceTest {
     @Mock private CollectionModelRepository collectionModelRepository;
     @Mock private ArmyCollectionRepository armyCollectionRepository;
     @Mock private ModelDefinitionRepository modelDefinitionRepository;
+    @Mock private CollectionModelImageRepository collectionModelImageRepository;
+    @Mock private PresignedUrlService presignedUrlService;
 
     @Captor private ArgumentCaptor<CollectionModelEntity> collectionModelEntityCaptor;
 
@@ -39,12 +43,18 @@ class CollectionModelsServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient()
+                .when(collectionModelImageRepository.findAllByCollectionModelId(any()))
+                .thenReturn(List.of());
         collectionModelsService =
                 new CollectionModelsService(
                         collectionModelRepository,
                         armyCollectionRepository,
                         modelDefinitionRepository,
-                        new CollectionModelMapperImpl(new ModelDefinitionMapperImpl()));
+                        collectionModelImageRepository,
+                        new CollectionModelMapperImpl(new ModelDefinitionMapperImpl()),
+                        new CollectionModelImageMapperImpl(),
+                        presignedUrlService);
     }
 
     @Test
@@ -83,7 +93,8 @@ class CollectionModelsServiceTest {
                         new CollectionModel(poxwalkerId)
                                 .id(collectionModelId)
                                 .modelDefinition(new ModelDefinition("Poxwalker").id(poxwalkerId))
-                                .name("My Poxwalker"));
+                                .name("My Poxwalker")
+                                .images(List.of()));
     }
 
     @Test
@@ -164,7 +175,8 @@ class CollectionModelsServiceTest {
                                 .id(createdId)
                                 .modelDefinition(new ModelDefinition("Poxwalker").id(poxwalkerId))
                                 .name("My Poxwalker")
-                                .description("Freshly painted"));
+                                .description("Freshly painted")
+                                .images(List.of()));
     }
 
     @Test
