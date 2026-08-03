@@ -19,4 +19,4 @@ app:
 battlereadyshelf:
   cors:
     allowed:
-      origins: http://localhost*
+      origins: http://localhost:*

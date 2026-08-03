@@ -18,3 +18,6 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: battlereadyshelf
+google:
+  oauth:
+    client-id: 421501872179-iatsrrehua5g62ot3j4gtv9qv9pghc3m.apps.googleusercontent.com
