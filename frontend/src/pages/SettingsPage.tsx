@@ -1,14 +1,10 @@
-import { Box, Typography } from "@mui/material";
+import { Stack, Text, Title } from "@mantine/core";
 
 export default function SettingsPage() {
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Settings
-      </Typography>
-      <Typography variant="body1" color="text.secondary">
-        Settings are coming soon.
-      </Typography>
-    </Box>
+    <Stack gap="xs">
+      <Title order={2}>Settings</Title>
+      <Text c="dimmed">Settings are coming soon.</Text>
+    </Stack>
   );
 }

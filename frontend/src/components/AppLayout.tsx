@@ -1,21 +1,9 @@
-import LogoutIcon from "@mui/icons-material/Logout";
-import SettingsIcon from "@mui/icons-material/Settings";
-import {
-  AppBar,
-  Avatar,
-  Box,
-  Container,
-  IconButton,
-  ListItemIcon,
-  Menu,
-  MenuItem,
-  Toolbar,
-  Typography,
-} from "@mui/material";
+import { AppShell, Avatar, Burger, Group, Menu, NavLink, Text, Title, UnstyledButton } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { GoogleLogin } from "@react-oauth/google";
+import { IconChevronDown, IconLogout, IconSettings, IconStack2, IconSwords } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 
 function initialsFor(displayName?: string, email?: string): string {
@@ -27,68 +15,59 @@ function initialsFor(displayName?: string, email?: string): string {
   return source.slice(0, 2).toUpperCase();
 }
 
+const navItems = [
+  { label: "Collections", to: "/", icon: IconStack2 },
+  { label: "Army Builder", to: "/army-builder", icon: IconSwords },
+];
+
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, loginWithGoogleIdToken, logout } = useAuth();
   const navigate = useNavigate();
-  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
-
-  function handleLogout() {
-    setAnchorEl(null);
-    logout();
-  }
-
-  function handleSettings() {
-    setAnchorEl(null);
-    navigate("/settings");
-  }
+  const location = useLocation();
+  const [navOpened, { toggle: toggleNav }] = useDisclosure();
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-      <AppBar position="static" color="primary" enableColorOnDark>
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            BattleReadyShelf
-          </Typography>
+    <AppShell
+      header={{ height: 60 }}
+      navbar={{ width: 220, breakpoint: "sm", collapsed: { mobile: !navOpened } }}
+      padding="md"
+    >
+      <AppShell.Header>
+        <Group h="100%" px="md" justify="space-between">
+          <Group>
+            <Burger opened={navOpened} onClick={toggleNav} hiddenFrom="sm" size="sm" />
+            <Link to="/" style={{ textDecoration: "none", color: "inherit" }}>
+              <Title order={3}>BattleReadyShelf</Title>
+            </Link>
+          </Group>
           {isAuthenticated ? (
-            <Box>
-              <IconButton
-                onClick={(e) => setAnchorEl(e.currentTarget)}
-                size="small"
-                aria-label="Account menu"
-                aria-controls={anchorEl ? "account-menu" : undefined}
-                aria-haspopup="true"
-              >
-                <Avatar sx={{ width: 32, height: 32 }}>{initialsFor(user?.displayName, user?.email)}</Avatar>
-              </IconButton>
-              <Menu
-                id="account-menu"
-                anchorEl={anchorEl}
-                open={Boolean(anchorEl)}
-                onClose={() => setAnchorEl(null)}
-                anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-                transformOrigin={{ vertical: "top", horizontal: "right" }}
-              >
-                <MenuItem disabled sx={{ opacity: "1 !important" }}>
-                  <Typography variant="body2" color="text.secondary">
+            <Menu shadow="md" width={200} position="bottom-end">
+              <Menu.Target>
+                <UnstyledButton>
+                  <Group gap={7}>
+                    <Avatar radius="xl" size={32}>
+                      {initialsFor(user?.displayName, user?.email)}
+                    </Avatar>
+                    <IconChevronDown size={14} stroke={1.5} />
+                  </Group>
+                </UnstyledButton>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Label>
+                  <Text size="sm" truncate>
                     {user?.displayName || user?.email}
-                  </Typography>
-                </MenuItem>
-                <MenuItem onClick={handleSettings}>
-                  <ListItemIcon>
-                    <SettingsIcon fontSize="small" />
-                  </ListItemIcon>
+                  </Text>
+                </Menu.Label>
+                <Menu.Item leftSection={<IconSettings size={16} />} onClick={() => navigate("/settings")}>
                   Settings
-                </MenuItem>
-                <MenuItem onClick={handleLogout}>
-                  <ListItemIcon>
-                    <LogoutIcon fontSize="small" />
-                  </ListItemIcon>
+                </Menu.Item>
+                <Menu.Item leftSection={<IconLogout size={16} />} onClick={logout}>
                   Log out
-                </MenuItem>
-              </Menu>
-            </Box>
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
           ) : (
-            <Box sx={{ "& > div": { colorScheme: "light" } }}>
+            <div style={{ colorScheme: "light" }}>
               <GoogleLogin
                 onSuccess={(credentialResponse) => {
                   if (credentialResponse.credential) {
@@ -101,13 +80,26 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 size="medium"
                 theme="filled_blue"
               />
-            </Box>
+            </div>
           )}
-        </Toolbar>
-      </AppBar>
-      <Box sx={{ flexGrow: 1, display: "flex" }}>
-        <Container maxWidth="lg">{children}</Container>
-      </Box>
-    </Box>
+        </Group>
+      </AppShell.Header>
+
+      <AppShell.Navbar p="md">
+        {navItems.map((item) => (
+          <NavLink
+            key={item.to}
+            component={Link}
+            to={item.to}
+            label={item.label}
+            leftSection={<item.icon size={18} stroke={1.5} />}
+            active={location.pathname === item.to}
+            onClick={toggleNav}
+          />
+        ))}
+      </AppShell.Navbar>
+
+      <AppShell.Main>{children}</AppShell.Main>
+    </AppShell>
   );
 }
