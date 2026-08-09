@@ -4,7 +4,6 @@ import {
   Group,
   Loader,
   Modal,
-  SimpleGrid,
   Stack,
   Text,
   Textarea,
@@ -18,11 +17,12 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../auth/useAuth";
 import CollectionCard from "../components/CollectionCard";
 import type { ArmyCollection } from "../generated";
-import { createArmyCollection, getArmyCollections } from "../generated";
+import { createArmyCollection, getArmyCollections, getCollectionModels } from "../generated";
 
 export default function CollectionsPage() {
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const [collections, setCollections] = useState<ArmyCollection[]>([]);
+  const [modelCounts, setModelCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [opened, { open, close }] = useDisclosure(false);
   const [name, setName] = useState("");
@@ -32,14 +32,30 @@ export default function CollectionsPage() {
   useEffect(() => {
     if (!isAuthenticated) {
       setCollections([]);
+      setModelCounts({});
       setLoading(false);
       return;
     }
     const ac = new AbortController();
     setLoading(true);
     getArmyCollections({ signal: ac.signal })
-      .then((r) => {
-        if (!ac.signal.aborted && r.data) setCollections(r.data);
+      .then(async (r) => {
+        if (ac.signal.aborted || !r.data) return;
+        setCollections(r.data);
+        const counts = await Promise.all(
+          r.data.map(async (c) => {
+            if (!c.id) return [c.id, 0] as const;
+            try {
+              const models = (await getCollectionModels({ path: { armyCollectionId: c.id }, signal: ac.signal })).data;
+              return [c.id, models?.length ?? 0] as const;
+            } catch {
+              return [c.id, 0] as const;
+            }
+          }),
+        );
+        if (!ac.signal.aborted) {
+          setModelCounts(Object.fromEntries(counts.filter(([id]) => id)) as Record<string, number>);
+        }
       })
       .catch((e) => {
         if (!ac.signal.aborted) setError(String(e));
@@ -98,11 +114,11 @@ export default function CollectionsPage() {
       ) : collections.length === 0 ? (
         <Text c="dimmed">You haven't created any collections yet.</Text>
       ) : (
-        <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
+        <Stack gap="md">
           {collections.map((c) => (
-            <CollectionCard key={c.id} collection={c} />
+            <CollectionCard key={c.id} collection={c} modelCount={c.id ? modelCounts[c.id] : undefined} />
           ))}
-        </SimpleGrid>
+        </Stack>
       )}
 
       <Modal opened={opened} onClose={close} title="Create collection">
