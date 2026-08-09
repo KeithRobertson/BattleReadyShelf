@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
 import { type CurrentUser, fetchCurrentUser, loginWithGoogle } from "./authApi";
 import { getStoredToken, setStoredToken, setUnauthorizedHandler } from "./tokenStorage";
+import { googleLogout } from '@react-oauth/google';
 
 export type AuthContextValue = {
   user: CurrentUser | null;
@@ -47,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setStoredToken(null);
     setUser(null);
+    googleLogout();
   }, []);
 
   const value = useMemo(

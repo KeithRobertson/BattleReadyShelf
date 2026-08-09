@@ -79,6 +79,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 onError={() => console.error("Google login failed")}
                 size="medium"
                 theme="filled_blue"
+                useOneTap
+                auto_select
               />
             </div>
           )}
