@@ -1,5 +1,20 @@
-import { Alert, Anchor, Button, Group, Loader, Select, SimpleGrid, Stack, Text, TextInput, Title } from "@mantine/core";
-import { IconAlertCircle, IconArrowLeft, IconPlus } from "@tabler/icons-react";
+import {
+  Alert,
+  Anchor,
+  Button,
+  Group,
+  Loader,
+  Modal,
+  NumberInput,
+  Select,
+  SimpleGrid,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import { IconAlertCircle, IconArrowLeft, IconPlus, IconTrash } from "@tabler/icons-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -7,11 +22,15 @@ import { useAuth } from "../auth/useAuth";
 import ModelCard from "../components/ModelCard";
 import type { CollectionModel, ModelDefinition } from "../generated";
 import {
+  bulkCreateCollectionModels,
+  bulkDeleteCollectionModels,
   createCollectionModel,
   createCollectionModelImageUploadUrl,
+  deleteCollectionModel,
   deleteCollectionModelImage,
   getCollectionModels,
   getModelDefinitions,
+  updateCollectionModel,
 } from "../generated";
 import { createImageVariants } from "../utils/imageVariants";
 
@@ -24,9 +43,17 @@ export default function CollectionPage() {
   const [modelDefinitionId, setModelDefinitionId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [count, setCount] = useState<number | string>(1);
+  const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadingModelId, setUploadingModelId] = useState<string | null>(null);
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
+  const [renamingModelId, setRenamingModelId] = useState<string | null>(null);
+  const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [selectedModelIds, setSelectedModelIds] = useState<Set<string>>(new Set());
+  const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
+  const [pendingDelete, setPendingDelete] = useState<{ mode: "single" | "bulk"; modelId?: string } | null>(null);
 
   useEffect(() => {
     if (!collectionId || !isAuthenticated) {
@@ -60,21 +87,55 @@ export default function CollectionPage() {
     e.preventDefault();
     if (!collectionId || !modelDefinitionId) return;
     setError(null);
+    setAdding(true);
     try {
-      const created = (
-        await createCollectionModel({
-          path: { armyCollectionId: collectionId },
-          body: { modelDefinitionId, name: name || undefined, description: description || undefined },
-        })
-      ).data;
-      if (!created) {
-        throw new Error("Failed to add model");
+      const requestedCount = typeof count === "number" ? count : Number.parseInt(count, 10) || 1;
+      if (requestedCount > 1) {
+        const created = (
+          await bulkCreateCollectionModels({
+            path: { armyCollectionId: collectionId },
+            body: { modelDefinitionId, count: requestedCount },
+          })
+        ).data;
+        if (!created) {
+          throw new Error("Failed to add models");
+        }
+        setModels((s) => [...created, ...s]);
+      } else {
+        const created = (
+          await createCollectionModel({
+            path: { armyCollectionId: collectionId },
+            body: { modelDefinitionId, name: name || undefined, description: description || undefined },
+          })
+        ).data;
+        if (!created) {
+          throw new Error("Failed to add model");
+        }
+        setModels((s) => [created, ...s]);
       }
-      setModels((s) => [created, ...s]);
       setName("");
       setDescription("");
+      setCount(1);
     } catch (e) {
       setError(String(e));
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleRenameModel(modelId: string, newName: string) {
+    setError(null);
+    setRenamingModelId(modelId);
+    try {
+      const updated = (await updateCollectionModel({ path: { collectionModelId: modelId }, body: { name: newName } }))
+        .data;
+      if (updated) {
+        setModels((s) => s.map((m) => (m.id === modelId ? updated : m)));
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setRenamingModelId(null);
     }
   }
 
@@ -137,6 +198,60 @@ export default function CollectionPage() {
     }
   }
 
+  function toggleSelected(modelId: string, isSelected: boolean) {
+    setSelectedModelIds((s) => {
+      const next = new Set(s);
+      if (isSelected) next.add(modelId);
+      else next.delete(modelId);
+      return next;
+    });
+  }
+
+  function requestDeleteModel(modelId: string) {
+    setPendingDelete({ mode: "single", modelId });
+    openConfirm();
+  }
+
+  function requestBulkDelete() {
+    if (selectedModelIds.size === 0) return;
+    setPendingDelete({ mode: "bulk" });
+    openConfirm();
+  }
+
+  async function handleConfirmDelete() {
+    if (!pendingDelete || !collectionId) return;
+    setError(null);
+    try {
+      if (pendingDelete.mode === "single" && pendingDelete.modelId) {
+        const modelId = pendingDelete.modelId;
+        setDeletingModelId(modelId);
+        await deleteCollectionModel({ path: { collectionModelId: modelId } });
+        setModels((s) => s.filter((m) => m.id !== modelId));
+        setSelectedModelIds((s) => {
+          const next = new Set(s);
+          next.delete(modelId);
+          return next;
+        });
+      } else {
+        setBulkDeleting(true);
+        const idsToDelete = [...selectedModelIds];
+        await bulkDeleteCollectionModels({
+          path: { armyCollectionId: collectionId },
+          body: { collectionModelIds: idsToDelete },
+        });
+        setModels((s) => s.filter((m) => !m.id || !selectedModelIds.has(m.id)));
+        setSelectedModelIds(new Set());
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setDeletingModelId(null);
+      setBulkDeleting(false);
+      setPendingDelete(null);
+      closeConfirm();
+    }
+  }
+
   return (
     <Stack gap="md">
       <Anchor component={Link} to="/" size="sm" display="inline-flex" style={{ alignItems: "center", gap: 4 }}>
@@ -167,52 +282,123 @@ export default function CollectionPage() {
             </Alert>
           ) : (
             <form onSubmit={handleAddModel}>
-              <Group align="flex-end" wrap="wrap">
-                <Select
-                  label="Model type"
-                  data={modelDefinitions.map((md) => ({ value: md.id ?? "", label: md.name ?? "" }))}
-                  value={modelDefinitionId}
-                  onChange={setModelDefinitionId}
-                  required
-                  w={180}
-                />
-                <TextInput
-                  label="Name (optional)"
-                  value={name}
-                  onChange={(e) => setName(e.currentTarget.value)}
-                  w={200}
-                />
-                <TextInput
-                  label="Description (optional)"
-                  value={description}
-                  onChange={(e) => setDescription(e.currentTarget.value)}
-                  w={240}
-                />
-                <Button type="submit" leftSection={<IconPlus size={16} />}>
-                  Add model
-                </Button>
-              </Group>
+              <Stack gap="xs">
+                <Group align="flex-end" wrap="wrap">
+                  <Select
+                    label="Model type"
+                    data={modelDefinitions.map((md) => ({ value: md.id ?? "", label: md.name ?? "" }))}
+                    value={modelDefinitionId}
+                    onChange={setModelDefinitionId}
+                    required
+                    w={180}
+                  />
+                  <NumberInput
+                    label="Count"
+                    value={count}
+                    onChange={setCount}
+                    min={1}
+                    max={500}
+                    w={100}
+                  />
+                  <TextInput
+                    label="Name (optional)"
+                    value={name}
+                    onChange={(e) => setName(e.currentTarget.value)}
+                    disabled={Number(count) > 1}
+                    w={200}
+                  />
+                  <TextInput
+                    label="Description (optional)"
+                    value={description}
+                    onChange={(e) => setDescription(e.currentTarget.value)}
+                    disabled={Number(count) > 1}
+                    w={240}
+                  />
+                  <Button type="submit" leftSection={<IconPlus size={16} />} loading={adding}>
+                    {Number(count) > 1 ? `Add ${count} models` : "Add model"}
+                  </Button>
+                </Group>
+                {Number(count) > 1 && (
+                  <Text size="xs" c="dimmed">
+                    Models added in bulk are created unnamed — name each one individually afterwards.
+                  </Text>
+                )}
+              </Stack>
             </form>
           )}
 
           {models.length === 0 ? (
             <Text c="dimmed">No models added to this collection yet.</Text>
           ) : (
-            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-              {models.map((m) => (
-                <ModelCard
-                  key={m.id}
-                  model={m}
-                  onUploadImage={(file) => m.id && handleUploadImage(m.id, file)}
-                  onDeleteImage={(imageId) => m.id && handleDeleteImage(m.id, imageId)}
-                  isUploading={uploadingModelId === m.id}
-                  deletingImageId={deletingImageId}
-                />
-              ))}
-            </SimpleGrid>
+            <>
+              <Group justify="space-between">
+                <Text size="sm" c="dimmed">
+                  {selectedModelIds.size > 0 ? `${selectedModelIds.size} selected` : "Select models to bulk delete"}
+                </Text>
+                <Button
+                  color="red"
+                  variant="light"
+                  size="xs"
+                  leftSection={<IconTrash size={14} />}
+                  onClick={requestBulkDelete}
+                  disabled={selectedModelIds.size === 0}
+                >
+                  Delete selected
+                </Button>
+              </Group>
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+                {models.map((m) => (
+                  <ModelCard
+                    key={m.id}
+                    model={m}
+                    onUploadImage={(file) => m.id && handleUploadImage(m.id, file)}
+                    onDeleteImage={(imageId) => m.id && handleDeleteImage(m.id, imageId)}
+                    onRename={(newName) => m.id && handleRenameModel(m.id, newName)}
+                    onDeleteModel={() => m.id && requestDeleteModel(m.id)}
+                    isUploading={uploadingModelId === m.id}
+                    deletingImageId={deletingImageId}
+                    isRenaming={renamingModelId === m.id}
+                    isDeleting={deletingModelId === m.id}
+                    selected={!!m.id && selectedModelIds.has(m.id)}
+                    onToggleSelected={(isSelected) => m.id && toggleSelected(m.id, isSelected)}
+                  />
+                ))}
+              </SimpleGrid>
+            </>
           )}
         </>
       )}
+
+      <Modal
+        opened={confirmOpened}
+        onClose={() => {
+          setPendingDelete(null);
+          closeConfirm();
+        }}
+        title={pendingDelete?.mode === "bulk" ? "Delete selected models?" : "Delete model?"}
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            {pendingDelete?.mode === "bulk"
+              ? `This will permanently delete ${selectedModelIds.size} model(s) and their images. This cannot be undone.`
+              : "This will permanently delete this model and its images. This cannot be undone."}
+          </Text>
+          <Group justify="flex-end">
+            <Button
+              variant="default"
+              onClick={() => {
+                setPendingDelete(null);
+                closeConfirm();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button color="red" onClick={handleConfirmDelete} loading={bulkDeleting || deletingModelId !== null}>
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

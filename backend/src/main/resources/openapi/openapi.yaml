@@ -280,6 +280,127 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /api/v1/army-collections/{armyCollectionId}/models/bulk:
+    post:
+      tags: [ "CollectionModels" ]
+      summary: Add many models of a single model definition to an army collection at once
+      operationId: bulkCreateCollectionModels
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: armyCollectionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkCreateCollectionModelsRequest'
+      responses:
+        '201':
+          description: The created collection models (unnamed; name them individually afterwards)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CollectionModel'
+        '404':
+          description: Army collection or model definition not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/collection-models/{collectionModelId}:
+    patch:
+      tags: [ "CollectionModels" ]
+      summary: Rename/update a collection model
+      operationId: updateCollectionModel
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: collectionModelId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCollectionModelRequest'
+      responses:
+        '200':
+          description: The updated collection model
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionModel'
+        '404':
+          description: Collection model not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    delete:
+      tags: [ "CollectionModels" ]
+      summary: Delete a collection model (and its images)
+      operationId: deleteCollectionModel
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: collectionModelId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The collection model was deleted
+        '404':
+          description: Collection model not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/army-collections/{armyCollectionId}/models/bulk-delete:
+    post:
+      tags: [ "CollectionModels" ]
+      summary: Delete many collection models (and their images) at once
+      operationId: bulkDeleteCollectionModels
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: armyCollectionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkDeleteCollectionModelsRequest'
+      responses:
+        '204':
+          description: >-
+            The collection models that exist and belong to this army collection were deleted;
+            others were silently skipped.
+        '404':
+          description: Army collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/collection-models/{collectionModelId}/images:
     post:
       tags: [ "CollectionModelImages" ]
@@ -486,6 +607,35 @@ components:
           items:
             $ref: '#/components/schemas/CollectionModelImage'
       required: [ modelDefinitionId ]
+    BulkCreateCollectionModelsRequest:
+      type: object
+      properties:
+        modelDefinitionId:
+          type: string
+          format: uuid
+        count:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 500
+      required: [ modelDefinitionId, count ]
+    BulkDeleteCollectionModelsRequest:
+      type: object
+      properties:
+        collectionModelIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+      required: [ collectionModelIds ]
+    UpdateCollectionModelRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
     GoogleAuthRequest:
       type: object
       properties:

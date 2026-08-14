@@ -202,4 +202,319 @@ class CollectionModelsServiceTest {
                                         userId, armyCollectionId, collectionModel))
                 .isInstanceOf(NotFoundException.class);
     }
+
+    @Test
+    void bulkCreateCollectionModels_persistsRequestedCountOfUnnamedModels() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var poxwalkerId = UUID.randomUUID();
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(modelDefinitionRepository.findById(poxwalkerId))
+                .thenReturn(
+                        Optional.of(
+                                ModelDefinitionEntity.builder()
+                                        .id(poxwalkerId)
+                                        .name("Poxwalker")
+                                        .build()));
+        when(collectionModelRepository.saveAll(any()))
+                .thenAnswer(
+                        invocation -> {
+                            List<CollectionModelEntity> entities = invocation.getArgument(0);
+                            entities.forEach(e -> e.setId(UUID.randomUUID()));
+                            return entities;
+                        });
+
+        var createdCollectionModels =
+                collectionModelsService.bulkCreateCollectionModels(
+                        userId, armyCollectionId, poxwalkerId, 60);
+
+        assertThat(createdCollectionModels).hasSize(60);
+        assertThat(createdCollectionModels)
+                .allSatisfy(
+                        model -> {
+                            assertThat(model.getId()).isNotNull();
+                            assertThat(model.getModelDefinitionId()).isEqualTo(poxwalkerId);
+                            assertThat(model.getName()).isNull();
+                        });
+    }
+
+    @Test
+    void bulkCreateCollectionModels_throwsNotFound_whenArmyCollectionNotOwnedByUser() {
+        var userId = UUID.randomUUID();
+        var otherUserId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var poxwalkerId = UUID.randomUUID();
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(otherUserId)
+                                        .name("Someone else's collection")
+                                        .build()));
+
+        assertThatThrownBy(
+                        () ->
+                                collectionModelsService.bulkCreateCollectionModels(
+                                        userId, armyCollectionId, poxwalkerId, 10))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void bulkCreateCollectionModels_throwsNotFound_whenModelDefinitionDoesNotExist() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var unknownModelDefinitionId = UUID.randomUUID();
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(modelDefinitionRepository.findById(unknownModelDefinitionId))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(
+                        () ->
+                                collectionModelsService.bulkCreateCollectionModels(
+                                        userId, armyCollectionId, unknownModelDefinitionId, 10))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void updateCollectionModel_updatesNameAndDescription_whenModelIsOwned() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var poxwalkerId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .modelDefinition(
+                                                ModelDefinitionEntity.builder()
+                                                        .id(poxwalkerId)
+                                                        .name("Poxwalker")
+                                                        .build())
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelRepository.save(any(CollectionModelEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var updated =
+                collectionModelsService.updateCollectionModel(
+                        userId, collectionModelId, "Poxwalker #1", "Front rank");
+
+        assertThat(updated.getName()).isEqualTo("Poxwalker #1");
+        assertThat(updated.getDescription()).isEqualTo("Front rank");
+    }
+
+    @Test
+    void updateCollectionModel_leavesFieldUnchanged_whenNotProvided() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var poxwalkerId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .modelDefinition(
+                                                ModelDefinitionEntity.builder()
+                                                        .id(poxwalkerId)
+                                                        .name("Poxwalker")
+                                                        .build())
+                                        .description("Original description")
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelRepository.save(any(CollectionModelEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var updated =
+                collectionModelsService.updateCollectionModel(
+                        userId, collectionModelId, "Poxwalker #1", null);
+
+        assertThat(updated.getName()).isEqualTo("Poxwalker #1");
+        assertThat(updated.getDescription()).isEqualTo("Original description");
+    }
+
+    @Test
+    void updateCollectionModel_throwsNotFound_whenModelNotOwnedByUser() {
+        var userId = UUID.randomUUID();
+        var otherUserId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(otherUserId)
+                                        .name("Someone else's collection")
+                                        .build()));
+
+        assertThatThrownBy(
+                        () ->
+                                collectionModelsService.updateCollectionModel(
+                                        userId, collectionModelId, "New name", null))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void deleteCollectionModel_deletesModelAndCleansUpImages_whenModelIsOwned() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var imageId = UUID.randomUUID();
+        var collectionModel =
+                CollectionModelEntity.builder()
+                        .id(collectionModelId)
+                        .armyCollectionId(armyCollectionId)
+                        .build();
+        var image =
+                CollectionModelImageEntity.builder()
+                        .id(imageId)
+                        .collectionModelId(collectionModelId)
+                        .original(ImageVariant.builder().storageKey("original-key").build())
+                        .large(ImageVariant.builder().storageKey("large-key").build())
+                        .thumbnail(ImageVariant.builder().storageKey("thumbnail-key").build())
+                        .build();
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(Optional.of(collectionModel));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelImageRepository.findAllByCollectionModelId(collectionModelId))
+                .thenReturn(List.of(image));
+
+        collectionModelsService.deleteCollectionModel(userId, collectionModelId);
+
+        verify(presignedUrlService).deleteObject("original-key");
+        verify(presignedUrlService).deleteObject("large-key");
+        verify(presignedUrlService).deleteObject("thumbnail-key");
+        verify(collectionModelImageRepository).deleteAll(List.of(image));
+        verify(collectionModelRepository).delete(collectionModel);
+    }
+
+    @Test
+    void deleteCollectionModel_throwsNotFound_whenModelNotOwnedByUser() {
+        var userId = UUID.randomUUID();
+        var otherUserId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(otherUserId)
+                                        .name("Someone else's collection")
+                                        .build()));
+
+        assertThatThrownBy(
+                        () -> collectionModelsService.deleteCollectionModel(userId, collectionModelId))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void bulkDeleteCollectionModels_deletesOnlyModelsBelongingToArmyCollection() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var ownedModelId = UUID.randomUUID();
+        var otherArmyCollectionModelId = UUID.randomUUID();
+        var ownedModel =
+                CollectionModelEntity.builder()
+                        .id(ownedModelId)
+                        .armyCollectionId(armyCollectionId)
+                        .build();
+        var otherModel =
+                CollectionModelEntity.builder()
+                        .id(otherArmyCollectionModelId)
+                        .armyCollectionId(UUID.randomUUID())
+                        .build();
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelRepository.findAllById(
+                        List.of(ownedModelId, otherArmyCollectionModelId)))
+                .thenReturn(List.of(ownedModel, otherModel));
+
+        collectionModelsService.bulkDeleteCollectionModels(
+                userId, armyCollectionId, List.of(ownedModelId, otherArmyCollectionModelId));
+
+        verify(collectionModelRepository).delete(ownedModel);
+        verify(collectionModelRepository, org.mockito.Mockito.never()).delete(otherModel);
+    }
+
+    @Test
+    void bulkDeleteCollectionModels_throwsNotFound_whenArmyCollectionNotOwnedByUser() {
+        var userId = UUID.randomUUID();
+        var otherUserId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(otherUserId)
+                                        .name("Someone else's collection")
+                                        .build()));
+
+        assertThatThrownBy(
+                        () ->
+                                collectionModelsService.bulkDeleteCollectionModels(
+                                        userId, armyCollectionId, List.of(UUID.randomUUID())))
+                .isInstanceOf(NotFoundException.class);
+    }
 }

@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
@@ -53,6 +54,95 @@ public class CollectionModelsService {
                                 armyCollectionId, modelDefinition, collectionModel));
 
         return toDtoWithImages(savedCollectionModel);
+    }
+
+    /**
+     * Creates {@code count} unnamed collection models of the given model definition in one go
+     * (e.g. adding 60 Poxwalkers at once) so they can be individually named afterwards.
+     */
+    public List<CollectionModel> bulkCreateCollectionModels(
+            UUID userId, UUID armyCollectionId, UUID modelDefinitionId, int count) {
+        requireOwnedArmyCollection(userId, armyCollectionId);
+
+        var modelDefinition =
+                modelDefinitionRepository
+                        .findById(modelDefinitionId)
+                        .orElseThrow(
+                                () ->
+                                        new NotFoundException(
+                                                "Model definition not found: "
+                                                        + modelDefinitionId));
+
+        var newEntities =
+                IntStream.range(0, count)
+                        .mapToObj(
+                                i ->
+                                        CollectionModelEntity.builder()
+                                                .armyCollectionId(armyCollectionId)
+                                                .modelDefinition(modelDefinition)
+                                                .build())
+                        .toList();
+
+        return collectionModelRepository.saveAll(newEntities).stream()
+                .map(this::toDtoWithImages)
+                .toList();
+    }
+
+    /** Renames/updates the name and/or description of an existing collection model. */
+    public CollectionModel updateCollectionModel(
+            UUID userId, UUID collectionModelId, String name, String description) {
+        var collectionModel = requireOwnedCollectionModel(userId, collectionModelId);
+
+        if (name != null) {
+            collectionModel.setName(name);
+        }
+        if (description != null) {
+            collectionModel.setDescription(description);
+        }
+
+        return toDtoWithImages(collectionModelRepository.save(collectionModel));
+    }
+
+    /**
+     * Deletes a collection model along with its images (both the R2 objects and the DB rows;
+     * the DB rows would also cascade-delete on their own, but the R2 objects need explicit
+     * cleanup since Postgres cascades don't reach out-of-database storage).
+     */
+    public void deleteCollectionModel(UUID userId, UUID collectionModelId) {
+        var collectionModel = requireOwnedCollectionModel(userId, collectionModelId);
+        deleteImagesAndModel(collectionModel);
+    }
+
+    /**
+     * Deletes multiple collection models (and their images) at once. Ids that don't exist or
+     * don't belong to this army collection are silently skipped rather than failing the whole
+     * batch.
+     */
+    public void bulkDeleteCollectionModels(
+            UUID userId, UUID armyCollectionId, List<UUID> collectionModelIds) {
+        requireOwnedArmyCollection(userId, armyCollectionId);
+
+        collectionModelRepository.findAllById(collectionModelIds.stream().distinct().toList()).stream()
+                .filter(model -> model.getArmyCollectionId().equals(armyCollectionId))
+                .forEach(this::deleteImagesAndModel);
+    }
+
+    private void deleteImagesAndModel(CollectionModelEntity collectionModel) {
+        var images = collectionModelImageRepository.findAllByCollectionModelId(collectionModel.getId());
+        images.forEach(
+                image -> {
+                    deleteVariantIfPresent(image.getOriginal());
+                    deleteVariantIfPresent(image.getLarge());
+                    deleteVariantIfPresent(image.getThumbnail());
+                });
+        collectionModelImageRepository.deleteAll(images);
+        collectionModelRepository.delete(collectionModel);
+    }
+
+    private void deleteVariantIfPresent(ImageVariant variant) {
+        if (variant != null && variant.getStorageKey() != null) {
+            presignedUrlService.deleteObject(variant.getStorageKey());
+        }
     }
 
     /**
