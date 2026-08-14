@@ -321,10 +321,41 @@ class CollectionModelsServiceTest {
 
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, "Poxwalker #1", "Front rank");
+                        userId, collectionModelId, "Poxwalker #1", "Front rank", null);
 
         assertThat(updated.getName()).isEqualTo("Poxwalker #1");
         assertThat(updated.getDescription()).isEqualTo("Front rank");
+    }
+
+    @Test
+    void updateCollectionModel_updatesFinishedOn_whenModelIsOwned() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelRepository.save(any(CollectionModelEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var finishedOn = java.time.LocalDate.of(2025, 6, 1);
+        var updated =
+                collectionModelsService.updateCollectionModel(
+                        userId, collectionModelId, null, null, finishedOn);
+
+        assertThat(updated.getFinishedOn()).isEqualTo(finishedOn);
     }
 
     @Test
@@ -359,7 +390,7 @@ class CollectionModelsServiceTest {
 
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, "Poxwalker #1", null);
+                        userId, collectionModelId, "Poxwalker #1", null, null);
 
         assertThat(updated.getName()).isEqualTo("Poxwalker #1");
         assertThat(updated.getDescription()).isEqualTo("Original description");
@@ -390,7 +421,7 @@ class CollectionModelsServiceTest {
         assertThatThrownBy(
                         () ->
                                 collectionModelsService.updateCollectionModel(
-                                        userId, collectionModelId, "New name", null))
+                                        userId, collectionModelId, "New name", null, null))
                 .isInstanceOf(NotFoundException.class);
     }
 

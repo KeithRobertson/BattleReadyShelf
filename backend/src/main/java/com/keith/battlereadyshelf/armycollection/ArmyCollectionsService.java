@@ -1,5 +1,6 @@
 package com.keith.battlereadyshelf.armycollection;
 
+import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.ArmyCollection;
 
 import lombok.RequiredArgsConstructor;
@@ -27,5 +28,40 @@ public class ArmyCollectionsService {
                         armyCollectionMapper.toEntity(userId, armyCollection));
 
         return armyCollectionMapper.toDto(savedArmyCollection);
+    }
+
+    public ArmyCollection getArmyCollection(UUID userId, UUID armyCollectionId) {
+        return armyCollectionMapper.toDto(requireOwnedArmyCollection(userId, armyCollectionId));
+    }
+
+    /** Renames/updates the name and/or description of an existing army collection. */
+    public ArmyCollection updateArmyCollection(
+            UUID userId, UUID armyCollectionId, String name, String description) {
+        var armyCollection = requireOwnedArmyCollection(userId, armyCollectionId);
+
+        if (name != null) {
+            armyCollection.setName(name);
+        }
+        if (description != null) {
+            armyCollection.setDescription(description);
+        }
+
+        return armyCollectionMapper.toDto(armyCollectionRepository.save(armyCollection));
+    }
+
+    private ArmyCollectionEntity requireOwnedArmyCollection(UUID userId, UUID armyCollectionId) {
+        var armyCollection =
+                armyCollectionRepository
+                        .findById(armyCollectionId)
+                        .orElseThrow(
+                                () ->
+                                        new NotFoundException(
+                                                "Army collection not found: " + armyCollectionId));
+
+        if (!armyCollection.getUserId().equals(userId)) {
+            throw new NotFoundException("Army collection not found: " + armyCollectionId);
+        }
+
+        return armyCollection;
     }
 }

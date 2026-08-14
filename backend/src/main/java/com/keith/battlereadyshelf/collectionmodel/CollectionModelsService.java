@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.IntStream;
@@ -88,9 +89,9 @@ public class CollectionModelsService {
                 .toList();
     }
 
-    /** Renames/updates the name and/or description of an existing collection model. */
+    /** Renames/updates the name, description, and/or finished-on date of an existing collection model. */
     public CollectionModel updateCollectionModel(
-            UUID userId, UUID collectionModelId, String name, String description) {
+            UUID userId, UUID collectionModelId, String name, String description, LocalDate finishedOn) {
         var collectionModel = requireOwnedCollectionModel(userId, collectionModelId);
 
         if (name != null) {
@@ -98,6 +99,9 @@ public class CollectionModelsService {
         }
         if (description != null) {
             collectionModel.setDescription(description);
+        }
+        if (finishedOn != null) {
+            collectionModel.setFinishedOn(finishedOn);
         }
 
         return toDtoWithImages(collectionModelRepository.save(collectionModel));

@@ -205,6 +205,65 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArmyCollection'
+  /api/v1/army-collections/{armyCollectionId}:
+    get:
+      tags: [ "ArmyCollections" ]
+      summary: Get a single army collection
+      operationId: getArmyCollection
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: armyCollectionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The army collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArmyCollection'
+        '404':
+          description: Army collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    patch:
+      tags: [ "ArmyCollections" ]
+      summary: Rename/update an army collection
+      operationId: updateArmyCollection
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: armyCollectionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateArmyCollectionRequest'
+      responses:
+        '200':
+          description: The updated army collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArmyCollection'
+        '404':
+          description: Army collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/model-definitions:
     get:
       tags: [ "ModelDefinitions" ]
@@ -494,6 +553,13 @@ components:
         description:
           type: string
       required: [ name ]
+    UpdateArmyCollectionRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
     ModelDefinition:
       type: object
       properties:
@@ -601,6 +667,10 @@ components:
           type: string
         description:
           type: string
+        finishedOn:
+          type: string
+          format: date
+          description: The date the model was finished being painted, if known.
         images:
           readOnly: true
           type: array
@@ -636,6 +706,9 @@ components:
           type: string
         description:
           type: string
+        finishedOn:
+          type: string
+          format: date
     GoogleAuthRequest:
       type: object
       properties:

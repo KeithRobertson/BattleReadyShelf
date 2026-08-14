@@ -19,6 +19,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.UUID;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "collection_models")
@@ -41,4 +42,7 @@ public class CollectionModelEntity {
     @Column private String name;
 
     @Column private String description;
+
+    @Column(name = "finished_on")
+    private LocalDate finishedOn;
 }
