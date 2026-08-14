@@ -59,6 +59,10 @@ export default function ModelCard({
   const images = model.images ?? [];
   const visibleImages = images.slice(0, MAX_VISIBLE_THUMBNAILS);
   const hiddenImageCount = images.length - visibleImages.length;
+  const imageGridSpacing = 4;
+  const imageGridCols = visibleImages.length <= 1 ? 1 : 2;
+  const imageGridRows = Math.ceil(visibleImages.length / imageGridCols) || 1;
+  const imageCellHeight = (100 - imageGridSpacing * (imageGridRows - 1)) / imageGridRows;
   const displayName = model.name?.trim();
   const description = model.description?.trim();
   const [isEditingName, setIsEditingName] = useState(false);
@@ -174,12 +178,19 @@ export default function ModelCard({
         <Group align="flex-start" wrap="nowrap" gap="sm">
           <div style={{ width: 100, flexShrink: 0 }}>
             {images.length > 0 ? (
-              <SimpleGrid cols={2} spacing={4}>
+              <SimpleGrid cols={imageGridCols} spacing={imageGridSpacing}>
                 {visibleImages.map((img, index) => {
                   const isLastVisible = index === visibleImages.length - 1;
                   return (
                     <div key={img.id} style={{ position: "relative" }}>
-                      <Image src={img.thumbnailUrl} alt={displayName || "Model image"} radius="sm" h={48} fit="cover" />
+                      <Image
+                        src={img.thumbnailUrl}
+                        alt={displayName || "Model image"}
+                        radius="sm"
+                        h={imageCellHeight}
+                        w="100%"
+                        fit="cover"
+                      />
                       {isLastVisible && hiddenImageCount > 0 && (
                         <div
                           style={{
