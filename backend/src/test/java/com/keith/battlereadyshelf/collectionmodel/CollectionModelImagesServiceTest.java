@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.keith.battlereadyshelf.armycollection.ArmyCollectionEntity;
 import com.keith.battlereadyshelf.armycollection.ArmyCollectionRepository;
+import com.keith.battlereadyshelf.collectionmodel.CollectionModelImagesService.VariantUploadRequest;
 import com.keith.battlereadyshelf.error.ApiException;
 import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionMapperImpl;
@@ -31,6 +32,9 @@ import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
 class CollectionModelImagesServiceTest {
+    private static final VariantUploadRequest DEFAULT_VARIANT_REQUEST =
+            new VariantUploadRequest("image/jpeg", 1024L);
+
     @Mock private CollectionModelRepository collectionModelRepository;
     @Mock private ArmyCollectionRepository armyCollectionRepository;
     @Mock private ModelDefinitionRepository modelDefinitionRepository;
@@ -67,14 +71,7 @@ class CollectionModelImagesServiceTest {
                         presignedUrlService);
     }
 
-    @Test
-    void createUploadUrl_persistsImageAndReturnsPresignedUrl_whenCollectionModelIsOwned() {
-        var userId = UUID.randomUUID();
-        var armyCollectionId = UUID.randomUUID();
-        var collectionModelId = UUID.randomUUID();
-        var createdImageId = UUID.randomUUID();
-        var expectedUploadUrl = URI.create("https://example-r2-endpoint/upload");
-
+    private void stubOwnedCollectionModel(UUID userId, UUID armyCollectionId, UUID collectionModelId) {
         when(collectionModelRepository.findById(collectionModelId))
                 .thenReturn(
                         Optional.of(
@@ -90,6 +87,17 @@ class CollectionModelImagesServiceTest {
                                         .userId(userId)
                                         .name("Starter Collection")
                                         .build()));
+    }
+
+    @Test
+    void createUploadUrl_persistsImageAndReturnsPresignedUrls_whenCollectionModelIsOwned() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var createdImageId = UUID.randomUUID();
+        var expectedUploadUrl = URI.create("https://example-r2-endpoint/upload");
+
+        stubOwnedCollectionModel(userId, armyCollectionId, collectionModelId);
         when(collectionModelImageRepository.save(any(CollectionModelImageEntity.class)))
                 .thenAnswer(
                         invocation -> {
@@ -104,21 +112,36 @@ class CollectionModelImagesServiceTest {
 
         var result =
                 collectionModelImagesService.createUploadUrl(
-                        userId, collectionModelId, "image/jpeg", 1024L);
+                        userId,
+                        collectionModelId,
+                        DEFAULT_VARIANT_REQUEST,
+                        DEFAULT_VARIANT_REQUEST,
+                        DEFAULT_VARIANT_REQUEST);
 
         verify(collectionModelImageRepository).save(collectionModelImageEntityCaptor.capture());
         var savedEntity = collectionModelImageEntityCaptor.getValue();
         assertThat(savedEntity.getCollectionModelId()).isEqualTo(collectionModelId);
-        assertThat(savedEntity.getContentType()).isEqualTo("image/jpeg");
-        assertThat(savedEntity.getSizeBytes()).isEqualTo(1024L);
-        assertThat(savedEntity.getStorageKey())
-                .startsWith("keith/users/" + userId + "/models/" + collectionModelId + "/")
-                .endsWith(".jpg");
+        assertThat(savedEntity.getOriginal().getContentType()).isEqualTo("image/jpeg");
+        assertThat(savedEntity.getOriginal().getSizeBytes()).isEqualTo(1024L);
+        var expectedKeyPrefix = "keith/users/" + userId + "/models/" + collectionModelId + "/";
+        assertThat(savedEntity.getOriginal().getStorageKey())
+                .startsWith(expectedKeyPrefix)
+                .endsWith("/original.jpg");
+        assertThat(savedEntity.getLarge().getStorageKey())
+                .startsWith(expectedKeyPrefix)
+                .endsWith("/large.jpg");
+        assertThat(savedEntity.getThumbnail().getStorageKey())
+                .startsWith(expectedKeyPrefix)
+                .endsWith("/thumbnail.jpg");
 
         assertThat(result.image().getId()).isEqualTo(createdImageId);
         assertThat(result.image().getContentType()).isEqualTo("image/jpeg");
-        assertThat(result.image().getUrl()).isEqualTo(expectedDownloadUrl);
-        assertThat(result.uploadUrl()).isEqualTo(expectedUploadUrl);
+        assertThat(result.image().getOriginalUrl()).isEqualTo(expectedDownloadUrl);
+        assertThat(result.image().getLargeUrl()).isEqualTo(expectedDownloadUrl);
+        assertThat(result.image().getThumbnailUrl()).isEqualTo(expectedDownloadUrl);
+        assertThat(result.uploadUrls().original()).isEqualTo(expectedUploadUrl);
+        assertThat(result.uploadUrls().large()).isEqualTo(expectedUploadUrl);
+        assertThat(result.uploadUrls().thumbnail()).isEqualTo(expectedUploadUrl);
     }
 
     @Test
@@ -128,26 +151,16 @@ class CollectionModelImagesServiceTest {
         var armyCollectionId = UUID.randomUUID();
         var collectionModelId = UUID.randomUUID();
 
-        when(collectionModelRepository.findById(collectionModelId))
-                .thenReturn(
-                        Optional.of(
-                                CollectionModelEntity.builder()
-                                        .id(collectionModelId)
-                                        .armyCollectionId(armyCollectionId)
-                                        .build()));
-        when(armyCollectionRepository.findById(armyCollectionId))
-                .thenReturn(
-                        Optional.of(
-                                ArmyCollectionEntity.builder()
-                                        .id(armyCollectionId)
-                                        .userId(otherUserId)
-                                        .name("Someone else's collection")
-                                        .build()));
+        stubOwnedCollectionModel(otherUserId, armyCollectionId, collectionModelId);
 
         assertThatThrownBy(
                         () ->
                                 collectionModelImagesService.createUploadUrl(
-                                        userId, collectionModelId, "image/jpeg", 1024L))
+                                        userId,
+                                        collectionModelId,
+                                        DEFAULT_VARIANT_REQUEST,
+                                        DEFAULT_VARIANT_REQUEST,
+                                        DEFAULT_VARIANT_REQUEST))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -157,29 +170,18 @@ class CollectionModelImagesServiceTest {
         var armyCollectionId = UUID.randomUUID();
         var collectionModelId = UUID.randomUUID();
 
-        when(collectionModelRepository.findById(collectionModelId))
-                .thenReturn(
-                        Optional.of(
-                                CollectionModelEntity.builder()
-                                        .id(collectionModelId)
-                                        .armyCollectionId(armyCollectionId)
-                                        .build()));
-        when(armyCollectionRepository.findById(armyCollectionId))
-                .thenReturn(
-                        Optional.of(
-                                ArmyCollectionEntity.builder()
-                                        .id(armyCollectionId)
-                                        .userId(userId)
-                                        .name("Starter Collection")
-                                        .build()));
+        stubOwnedCollectionModel(userId, armyCollectionId, collectionModelId);
+
+        var unsupportedVariant = new VariantUploadRequest("application/pdf", 1024L);
 
         assertThatThrownBy(
                         () ->
                                 collectionModelImagesService.createUploadUrl(
                                         userId,
                                         collectionModelId,
-                                        "application/pdf",
-                                        1024L))
+                                        unsupportedVariant,
+                                        DEFAULT_VARIANT_REQUEST,
+                                        DEFAULT_VARIANT_REQUEST))
                 .isInstanceOf(ApiException.class);
     }
 
@@ -189,28 +191,19 @@ class CollectionModelImagesServiceTest {
         var armyCollectionId = UUID.randomUUID();
         var collectionModelId = UUID.randomUUID();
 
-        when(collectionModelRepository.findById(collectionModelId))
-                .thenReturn(
-                        Optional.of(
-                                CollectionModelEntity.builder()
-                                        .id(collectionModelId)
-                                        .armyCollectionId(armyCollectionId)
-                                        .build()));
-        when(armyCollectionRepository.findById(armyCollectionId))
-                .thenReturn(
-                        Optional.of(
-                                ArmyCollectionEntity.builder()
-                                        .id(armyCollectionId)
-                                        .userId(userId)
-                                        .name("Starter Collection")
-                                        .build()));
+        stubOwnedCollectionModel(userId, armyCollectionId, collectionModelId);
 
         var tooManyBytes = 11L * 1024 * 1024;
+        var tooLargeVariant = new VariantUploadRequest("image/jpeg", tooManyBytes);
 
         assertThatThrownBy(
                         () ->
                                 collectionModelImagesService.createUploadUrl(
-                                        userId, collectionModelId, "image/jpeg", tooManyBytes))
+                                        userId,
+                                        collectionModelId,
+                                        tooLargeVariant,
+                                        DEFAULT_VARIANT_REQUEST,
+                                        DEFAULT_VARIANT_REQUEST))
                 .isInstanceOf(ApiException.class);
     }
 
@@ -220,21 +213,7 @@ class CollectionModelImagesServiceTest {
         var armyCollectionId = UUID.randomUUID();
         var collectionModelId = UUID.randomUUID();
 
-        when(collectionModelRepository.findById(collectionModelId))
-                .thenReturn(
-                        Optional.of(
-                                CollectionModelEntity.builder()
-                                        .id(collectionModelId)
-                                        .armyCollectionId(armyCollectionId)
-                                        .build()));
-        when(armyCollectionRepository.findById(armyCollectionId))
-                .thenReturn(
-                        Optional.of(
-                                ArmyCollectionEntity.builder()
-                                        .id(armyCollectionId)
-                                        .userId(userId)
-                                        .name("Starter Collection")
-                                        .build()));
+        stubOwnedCollectionModel(userId, armyCollectionId, collectionModelId);
 
         var disabledStorageProperties =
                 new StorageProperties("battlereadyshelf-dev", "keith", false, 10);
@@ -250,7 +229,11 @@ class CollectionModelImagesServiceTest {
         assertThatThrownBy(
                         () ->
                                 serviceWithDisabledUploads.createUploadUrl(
-                                        userId, collectionModelId, "image/jpeg", 1024L))
+                                        userId,
+                                        collectionModelId,
+                                        DEFAULT_VARIANT_REQUEST,
+                                        DEFAULT_VARIANT_REQUEST,
+                                        DEFAULT_VARIANT_REQUEST))
                 .isInstanceOf(ApiException.class);
     }
 
@@ -261,33 +244,36 @@ class CollectionModelImagesServiceTest {
         var collectionModelId = UUID.randomUUID();
         var imageId = UUID.randomUUID();
 
-        when(collectionModelRepository.findById(collectionModelId))
-                .thenReturn(
-                        Optional.of(
-                                CollectionModelEntity.builder()
-                                        .id(collectionModelId)
-                                        .armyCollectionId(armyCollectionId)
-                                        .build()));
-        when(armyCollectionRepository.findById(armyCollectionId))
-                .thenReturn(
-                        Optional.of(
-                                ArmyCollectionEntity.builder()
-                                        .id(armyCollectionId)
-                                        .userId(userId)
-                                        .name("Starter Collection")
-                                        .build()));
+        stubOwnedCollectionModel(userId, armyCollectionId, collectionModelId);
+        var keyPrefix =
+                "keith/users/" + userId + "/models/" + collectionModelId + "/" + imageId + "/";
         var imageEntity =
                 CollectionModelImageEntity.builder()
                         .id(imageId)
                         .collectionModelId(collectionModelId)
-                        .storageKey("keith/users/" + userId + "/models/" + collectionModelId + "/" + imageId + ".jpg")
-                        .contentType("image/jpeg")
+                        .original(
+                                ImageVariant.builder()
+                                        .storageKey(keyPrefix + "original.jpg")
+                                        .contentType("image/jpeg")
+                                        .build())
+                        .large(
+                                ImageVariant.builder()
+                                        .storageKey(keyPrefix + "large.jpg")
+                                        .contentType("image/jpeg")
+                                        .build())
+                        .thumbnail(
+                                ImageVariant.builder()
+                                        .storageKey(keyPrefix + "thumbnail.jpg")
+                                        .contentType("image/jpeg")
+                                        .build())
                         .build();
         when(collectionModelImageRepository.findById(imageId)).thenReturn(Optional.of(imageEntity));
 
         collectionModelImagesService.deleteImage(userId, collectionModelId, imageId);
 
-        verify(presignedUrlService).deleteObject(imageEntity.getStorageKey());
+        verify(presignedUrlService).deleteObject(imageEntity.getOriginal().getStorageKey());
+        verify(presignedUrlService).deleteObject(imageEntity.getLarge().getStorageKey());
+        verify(presignedUrlService).deleteObject(imageEntity.getThumbnail().getStorageKey());
         verify(collectionModelImageRepository).delete(imageEntity);
     }
 
@@ -299,29 +285,18 @@ class CollectionModelImagesServiceTest {
         var otherCollectionModelId = UUID.randomUUID();
         var imageId = UUID.randomUUID();
 
-        when(collectionModelRepository.findById(collectionModelId))
-                .thenReturn(
-                        Optional.of(
-                                CollectionModelEntity.builder()
-                                        .id(collectionModelId)
-                                        .armyCollectionId(armyCollectionId)
-                                        .build()));
-        when(armyCollectionRepository.findById(armyCollectionId))
-                .thenReturn(
-                        Optional.of(
-                                ArmyCollectionEntity.builder()
-                                        .id(armyCollectionId)
-                                        .userId(userId)
-                                        .name("Starter Collection")
-                                        .build()));
+        stubOwnedCollectionModel(userId, armyCollectionId, collectionModelId);
         when(collectionModelImageRepository.findById(imageId))
                 .thenReturn(
                         Optional.of(
                                 CollectionModelImageEntity.builder()
                                         .id(imageId)
                                         .collectionModelId(otherCollectionModelId)
-                                        .storageKey("some/other/key.jpg")
-                                        .contentType("image/jpeg")
+                                        .original(
+                                                ImageVariant.builder()
+                                                        .storageKey("some/other/original.jpg")
+                                                        .contentType("image/jpeg")
+                                                        .build())
                                         .build()));
 
         assertThatThrownBy(
@@ -337,21 +312,7 @@ class CollectionModelImagesServiceTest {
         var collectionModelId = UUID.randomUUID();
         var imageId = UUID.randomUUID();
 
-        when(collectionModelRepository.findById(collectionModelId))
-                .thenReturn(
-                        Optional.of(
-                                CollectionModelEntity.builder()
-                                        .id(collectionModelId)
-                                        .armyCollectionId(armyCollectionId)
-                                        .build()));
-        when(armyCollectionRepository.findById(armyCollectionId))
-                .thenReturn(
-                        Optional.of(
-                                ArmyCollectionEntity.builder()
-                                        .id(armyCollectionId)
-                                        .userId(otherUserId)
-                                        .name("Someone else's collection")
-                                        .build()));
+        stubOwnedCollectionModel(otherUserId, armyCollectionId, collectionModelId);
 
         assertThatThrownBy(
                         () -> collectionModelImagesService.deleteImage(userId, collectionModelId, imageId))

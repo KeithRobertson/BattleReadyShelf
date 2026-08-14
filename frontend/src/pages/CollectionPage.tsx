@@ -13,6 +13,7 @@ import {
   getCollectionModels,
   getModelDefinitions,
 } from "../generated";
+import { createImageVariants } from "../utils/imageVariants";
 
 export default function CollectionPage() {
   const { collectionId } = useParams<{ collectionId: string }>();
@@ -81,22 +82,37 @@ export default function CollectionPage() {
     setError(null);
     setUploadingModelId(modelId);
     try {
+      const variants = await createImageVariants(file);
       const created = (
         await createCollectionModelImageUploadUrl({
           path: { collectionModelId: modelId },
-          body: { contentType: file.type, fileName: file.name, contentLengthBytes: file.size },
+          body: {
+            original: { contentType: variants.original.type, contentLengthBytes: variants.original.size },
+            large: { contentType: variants.large.type, contentLengthBytes: variants.large.size },
+            thumbnail: { contentType: variants.thumbnail.type, contentLengthBytes: variants.thumbnail.size },
+          },
         })
       ).data;
       if (!created) {
         throw new Error("Failed to request upload URL");
       }
-      const putResponse = await fetch(created.uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!putResponse.ok) {
-        throw new Error(`Upload to storage failed: ${putResponse.status}`);
+      const uploads = [
+        { url: created.uploadUrls.original, body: variants.original, contentType: variants.original.type },
+        { url: created.uploadUrls.large, body: variants.large, contentType: variants.large.type },
+        { url: created.uploadUrls.thumbnail, body: variants.thumbnail, contentType: variants.thumbnail.type },
+      ];
+      const responses = await Promise.all(
+        uploads.map(({ url, body, contentType }) =>
+          fetch(url, {
+            method: "PUT",
+            headers: { "Content-Type": contentType },
+            body,
+          }),
+        ),
+      );
+      const failed = responses.find((r) => !r.ok);
+      if (failed) {
+        throw new Error(`Upload to storage failed: ${failed.status}`);
       }
       setModels((s) => s.map((m) => (m.id === modelId ? { ...m, images: [...(m.images ?? []), created.image] } : m)));
     } catch (e) {

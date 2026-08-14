@@ -63,7 +63,7 @@ export default function ModelCard({
           <SimpleGrid cols={{ base: 3, xs: 4 }} spacing="xs">
             {images.map((img) => (
               <div key={img.id} style={{ position: "relative" }}>
-                <Image src={img.url} alt={displayName || "Model image"} radius="sm" h={80} fit="cover" />
+                <Image src={img.thumbnailUrl} alt={displayName || "Model image"} radius="sm" h={80} fit="cover" />
                 {img.id && (
                   <ActionIcon
                     size="sm"

@@ -3,6 +3,7 @@ package com.keith.battlereadyshelf.collectionmodel;
 import com.keith.battlereadyshelf.armycollection.ArmyCollectionRepository;
 import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.CollectionModel;
+import com.keith.battlereadyshelf.generated.model.CollectionModelImage;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionRepository;
 import com.keith.battlereadyshelf.storage.PresignedUrlService;
 
@@ -10,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
@@ -76,17 +78,32 @@ public class CollectionModelsService {
         var dto = collectionModelMapper.toDto(entity);
         var images =
                 collectionModelImageRepository.findAllByCollectionModelId(entity.getId()).stream()
-                        .map(
-                                imageEntity -> {
-                                    var imageDto = collectionModelImageMapper.toDto(imageEntity);
-                                    imageDto.setUrl(
-                                            presignedUrlService.presignDownload(
-                                                    imageEntity.getStorageKey()));
-                                    return imageDto;
-                                })
+                        .map(this::toImageDtoWithUrls)
                         .toList();
         dto.setImages(images);
         return dto;
+    }
+
+    private CollectionModelImage toImageDtoWithUrls(CollectionModelImageEntity imageEntity) {
+        var imageDto = collectionModelImageMapper.toDto(imageEntity);
+        var originalUrl = presignDownloadIfPresent(imageEntity.getOriginal());
+        imageDto.setOriginalUrl(originalUrl);
+        // Fall back to the original rendition for images uploaded before large/thumbnail
+        // renditions existed.
+        imageDto.setLargeUrl(orElse(presignDownloadIfPresent(imageEntity.getLarge()), originalUrl));
+        imageDto.setThumbnailUrl(
+                orElse(presignDownloadIfPresent(imageEntity.getThumbnail()), originalUrl));
+        return imageDto;
+    }
+
+    private URI presignDownloadIfPresent(ImageVariant variant) {
+        return variant == null || variant.getStorageKey() == null
+                ? null
+                : presignedUrlService.presignDownload(variant.getStorageKey());
+    }
+
+    private static URI orElse(URI value, URI fallback) {
+        return value != null ? value : fallback;
     }
 
     private void requireOwnedArmyCollection(UUID userId, UUID armyCollectionId) {

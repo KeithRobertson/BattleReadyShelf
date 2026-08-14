@@ -360,37 +360,71 @@ components:
         contentType:
           type: string
           readOnly: true
+          description: The content type of the original, full-resolution image.
         sizeBytes:
           type: integer
           format: int64
           readOnly: true
-        url:
+          description: The size in bytes of the original, full-resolution image.
+        thumbnailUrl:
           type: string
           format: uri
           readOnly: true
-          description: A short-lived presigned URL to download/view the image.
-    CollectionModelImageUploadRequest:
+          description: A short-lived presigned URL for a small (~300px) thumbnail rendition, for use in list/grid views.
+        largeUrl:
+          type: string
+          format: uri
+          readOnly: true
+          description: A short-lived presigned URL for a large (~1600px) rendition, for use in detail views.
+        originalUrl:
+          type: string
+          format: uri
+          readOnly: true
+          description: A short-lived presigned URL for the original, unmodified upload.
+    ImageVariantUploadRequest:
       type: object
       properties:
         contentType:
           type: string
           example: "image/jpeg"
-        fileName:
-          type: string
         contentLengthBytes:
           type: integer
           format: int64
       required: [ contentType, contentLengthBytes ]
+    CollectionModelImageUploadRequest:
+      type: object
+      properties:
+        original:
+          $ref: '#/components/schemas/ImageVariantUploadRequest'
+        large:
+          $ref: '#/components/schemas/ImageVariantUploadRequest'
+        thumbnail:
+          $ref: '#/components/schemas/ImageVariantUploadRequest'
+      required: [ original, large, thumbnail ]
+    ImageVariantUploadUrls:
+      type: object
+      description: >-
+        Short-lived presigned URLs. PUT the raw bytes for each rendition here with a matching
+        Content-Type header.
+      properties:
+        original:
+          type: string
+          format: uri
+        large:
+          type: string
+          format: uri
+        thumbnail:
+          type: string
+          format: uri
+      required: [ original, large, thumbnail ]
     CollectionModelImageUploadResponse:
       type: object
       properties:
         image:
           $ref: '#/components/schemas/CollectionModelImage'
-        uploadUrl:
-          type: string
-          format: uri
-          description: A short-lived presigned URL. PUT the raw image bytes here with a matching Content-Type header.
-      required: [ image, uploadUrl ]
+        uploadUrls:
+          $ref: '#/components/schemas/ImageVariantUploadUrls'
+      required: [ image, uploadUrls ]
     CollectionModel:
       type: object
       properties:

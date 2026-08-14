@@ -17,6 +17,10 @@ import java.util.UUID;
 
 @Service
 public class CollectionModelImagesService {
+    private static final String VARIANT_ORIGINAL = "original";
+    private static final String VARIANT_LARGE = "large";
+    private static final String VARIANT_THUMBNAIL = "thumbnail";
+
     private final CollectionModelsService collectionModelsService;
     private final CollectionModelImageRepository collectionModelImageRepository;
     private final CollectionModelImageMapper collectionModelImageMapper;
@@ -39,49 +43,95 @@ public class CollectionModelImagesService {
         this.presignedUrlService = presignedUrlService;
     }
 
-    public record UploadUrlResult(CollectionModelImage image, URI uploadUrl) {}
+    /** A requested upload for a single rendition of an image. */
+    public record VariantUploadRequest(String contentType, long contentLengthBytes) {}
+
+    public record UploadUrls(URI original, URI large, URI thumbnail) {}
+
+    public record UploadUrlResult(CollectionModelImage image, UploadUrls uploadUrls) {}
 
     public UploadUrlResult createUploadUrl(
-            UUID userId, UUID collectionModelId, String contentType, long contentLengthBytes) {
+            UUID userId,
+            UUID collectionModelId,
+            VariantUploadRequest original,
+            VariantUploadRequest large,
+            VariantUploadRequest thumbnail) {
         var collectionModel =
                 collectionModelsService.requireOwnedCollectionModel(userId, collectionModelId);
 
         if (!storageProperties.isEnabled()) {
             throw new ApiException(BAD_REQUEST, "Image uploads are currently disabled.");
         }
-        if (!storageKeyGenerator.isSupportedContentType(contentType)) {
-            throw new ApiException(BAD_REQUEST, "Unsupported image content type: " + contentType);
-        }
-        if (contentLengthBytes <= 0
-                || contentLengthBytes > storageProperties.getMaxFileSizeBytes()) {
-            throw new ApiException(
-                    BAD_REQUEST,
-                    "File size must be between 1 byte and "
-                            + storageProperties.getMaxFileSizeBytes()
-                            + " bytes.");
-        }
 
-        var fileId = UUID.randomUUID();
-        var storageKey =
-                storageKeyGenerator.generateKey(
-                        userId, collectionModel.getId(), fileId, contentType);
+        var imageId = UUID.randomUUID();
+        var originalVariant =
+                buildVariant(userId, collectionModel.getId(), imageId, VARIANT_ORIGINAL, original);
+        var largeVariant =
+                buildVariant(userId, collectionModel.getId(), imageId, VARIANT_LARGE, large);
+        var thumbnailVariant =
+                buildVariant(
+                        userId, collectionModel.getId(), imageId, VARIANT_THUMBNAIL, thumbnail);
 
         var savedImage =
                 collectionModelImageRepository.save(
                         CollectionModelImageEntity.builder()
+                                .id(imageId)
                                 .collectionModelId(collectionModel.getId())
-                                .storageKey(storageKey)
-                                .contentType(contentType)
-                                .sizeBytes(contentLengthBytes)
+                                .original(originalVariant)
+                                .large(largeVariant)
+                                .thumbnail(thumbnailVariant)
                                 .createdAt(Instant.now())
                                 .build());
 
-        var uploadUrl = presignedUrlService.presignUpload(storageKey, contentType);
+        var uploadUrls =
+                new UploadUrls(
+                        presignedUrlService.presignUpload(
+                                originalVariant.getStorageKey(), original.contentType()),
+                        presignedUrlService.presignUpload(
+                                largeVariant.getStorageKey(), large.contentType()),
+                        presignedUrlService.presignUpload(
+                                thumbnailVariant.getStorageKey(), thumbnail.contentType()));
 
         var imageDto = collectionModelImageMapper.toDto(savedImage);
-        imageDto.setUrl(presignedUrlService.presignDownload(storageKey));
+        imageDto.setOriginalUrl(presignedUrlService.presignDownload(originalVariant.getStorageKey()));
+        imageDto.setLargeUrl(presignedUrlService.presignDownload(largeVariant.getStorageKey()));
+        imageDto.setThumbnailUrl(
+                presignedUrlService.presignDownload(thumbnailVariant.getStorageKey()));
 
-        return new UploadUrlResult(imageDto, uploadUrl);
+        return new UploadUrlResult(imageDto, uploadUrls);
+    }
+
+    private ImageVariant buildVariant(
+            UUID userId,
+            UUID collectionModelId,
+            UUID imageId,
+            String variant,
+            VariantUploadRequest request) {
+        if (!storageKeyGenerator.isSupportedContentType(request.contentType())) {
+            throw new ApiException(
+                    BAD_REQUEST,
+                    "Unsupported image content type for " + variant + ": " + request.contentType());
+        }
+        if (request.contentLengthBytes() <= 0
+                || request.contentLengthBytes() > storageProperties.getMaxFileSizeBytes()) {
+            throw new ApiException(
+                    BAD_REQUEST,
+                    "File size for "
+                            + variant
+                            + " must be between 1 byte and "
+                            + storageProperties.getMaxFileSizeBytes()
+                            + " bytes.");
+        }
+
+        var storageKey =
+                storageKeyGenerator.generateKey(
+                        userId, collectionModelId, imageId, variant, request.contentType());
+
+        return ImageVariant.builder()
+                .storageKey(storageKey)
+                .contentType(request.contentType())
+                .sizeBytes(request.contentLengthBytes())
+                .build();
     }
 
     public void deleteImage(UUID userId, UUID collectionModelId, UUID imageId) {
@@ -100,7 +150,15 @@ public class CollectionModelImagesService {
                                         new NotFoundException(
                                                 "Collection model image not found: " + imageId));
 
-        presignedUrlService.deleteObject(image.getStorageKey());
+        deleteVariantIfPresent(image.getOriginal());
+        deleteVariantIfPresent(image.getLarge());
+        deleteVariantIfPresent(image.getThumbnail());
         collectionModelImageRepository.delete(image);
+    }
+
+    private void deleteVariantIfPresent(ImageVariant variant) {
+        if (variant != null && variant.getStorageKey() != null) {
+            presignedUrlService.deleteObject(variant.getStorageKey());
+        }
     }
 }

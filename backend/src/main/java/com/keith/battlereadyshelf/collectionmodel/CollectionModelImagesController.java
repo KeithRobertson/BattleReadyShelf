@@ -3,6 +3,8 @@ package com.keith.battlereadyshelf.collectionmodel;
 import com.keith.battlereadyshelf.generated.api.CollectionModelImagesApi;
 import com.keith.battlereadyshelf.generated.model.CollectionModelImageUploadRequest;
 import com.keith.battlereadyshelf.generated.model.CollectionModelImageUploadResponse;
+import com.keith.battlereadyshelf.generated.model.ImageVariantUploadRequest;
+import com.keith.battlereadyshelf.generated.model.ImageVariantUploadUrls;
 import com.keith.battlereadyshelf.security.AuthenticatedUserProvider;
 
 import lombok.RequiredArgsConstructor;
@@ -27,11 +29,24 @@ public class CollectionModelImagesController implements CollectionModelImagesApi
                 collectionModelImagesService.createUploadUrl(
                         currentUser.id(),
                         collectionModelId,
-                        collectionModelImageUploadRequest.getContentType(),
-                        collectionModelImageUploadRequest.getContentLengthBytes());
+                        toVariantRequest(collectionModelImageUploadRequest.getOriginal()),
+                        toVariantRequest(collectionModelImageUploadRequest.getLarge()),
+                        toVariantRequest(collectionModelImageUploadRequest.getThumbnail()));
+
+        var uploadUrls =
+                new ImageVariantUploadUrls(
+                        result.uploadUrls().original(),
+                        result.uploadUrls().large(),
+                        result.uploadUrls().thumbnail());
 
         return ResponseEntity.status(201)
-                .body(new CollectionModelImageUploadResponse(result.image(), result.uploadUrl()));
+                .body(new CollectionModelImageUploadResponse(result.image(), uploadUrls));
+    }
+
+    private static CollectionModelImagesService.VariantUploadRequest toVariantRequest(
+            ImageVariantUploadRequest request) {
+        return new CollectionModelImagesService.VariantUploadRequest(
+                request.getContentType(), request.getContentLengthBytes());
     }
 
     @Override

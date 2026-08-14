@@ -7,9 +7,11 @@ import java.util.UUID;
 
 /**
  * Builds R2 object keys of the form {@code
- * {prefix}/users/{userId}/models/{modelId}/{imageId}.{ext}}. The prefix segment namespaces
- * environments/developers sharing the same bucket (see {@link StorageProperties#getPrefix()}),
- * while the remaining path mirrors the ownership hierarchy already enforced in Postgres.
+ * {prefix}/users/{userId}/models/{modelId}/{imageId}/{variant}.{ext}}. The prefix segment
+ * namespaces environments/developers sharing the same bucket (see {@link
+ * StorageProperties#getPrefix()}), while the remaining path mirrors the ownership hierarchy
+ * already enforced in Postgres. Each logical image has 3 renditions ({@code original}, {@code
+ * large}, {@code thumbnail}) stored under the same {@code imageId} directory.
  */
 @Component
 public class StorageKeyGenerator {
@@ -28,9 +30,13 @@ public class StorageKeyGenerator {
     }
 
     public String generateKey(
-            UUID userId, UUID collectionModelId, UUID fileId, String contentType) {
+            UUID userId,
+            UUID collectionModelId,
+            UUID imageId,
+            String variant,
+            String contentType) {
         var extension = EXTENSIONS_BY_CONTENT_TYPE.get(contentType);
-        var fileName = extension == null ? fileId.toString() : fileId + "." + extension;
+        var fileName = extension == null ? variant : variant + "." + extension;
         var prefix = storageProperties.getPrefix();
 
         return (prefix == null || prefix.isBlank() ? "" : prefix + "/")
@@ -38,6 +44,8 @@ public class StorageKeyGenerator {
                 + userId
                 + "/models/"
                 + collectionModelId
+                + "/"
+                + imageId
                 + "/"
                 + fileName;
     }
