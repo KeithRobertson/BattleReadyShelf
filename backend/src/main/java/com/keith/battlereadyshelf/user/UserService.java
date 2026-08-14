@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -53,5 +54,31 @@ public class UserService {
 
         targetUser.setRole(Role.valueOf(newRole.name()));
         return AuthService.toUserDto(userRepository.save(targetUser));
+    }
+
+    /**
+     * Updates the role of multiple users in one request. Unlike {@link #updateUserRole}, invalid
+     * targets (the superadmin, the acting admin themselves, or an unknown user id) are silently
+     * skipped rather than failing the whole batch, since a bulk selection may legitimately include
+     * a mix of eligible and ineligible users (e.g. a superadmin row that's disabled in the UI but
+     * still included in a "select all" action).
+     */
+    public List<UserDto> bulkUpdateUserRoles(
+            CurrentAuthenticatedUser actingUser, List<UUID> targetUserIds, UserRole newRole) {
+        if (newRole == UserRole.SUPERADMIN) {
+            throw new ForbiddenException("The superadmin role cannot be assigned.");
+        }
+
+        var updatedUsers =
+                targetUserIds.stream()
+                        .distinct()
+                        .map(userRepository::findById)
+                        .flatMap(Optional::stream)
+                        .filter(user -> user.getRole() != Role.SUPERADMIN)
+                        .filter(user -> !user.getId().equals(actingUser.id()))
+                        .peek(user -> user.setRole(Role.valueOf(newRole.name())))
+                        .toList();
+
+        return userRepository.saveAll(updatedUsers).stream().map(AuthService::toUserDto).toList();
     }
 }

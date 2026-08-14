@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -110,5 +111,61 @@ class UserServiceTest {
 
         assertThat(result.getRole()).isEqualTo(UserRole.ADMIN);
         verify(userRepository).save(targetUser);
+    }
+
+    @Test
+    void bulkUpdateUserRoles_throwsForbiddenWhenAssigningSuperadminRole() {
+        var adminId = UUID.randomUUID();
+        var actingAdmin = new CurrentAuthenticatedUser(adminId, "admin@example.com", Role.ADMIN);
+
+        assertThatThrownBy(
+                        () ->
+                                userService.bulkUpdateUserRoles(
+                                        actingAdmin, List.of(UUID.randomUUID()), UserRole.SUPERADMIN))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("The superadmin role cannot be assigned.");
+
+        verify(userRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void bulkUpdateUserRoles_skipsSuperadminSelfAndUnknownUsers_updatesTheRest() {
+        var adminId = UUID.randomUUID();
+        var actingAdmin = new CurrentAuthenticatedUser(adminId, "admin@example.com", Role.ADMIN);
+
+        var eligibleUserId = UUID.randomUUID();
+        var eligibleUser =
+                User.builder().id(eligibleUserId).email("user@example.com").role(Role.USER).build();
+        var superadminId = UUID.randomUUID();
+        var superadmin =
+                User.builder()
+                        .id(superadminId)
+                        .email("superadmin@example.com")
+                        .role(Role.SUPERADMIN)
+                        .build();
+        var unknownUserId = UUID.randomUUID();
+
+        when(userRepository.findById(eligibleUserId)).thenReturn(Optional.of(eligibleUser));
+        when(userRepository.findById(superadminId)).thenReturn(Optional.of(superadmin));
+        when(userRepository.findById(adminId))
+                .thenReturn(
+                        Optional.of(
+                                User.builder()
+                                        .id(adminId)
+                                        .email("admin@example.com")
+                                        .role(Role.ADMIN)
+                                        .build()));
+        when(userRepository.findById(unknownUserId)).thenReturn(Optional.empty());
+        when(userRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result =
+                userService.bulkUpdateUserRoles(
+                        actingAdmin,
+                        List.of(eligibleUserId, superadminId, adminId, unknownUserId),
+                        UserRole.ADMIN);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getId()).isEqualTo(eligibleUserId);
+        assertThat(result.get(0).getRole()).isEqualTo(UserRole.ADMIN);
     }
 }

@@ -4,6 +4,7 @@ import ArmyBuilderPage from "./pages/ArmyBuilderPage";
 import CollectionPage from "./pages/CollectionPage";
 import CollectionsPage from "./pages/CollectionsPage";
 import SettingsPage from "./pages/SettingsPage";
+import UsersAdminPage from "./pages/UsersAdminPage";
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
         <Route path="/collections/:collectionId" element={<CollectionPage />} />
         <Route path="/army-builder" element={<ArmyBuilderPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/admin/users" element={<UsersAdminPage />} />
       </Routes>
     </AppLayout>
   );

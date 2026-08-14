@@ -129,6 +129,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /api/v1/users/roles:
+    patch:
+      tags: [ "Users" ]
+      summary: Update multiple users' roles at once (admin only)
+      operationId: bulkUpdateUserRoles
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkUpdateUserRolesRequest'
+      responses:
+        '200':
+          description: >-
+            The users that were successfully updated. Users that don't exist, are the
+            superadmin, or are the acting admin themselves are silently skipped rather than
+            failing the whole batch.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserDto'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: The authenticated user is not an admin, or the requested role cannot be assigned in bulk
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/army-collections:
     get:
       tags: [ "ArmyCollections" ]
@@ -488,3 +525,15 @@ components:
         role:
           $ref: '#/components/schemas/UserRole'
       required: [ role ]
+    BulkUpdateUserRolesRequest:
+      type: object
+      properties:
+        userIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+        role:
+          $ref: '#/components/schemas/UserRole'
+      required: [ userIds, role ]

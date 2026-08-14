@@ -1,7 +1,7 @@
 import { AppShell, Avatar, Burger, Group, Menu, NavLink, Text, Title, UnstyledButton } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { GoogleLogin } from "@react-oauth/google";
-import { IconChevronDown, IconLogout, IconSettings, IconStack2, IconSwords } from "@tabler/icons-react";
+import { IconChevronDown, IconLogout, IconSettings, IconStack2, IconSwords, IconUsers } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
@@ -25,6 +25,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [navOpened, { toggle: toggleNav }] = useDisclosure();
+  const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
+  const visibleNavItems = isAdmin
+    ? [...navItems, { label: "Manage Users", to: "/admin/users", icon: IconUsers }]
+    : navItems;
 
   return (
     <AppShell
@@ -88,7 +92,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       </AppShell.Header>
 
       <AppShell.Navbar p="md">
-        {navItems.map((item) => (
+        {visibleNavItems.map((item) => (
           <NavLink
             key={item.to}
             component={Link}
