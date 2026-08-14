@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Configuration for user-uploaded image storage (Cloudflare R2), backed by {@code
- * app.storage.uploads.*}.
+ * battlereadyshelf.storage.uploads.*}.
  */
 @Getter
 @Component
@@ -18,10 +18,10 @@ public class StorageProperties {
     private final long maxFileSizeBytes;
 
     public StorageProperties(
-            @Value("${app.storage.uploads.bucket}") String bucket,
-            @Value("${app.storage.uploads.prefix:}") String prefix,
-            @Value("${app.storage.uploads.enabled}") boolean enabled,
-            @Value("${app.storage.uploads.max-file-size-mb}") long maxFileSizeMb) {
+            @Value("${battlereadyshelf.storage.uploads.bucket}") String bucket,
+            @Value("${battlereadyshelf.storage.uploads.prefix:}") String prefix,
+            @Value("${battlereadyshelf.storage.uploads.enabled}") boolean enabled,
+            @Value("${battlereadyshelf.storage.uploads.max-file-size-mb}") long maxFileSizeMb) {
         this.bucket = bucket;
         this.prefix = prefix;
         this.enabled = enabled;

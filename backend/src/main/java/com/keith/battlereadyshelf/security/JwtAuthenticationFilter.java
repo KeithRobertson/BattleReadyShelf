@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
@@ -49,8 +50,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             CurrentAuthenticatedUser currentUser =
                     jwtService.parseToken(authorizationHeader.substring(BEARER_PREFIX.length()));
+            var authorities =
+                    List.of(
+                            new SimpleGrantedAuthority(
+                                    "ROLE_" + currentUser.role().name()));
             var authentication =
-                    new UsernamePasswordAuthenticationToken(currentUser, null, List.of());
+                    new UsernamePasswordAuthenticationToken(currentUser, null, authorities);
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authentication);
             filterChain.doFilter(request, response);

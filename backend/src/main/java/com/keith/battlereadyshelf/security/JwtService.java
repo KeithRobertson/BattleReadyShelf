@@ -1,6 +1,7 @@
 package com.keith.battlereadyshelf.security;
 
 import com.keith.battlereadyshelf.error.UnauthorizedException;
+import com.keith.battlereadyshelf.user.Role;
 import com.keith.battlereadyshelf.user.User;
 
 import io.jsonwebtoken.JwtException;
@@ -22,8 +23,8 @@ public class JwtService {
     private final long expirationMs;
 
     public JwtService(
-            @Value("${app.jwt.secret}") String secret,
-            @Value("${app.jwt.expiration-ms}") long expirationMs) {
+            @Value("${battlereadyshelf.jwt.secret}") String secret,
+            @Value("${battlereadyshelf.jwt.expiration-ms}") long expirationMs) {
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationMs = expirationMs;
     }
@@ -35,6 +36,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject(user.getId().toString())
                 .claim("email", user.getEmail())
+                .claim("role", user.getRole().name())
                 .issuedAt(issuedAt)
                 .expiration(expiration)
                 .signWith(signingKey)
@@ -50,7 +52,9 @@ public class JwtService {
                             .parseSignedClaims(token)
                             .getPayload();
             return new CurrentAuthenticatedUser(
-                    UUID.fromString(claims.getSubject()), claims.get("email", String.class));
+                    UUID.fromString(claims.getSubject()),
+                    claims.get("email", String.class),
+                    Role.valueOf(claims.get("role", String.class)));
         } catch (JwtException | IllegalArgumentException ex) {
             throw new UnauthorizedException("Invalid or expired bearer token.", ex);
         }

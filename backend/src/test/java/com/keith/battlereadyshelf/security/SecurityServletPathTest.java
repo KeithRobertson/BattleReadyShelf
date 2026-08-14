@@ -129,6 +129,7 @@ class SecurityServletPathTest {
         SecurityConfiguration.class,
         JwtAuthenticationFilter.class,
         RestAuthenticationEntryPoint.class,
+        RestAccessDeniedHandler.class,
         ApiExceptionHandler.class,
         CorsConfiguration.class,
         TestConfig.class

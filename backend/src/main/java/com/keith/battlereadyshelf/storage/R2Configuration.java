@@ -23,9 +23,9 @@ import java.net.URI;
 public class R2Configuration {
     @Bean
     S3Presigner s3Presigner(
-            @Value("${app.storage.r2.endpoint}") String endpoint,
-            @Value("${app.storage.r2.access-key-id}") String accessKeyId,
-            @Value("${app.storage.r2.secret-access-key}") String secretAccessKey) {
+            @Value("${battlereadyshelf.storage.r2.endpoint}") String endpoint,
+            @Value("${battlereadyshelf.storage.r2.access-key-id}") String accessKeyId,
+            @Value("${battlereadyshelf.storage.r2.secret-access-key}") String secretAccessKey) {
         return S3Presigner.builder()
                 .region(Region.of("auto"))
                 .endpointOverride(URI.create(endpoint))
@@ -37,9 +37,9 @@ public class R2Configuration {
 
     @Bean
     S3Client s3Client(
-            @Value("${app.storage.r2.endpoint}") String endpoint,
-            @Value("${app.storage.r2.access-key-id}") String accessKeyId,
-            @Value("${app.storage.r2.secret-access-key}") String secretAccessKey) {
+            @Value("${battlereadyshelf.storage.r2.endpoint}") String endpoint,
+            @Value("${battlereadyshelf.storage.r2.access-key-id}") String accessKeyId,
+            @Value("${battlereadyshelf.storage.r2.secret-access-key}") String secretAccessKey) {
         return S3Client.builder()
                 .region(Region.of("auto"))
                 .endpointOverride(URI.create(endpoint))

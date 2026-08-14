@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.keith.battlereadyshelf.error.UnauthorizedException;
+import com.keith.battlereadyshelf.user.Role;
 import com.keith.battlereadyshelf.user.User;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +28,7 @@ class JwtServiceTest {
                         .id(UUID.randomUUID())
                         .email("allowed@example.com")
                         .displayName("Allowed User")
+                        .role(Role.ADMIN)
                         .build();
 
         var token = jwtService.generateToken(user);
@@ -34,6 +36,7 @@ class JwtServiceTest {
 
         assertThat(authenticatedUser.id()).isEqualTo(user.getId());
         assertThat(authenticatedUser.email()).isEqualTo(user.getEmail());
+        assertThat(authenticatedUser.role()).isEqualTo(user.getRole());
     }
 
     @Test

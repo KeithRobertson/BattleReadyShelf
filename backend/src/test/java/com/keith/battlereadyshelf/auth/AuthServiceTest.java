@@ -10,8 +10,10 @@ import static org.mockito.Mockito.when;
 import com.keith.battlereadyshelf.error.ForbiddenException;
 import com.keith.battlereadyshelf.generated.model.GoogleAuthRequest;
 import com.keith.battlereadyshelf.generated.model.UserDto;
+import com.keith.battlereadyshelf.generated.model.UserRole;
 import com.keith.battlereadyshelf.security.JwtService;
 import com.keith.battlereadyshelf.user.AllowedEmailRepository;
+import com.keith.battlereadyshelf.user.Role;
 import com.keith.battlereadyshelf.user.User;
 import com.keith.battlereadyshelf.user.UserRepository;
 
@@ -47,7 +49,8 @@ class AuthServiceTest {
                         googleIdTokenVerificationService,
                         allowedEmailRepository,
                         userRepository,
-                        jwtService);
+                        jwtService,
+                        "superadmin@example.com");
     }
 
     @Test
@@ -89,7 +92,10 @@ class AuthServiceTest {
         assertThat(userCaptor.getValue().getDisplayName()).isEqualTo("Allowed User");
         assertThat(response.getToken()).isEqualTo("jwt-token");
         assertThat(response.getUser())
-                .isEqualTo(new UserDto(userId, "allowed@example.com").displayName("Allowed User"));
+                .isEqualTo(
+                        new UserDto(userId, "allowed@example.com")
+                                .displayName("Allowed User")
+                                .role(UserRole.USER));
     }
 
     @Test
@@ -113,6 +119,48 @@ class AuthServiceTest {
         verify(userRepository, never()).save(any(User.class));
         assertThat(response.getToken()).isEqualTo("jwt-token");
         assertThat(response.getUser())
-                .isEqualTo(new UserDto(userId, "allowed@example.com").displayName("Existing User"));
+                .isEqualTo(
+                        new UserDto(userId, "allowed@example.com")
+                                .displayName("Existing User")
+                                .role(UserRole.USER));
+    }
+
+    @Test
+    void authenticateWithGoogle_createsSuperadminOnFirstLoginForConfiguredEmail() {
+        when(googleIdTokenVerificationService.verify("google-id-token"))
+                .thenReturn(new VerifiedGoogleUser("superadmin@example.com", "Super Admin"));
+        when(allowedEmailRepository.existsById("superadmin@example.com")).thenReturn(true);
+        when(userRepository.findByEmail("superadmin@example.com")).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(jwtService.generateToken(any(User.class))).thenReturn("jwt-token");
+
+        var response = authService.authenticateWithGoogle(new GoogleAuthRequest("google-id-token"));
+
+        assertThat(response.getUser().getRole()).isEqualTo(UserRole.SUPERADMIN);
+    }
+
+    @Test
+    void authenticateWithGoogle_forcesSuperadminRoleForConfiguredEmailEvenIfChanged() {
+        var userId = UUID.randomUUID();
+        var existingUser =
+                User.builder()
+                        .id(userId)
+                        .email("superadmin@example.com")
+                        .displayName("Super Admin")
+                        .role(Role.USER)
+                        .build();
+        when(googleIdTokenVerificationService.verify("google-id-token"))
+                .thenReturn(new VerifiedGoogleUser("superadmin@example.com", "Super Admin"));
+        when(allowedEmailRepository.existsById("superadmin@example.com")).thenReturn(true);
+        when(userRepository.findByEmail("superadmin@example.com"))
+                .thenReturn(Optional.of(existingUser));
+        when(userRepository.save(any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(jwtService.generateToken(any(User.class))).thenReturn("jwt-token");
+
+        var response = authService.authenticateWithGoogle(new GoogleAuthRequest("google-id-token"));
+
+        assertThat(response.getUser().getRole()).isEqualTo(UserRole.SUPERADMIN);
     }
 }

@@ -21,3 +21,6 @@ spring:
 google:
   oauth:
     client-id: 421501872179-iatsrrehua5g62ot3j4gtv9qv9pghc3m.apps.googleusercontent.com
+battlereadyshelf:
+  superadmin:
+    email: ${SUPERADMIN_EMAIL}
