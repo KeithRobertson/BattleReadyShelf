@@ -35,7 +35,7 @@ const adminNavItems = [
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated, loginWithGoogleIdToken, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, loginWithGoogleIdToken, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [navOpened, { toggle: toggleNav }] = useDisclosure();
@@ -56,7 +56,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <Title order={3}>BattleReadyShelf</Title>
             </Link>
           </Group>
-          {isAuthenticated ? (
+          {isLoading ? null : isAuthenticated ? (
             <Menu shadow="md" width={200} position="bottom-end">
               <Menu.Target>
                 <UnstyledButton>
