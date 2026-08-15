@@ -11,6 +11,7 @@ import {
   Modal,
   NumberInput,
   Select,
+  SegmentedControl,
   SimpleGrid,
   Stack,
   Text,
@@ -89,6 +90,7 @@ export default function CollectionPage() {
   const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [selectedModelIds, setSelectedModelIds] = useState<Set<string>>(new Set());
+  const [isEditMode, setIsEditMode] = useState(false);
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [pendingDelete, setPendingDelete] = useState<{ mode: "single" | "bulk"; modelId?: string } | null>(null);
   const [isEditingCollectionName, setIsEditingCollectionName] = useState(false);
@@ -562,6 +564,19 @@ export default function CollectionPage() {
 
       <Title order={3}>Collection models</Title>
 
+      {isAuthenticated && (
+        <SegmentedControl
+          value={isEditMode ? "edit" : "view"}
+          onChange={(value) => setIsEditMode(value === "edit")}
+          data={[
+            { label: "View", value: "view" },
+            { label: "Edit", value: "edit" },
+          ]}
+          size="xs"
+          w={160}
+        />
+      )}
+
       {error && (
         <Alert color="red" icon={<IconAlertCircle size={16} />}>
           {error}
@@ -583,50 +598,52 @@ export default function CollectionPage() {
               No model types are defined yet.
             </Alert>
           ) : (
-            <form onSubmit={handleAddModel}>
-              <Stack gap="xs">
-                <Group align="flex-end" wrap="wrap">
-                  <Select
-                    label="Model type"
-                    data={modelDefinitions.map((md) => ({ value: md.id ?? "", label: md.name ?? "" }))}
-                    value={modelDefinitionId}
-                    onChange={setModelDefinitionId}
-                    required
-                    w={180}
-                  />
-                  <NumberInput
-                    label="Count"
-                    value={count}
-                    onChange={setCount}
-                    min={1}
-                    max={500}
-                    w={100}
-                  />
-                  <TextInput
-                    label="Name (optional)"
-                    value={name}
-                    onChange={(e) => setName(e.currentTarget.value)}
-                    disabled={Number(count) > 1}
-                    w={200}
-                  />
-                  <TextInput
-                    label="Description (optional)"
-                    value={description}
-                    onChange={(e) => setDescription(e.currentTarget.value)}
-                    disabled={Number(count) > 1}
-                    w={240}
-                  />
-                  <Button type="submit" leftSection={<IconPlus size={16} />} loading={adding}>
-                    {Number(count) > 1 ? `Add ${count} models` : "Add model"}
-                  </Button>
-                </Group>
-                {Number(count) > 1 && (
-                  <Text size="xs" c="dimmed">
-                    Models added in bulk are created unnamed — name each one individually afterwards.
-                  </Text>
-                )}
-              </Stack>
-            </form>
+            isEditMode && (
+              <form onSubmit={handleAddModel}>
+                <Stack gap="xs">
+                  <Group align="flex-end" wrap="wrap">
+                    <Select
+                      label="Model type"
+                      data={modelDefinitions.map((md) => ({ value: md.id ?? "", label: md.name ?? "" }))}
+                      value={modelDefinitionId}
+                      onChange={setModelDefinitionId}
+                      required
+                      w={180}
+                    />
+                    <NumberInput
+                      label="Count"
+                      value={count}
+                      onChange={setCount}
+                      min={1}
+                      max={500}
+                      w={100}
+                    />
+                    <TextInput
+                      label="Name (optional)"
+                      value={name}
+                      onChange={(e) => setName(e.currentTarget.value)}
+                      disabled={Number(count) > 1}
+                      w={200}
+                    />
+                    <TextInput
+                      label="Description (optional)"
+                      value={description}
+                      onChange={(e) => setDescription(e.currentTarget.value)}
+                      disabled={Number(count) > 1}
+                      w={240}
+                    />
+                    <Button type="submit" leftSection={<IconPlus size={16} />} loading={adding}>
+                      {Number(count) > 1 ? `Add ${count} models` : "Add model"}
+                    </Button>
+                  </Group>
+                  {Number(count) > 1 && (
+                    <Text size="xs" c="dimmed">
+                      Models added in bulk are created unnamed — name each one individually afterwards.
+                    </Text>
+                  )}
+                </Stack>
+              </form>
+            )
           )}
 
           {models.length === 0 ? (
@@ -635,7 +652,11 @@ export default function CollectionPage() {
             <>
               <Group justify="space-between" wrap="wrap">
                 <Text size="sm" c="dimmed">
-                  {selectedModelIds.size > 0 ? `${selectedModelIds.size} selected` : "Select models to bulk delete"}
+                  {isEditMode
+                    ? selectedModelIds.size > 0
+                      ? `${selectedModelIds.size} selected`
+                      : "Select models to bulk delete"
+                    : `${models.length} model${models.length === 1 ? "" : "s"}`}
                 </Text>
                 <Group gap="sm" align="flex-end">
                   <Select
@@ -647,16 +668,18 @@ export default function CollectionPage() {
                     size="xs"
                     allowDeselect={false}
                   />
-                  <Button
-                    color="red"
-                    variant="light"
-                    size="xs"
-                    leftSection={<IconTrash size={14} />}
-                    onClick={requestBulkDelete}
-                    disabled={selectedModelIds.size === 0}
-                  >
-                    Delete selected
-                  </Button>
+                  {isEditMode && (
+                    <Button
+                      color="red"
+                      variant="light"
+                      size="xs"
+                      leftSection={<IconTrash size={14} />}
+                      onClick={requestBulkDelete}
+                      disabled={selectedModelIds.size === 0}
+                    >
+                      Delete selected
+                    </Button>
+                  )}
                 </Group>
               </Group>
               <Accordion multiple defaultValue={groupedModels.map((g) => g.key)} variant="separated">
@@ -670,7 +693,7 @@ export default function CollectionPage() {
                             <Text fw={500}>{group.label}</Text>
                             <Badge variant="light">{group.models.length}</Badge>
                           </Group>
-                          {selectedInGroup > 0 && (
+                          {isEditMode && selectedInGroup > 0 && (
                             <Badge color="red" variant="light">
                               {selectedInGroup} selected
                             </Badge>
@@ -679,17 +702,20 @@ export default function CollectionPage() {
                       </Accordion.Control>
                       <Accordion.Panel>
                         <Stack gap="xs">
-                          <Checkbox
-                            label="Select all in this group"
-                            checked={selectedInGroup === group.models.length}
-                            indeterminate={selectedInGroup > 0 && selectedInGroup < group.models.length}
-                            onChange={(e) => toggleGroupSelected(group, e.currentTarget.checked)}
-                          />
+                          {isEditMode && (
+                            <Checkbox
+                              label="Select all in this group"
+                              checked={selectedInGroup === group.models.length}
+                              indeterminate={selectedInGroup > 0 && selectedInGroup < group.models.length}
+                              onChange={(e) => toggleGroupSelected(group, e.currentTarget.checked)}
+                            />
+                          )}
                           <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
                             {group.models.map((m) => (
                               <ModelCard
                                 key={m.id}
                                 model={m}
+                                editMode={isEditMode}
                                 onUploadImage={(file) => m.id && handleUploadImage(m.id, file)}
                                 onDeleteImage={(imageId) => m.id && handleDeleteImage(m.id, imageId)}
                                 onRename={(newName) => m.id && handleRenameModel(m.id, newName)}

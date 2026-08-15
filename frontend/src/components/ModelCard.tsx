@@ -16,13 +16,14 @@ import {
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { IconCalendar, IconCheck, IconPencil, IconPhoto, IconTrash, IconUpload, IconX } from "@tabler/icons-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CollectionModel } from "../generated";
 
 const MAX_VISIBLE_THUMBNAILS = 4;
 
 type ModelCardProps = {
   model: CollectionModel;
+  editMode: boolean;
   onUploadImage: (file: File) => void;
   onDeleteImage: (imageId: string) => void;
   onRename: (newName: string) => void;
@@ -43,6 +44,7 @@ type ModelCardProps = {
 
 export default function ModelCard({
   model,
+  editMode,
   onUploadImage,
   onDeleteImage,
   onRename,
@@ -79,6 +81,16 @@ export default function ModelCard({
   const [isEditingWargear, setIsEditingWargear] = useState(false);
   const attachmentSlots = model.modelDefinition?.attachmentSlots ?? [];
   const wargearOptions = model.modelDefinition?.wargearOptions ?? [];
+
+  // Collapse any open inline editors when the page is switched back to view mode.
+  useEffect(() => {
+    if (!editMode) {
+      setIsEditingName(false);
+      setIsEditingFinishedOn(false);
+      setIsEditingDescription(false);
+      setIsEditingWargear(false);
+    }
+  }, [editMode]);
 
   function startEditingName() {
     setNameDraft(displayName ?? "");
@@ -121,11 +133,13 @@ export default function ModelCard({
       <Stack gap="xs">
         <Group justify="space-between" wrap="nowrap" align="flex-start">
           <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
-            <Checkbox
-              checked={selected}
-              onChange={(e) => onToggleSelected(e.currentTarget.checked)}
-              aria-label="Select model"
-            />
+            {editMode && (
+              <Checkbox
+                checked={selected}
+                onChange={(e) => onToggleSelected(e.currentTarget.checked)}
+                aria-label="Select model"
+              />
+            )}
             <Badge variant="light">{model.modelDefinition?.name ?? "Unknown type"}</Badge>
             {isEditingName ? (
               <Group gap={4} wrap="nowrap" style={{ flex: 1 }}>
@@ -153,9 +167,11 @@ export default function ModelCard({
                 <Text fw={500} fs={displayName ? undefined : "italic"} c={displayName ? undefined : "dimmed"} truncate>
                   {displayName || "Unnamed"}
                 </Text>
-                <ActionIcon size="sm" variant="subtle" title="Rename" onClick={startEditingName}>
-                  <IconPencil size={14} />
-                </ActionIcon>
+                {editMode && (
+                  <ActionIcon size="sm" variant="subtle" title="Rename" onClick={startEditingName}>
+                    <IconPencil size={14} />
+                  </ActionIcon>
+                )}
               </Group>
             )}
           </Group>
@@ -170,21 +186,21 @@ export default function ModelCard({
               e.target.value = "";
             }}
           />
-          <ActionIcon
-            variant="subtle"
-            title="Upload image"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-          >
-            {isUploading ? <Loader size={16} /> : <IconUpload size={16} stroke={1.5} />}
-          </ActionIcon>
-          <ActionIcon variant="subtle" color="red" title="Delete model" onClick={onDeleteModel} disabled={isDeleting}>
-            {isDeleting ? <Loader size={16} /> : <IconTrash size={16} stroke={1.5} />}
-          </ActionIcon>
+          {editMode && (
+            <ActionIcon
+              variant="subtle"
+              color="red"
+              title="Delete model"
+              onClick={onDeleteModel}
+              disabled={isDeleting}
+            >
+              {isDeleting ? <Loader size={16} /> : <IconTrash size={16} stroke={1.5} />}
+            </ActionIcon>
+          )}
         </Group>
 
         <Group align="flex-start" wrap="nowrap" gap="sm">
-          <div style={{ width: 100, flexShrink: 0 }}>
+          <div style={{ width: 100, flexShrink: 0, position: "relative" }}>
             {images.length > 0 ? (
               <SimpleGrid cols={imageGridCols} spacing={imageGridSpacing}>
                 {visibleImages.map((img, index) => {
@@ -216,7 +232,7 @@ export default function ModelCard({
                           </Text>
                         </div>
                       )}
-                      {img.id && !(isLastVisible && hiddenImageCount > 0) && (
+                      {img.id && editMode && !(isLastVisible && hiddenImageCount > 0) && (
                         <ActionIcon
                           size="sm"
                           variant="filled"
@@ -241,10 +257,31 @@ export default function ModelCard({
                 justify="center"
                 align="center"
                 h={100}
-                style={{ border: "1px dashed var(--mantine-color-gray-4)", borderRadius: "var(--mantine-radius-sm)" }}
+                onClick={() => editMode && !isUploading && fileInputRef.current?.click()}
+                style={{
+                  border: "1px dashed var(--mantine-color-gray-4)",
+                  borderRadius: "var(--mantine-radius-sm)",
+                  cursor: editMode && !isUploading ? "pointer" : "default",
+                }}
               >
-                <IconPhoto size={20} color="var(--mantine-color-gray-5)" />
+                {isUploading ? (
+                  <Loader size={20} />
+                ) : (
+                  <IconPhoto size={20} color="var(--mantine-color-gray-5)" />
+                )}
               </Group>
+            )}
+            {editMode && (
+              <ActionIcon
+                size="sm"
+                variant="filled"
+                title="Upload image"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                style={{ position: "absolute", bottom: -6, right: -6 }}
+              >
+                {isUploading ? <Loader size={10} color="white" /> : <IconUpload size={12} stroke={1.5} />}
+              </ActionIcon>
             )}
           </div>
 
@@ -303,9 +340,11 @@ export default function ModelCard({
                     {description || "No description"}
                   </Text>
                 </Tooltip>
-                <ActionIcon size="sm" variant="subtle" title="Edit description" onClick={startEditingDescription}>
-                  <IconPencil size={12} />
-                </ActionIcon>
+                {editMode && (
+                  <ActionIcon size="sm" variant="subtle" title="Edit description" onClick={startEditingDescription}>
+                    <IconPencil size={12} />
+                  </ActionIcon>
+                )}
               </Group>
             )}
 
@@ -341,9 +380,11 @@ export default function ModelCard({
                 <Text size="xs" c="dimmed">
                   {model.finishedOn ? `Finished ${model.finishedOn}` : "Not finished"}
                 </Text>
-                <ActionIcon size="sm" variant="subtle" title="Set finished date" onClick={startEditingFinishedOn}>
-                  <IconPencil size={12} />
-                </ActionIcon>
+                {editMode && (
+                  <ActionIcon size="sm" variant="subtle" title="Set finished date" onClick={startEditingFinishedOn}>
+                    <IconPencil size={12} />
+                  </ActionIcon>
+                )}
               </Group>
             )}
 
@@ -393,14 +434,16 @@ export default function ModelCard({
                       );
                     })}
                   </Group>
-                  <ActionIcon
-                    size="sm"
-                    variant="subtle"
-                    title="Edit loadout"
-                    onClick={() => setIsEditingWargear(true)}
-                  >
-                    <IconPencil size={12} />
-                  </ActionIcon>
+                  {editMode && (
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      title="Edit loadout"
+                      onClick={() => setIsEditingWargear(true)}
+                    >
+                      <IconPencil size={12} />
+                    </ActionIcon>
+                  )}
                 </Group>
               ))}
           </Stack>
