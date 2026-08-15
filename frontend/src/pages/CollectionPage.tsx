@@ -22,6 +22,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconAlertCircle, IconArrowLeft, IconCheck, IconPencil, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
+import { isAxiosError } from "axios";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -48,6 +49,7 @@ import {
   COLLECTION_MODEL_STATUSES,
 } from "../utils/collectionModelStatus";
 import { createImageVariants } from "../utils/imageVariants";
+import NotFoundPage from "./NotFoundPage";
 
 type ModelGroup = {
   key: string;
@@ -82,6 +84,7 @@ export default function CollectionPage() {
   const [modelDefinitions, setModelDefinitions] = useState<ModelDefinition[]>([]);
   const [models, setModels] = useState<CollectionModel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [collectionNotFound, setCollectionNotFound] = useState(false);
   const [modelDefinitionId, setModelDefinitionId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -149,10 +152,11 @@ export default function CollectionPage() {
     }
     const ac = new AbortController();
     setLoading(true);
+    setCollectionNotFound(false);
     Promise.all([
-      getArmyCollection({ path: { armyCollectionId: collectionId }, signal: ac.signal }),
+      getArmyCollection({ path: { armyCollectionId: collectionId }, signal: ac.signal, throwOnError: true }),
       getModelDefinitions({ signal: ac.signal }),
-      getCollectionModels({ path: { armyCollectionId: collectionId }, signal: ac.signal }),
+      getCollectionModels({ path: { armyCollectionId: collectionId }, signal: ac.signal, throwOnError: true }),
     ])
       .then(([armyCollectionRes, modelDefinitionsRes, modelsRes]) => {
         if (ac.signal.aborted) return;
@@ -164,7 +168,12 @@ export default function CollectionPage() {
         }
       })
       .catch((e) => {
-        if (!ac.signal.aborted) setError(String(e));
+        if (ac.signal.aborted) return;
+        if (isAxiosError(e) && e.response?.status === 404) {
+          setCollectionNotFound(true);
+        } else {
+          setError(String(e));
+        }
       })
       .finally(() => {
         if (!ac.signal.aborted) setLoading(false);
@@ -487,6 +496,10 @@ export default function CollectionPage() {
       setPendingDelete(null);
       closeConfirm();
     }
+  }
+
+  if (!isAuthLoading && isAuthenticated && !loading && collectionNotFound) {
+    return <NotFoundPage title="Collection not found" message="This collection doesn't exist or you don't have access to it." />;
   }
 
   return (
