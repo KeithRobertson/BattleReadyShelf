@@ -54,4 +54,22 @@ public class ModelDefinitionsService {
                                                         entity.getId(), List.of())))
                 .toList();
     }
+
+    /**
+     * Populates the {@code attachmentSlots} and {@code wargearOptions} of a single, already
+     * mapped {@link ModelDefinition} DTO. Used by other services (e.g. collection models) that
+     * embed a model definition and need it fully populated, not just its id/name.
+     */
+    public ModelDefinition enrichWithAttachmentSlotsAndWargearOptions(ModelDefinition modelDefinition) {
+        var modelDefinitionId = modelDefinition.getId();
+        var attachmentSlots =
+                attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(modelDefinitionId)).stream()
+                        .map(modelDefinitionMapper::toDto)
+                        .toList();
+        var wargearOptions =
+                wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(modelDefinitionId)).stream()
+                        .map(modelDefinitionMapper::toDto)
+                        .toList();
+        return modelDefinition.attachmentSlots(attachmentSlots).wargearOptions(wargearOptions);
+    }
 }

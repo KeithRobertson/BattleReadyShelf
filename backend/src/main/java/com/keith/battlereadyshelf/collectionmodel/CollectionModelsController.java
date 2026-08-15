@@ -62,7 +62,8 @@ public class CollectionModelsController implements CollectionModelsApi {
                         collectionModelId,
                         updateCollectionModelRequest.getName(),
                         updateCollectionModelRequest.getDescription(),
-                        updateCollectionModelRequest.getFinishedOn());
+                        updateCollectionModelRequest.getFinishedOn(),
+                        updateCollectionModelRequest.getWargearSelections());
         return ResponseEntity.ok(updatedCollectionModel);
     }
 

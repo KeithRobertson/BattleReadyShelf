@@ -722,7 +722,25 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CollectionModelImage'
+        wargearSelections:
+          readOnly: true
+          type: array
+          description: >-
+            What the user has assigned to each of this model's attachment slots, if any.
+          items:
+            $ref: '#/components/schemas/WargearSelection'
       required: [ modelDefinitionId ]
+    WargearSelection:
+      type: object
+      properties:
+        attachmentSlotId:
+          type: string
+          format: uuid
+        wargearOptionId:
+          type: string
+          format: uuid
+          description: The wargear option assigned to this slot, or null/omitted to leave it empty.
+      required: [ attachmentSlotId ]
     BulkCreateCollectionModelsRequest:
       type: object
       properties:
@@ -755,6 +773,13 @@ components:
         finishedOn:
           type: string
           format: date
+        wargearSelections:
+          type: array
+          description: >-
+            If present, replaces all of this model's wargear slot assignments. Omit to leave
+            existing assignments unchanged.
+          items:
+            $ref: '#/components/schemas/WargearSelection'
     GoogleAuthRequest:
       type: object
       properties:

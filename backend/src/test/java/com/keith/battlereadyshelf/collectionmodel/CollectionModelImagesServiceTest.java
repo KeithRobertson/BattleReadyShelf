@@ -14,6 +14,7 @@ import com.keith.battlereadyshelf.error.ApiException;
 import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionMapperImpl;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionRepository;
+import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionsService;
 import com.keith.battlereadyshelf.storage.PresignedUrlService;
 import com.keith.battlereadyshelf.storage.StorageKeyGenerator;
 import com.keith.battlereadyshelf.storage.StorageProperties;
@@ -39,6 +40,8 @@ class CollectionModelImagesServiceTest {
     @Mock private ArmyCollectionRepository armyCollectionRepository;
     @Mock private ModelDefinitionRepository modelDefinitionRepository;
     @Mock private CollectionModelImageRepository collectionModelImageRepository;
+    @Mock private CollectionModelWargearSelectionRepository collectionModelWargearSelectionRepository;
+    @Mock private ModelDefinitionsService modelDefinitionsService;
     @Mock private PresignedUrlService presignedUrlService;
 
     @Captor private ArgumentCaptor<CollectionModelImageEntity> collectionModelImageEntityCaptor;
@@ -54,8 +57,10 @@ class CollectionModelImagesServiceTest {
                         armyCollectionRepository,
                         modelDefinitionRepository,
                         collectionModelImageRepository,
+                        collectionModelWargearSelectionRepository,
                         new CollectionModelMapperImpl(new ModelDefinitionMapperImpl()),
                         new CollectionModelImageMapperImpl(),
+                        modelDefinitionsService,
                         presignedUrlService);
 
         var storageProperties =

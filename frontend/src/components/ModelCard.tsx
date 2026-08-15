@@ -6,6 +6,7 @@ import {
   Group,
   Image,
   Loader,
+  Select,
   SimpleGrid,
   Stack,
   Text,
@@ -28,12 +29,14 @@ type ModelCardProps = {
   onDeleteModel: () => void;
   onUpdateFinishedOn: (finishedOn: string | null) => void;
   onUpdateDescription: (description: string) => void;
+  onUpdateWargearSelection: (attachmentSlotId: string, wargearOptionId: string | null) => void;
   isUploading: boolean;
   deletingImageId: string | null;
   isRenaming: boolean;
   isDeleting: boolean;
   isUpdatingFinishedOn: boolean;
   isUpdatingDescription: boolean;
+  updatingWargearSlotId: string | null;
   selected: boolean;
   onToggleSelected: (selected: boolean) => void;
 };
@@ -46,12 +49,14 @@ export default function ModelCard({
   onDeleteModel,
   onUpdateFinishedOn,
   onUpdateDescription,
+  onUpdateWargearSelection,
   isUploading,
   deletingImageId,
   isRenaming,
   isDeleting,
   isUpdatingFinishedOn,
   isUpdatingDescription,
+  updatingWargearSlotId,
   selected,
   onToggleSelected,
 }: ModelCardProps) {
@@ -71,6 +76,9 @@ export default function ModelCard({
   const [finishedOnDraft, setFinishedOnDraft] = useState<string | null>(model.finishedOn ?? null);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState(description ?? "");
+  const [isEditingWargear, setIsEditingWargear] = useState(false);
+  const attachmentSlots = model.modelDefinition?.attachmentSlots ?? [];
+  const wargearOptions = model.modelDefinition?.wargearOptions ?? [];
 
   function startEditingName() {
     setNameDraft(displayName ?? "");
@@ -338,6 +346,63 @@ export default function ModelCard({
                 </ActionIcon>
               </Group>
             )}
+
+            {attachmentSlots.length > 0 &&
+              (isEditingWargear ? (
+                <Stack gap={4} align="flex-end" style={{ width: "100%" }}>
+                  {attachmentSlots.map((slot) => {
+                    const slotOptions = wargearOptions.filter((option) =>
+                      option.attachmentSlotIds?.includes(slot.id ?? ""),
+                    );
+                    const currentSelection = model.wargearSelections?.find((s) => s.attachmentSlotId === slot.id);
+                    const isUpdatingThisSlot = updatingWargearSlotId === slot.id;
+                    return (
+                      <Select
+                        key={slot.id}
+                        size="xs"
+                        label={slot.name}
+                        placeholder="Unassigned"
+                        clearable
+                        data={slotOptions.map((option) => ({ value: option.id ?? "", label: option.name ?? "" }))}
+                        value={currentSelection?.wargearOptionId ?? null}
+                        onChange={(value) => slot.id && onUpdateWargearSelection(slot.id, value)}
+                        disabled={isUpdatingThisSlot}
+                        rightSection={isUpdatingThisSlot ? <Loader size={12} /> : undefined}
+                        style={{ width: "100%" }}
+                      />
+                    );
+                  })}
+                  <Group gap={4} justify="flex-end">
+                    <ActionIcon size="sm" variant="subtle" title="Done" onClick={() => setIsEditingWargear(false)}>
+                      <IconCheck size={14} />
+                    </ActionIcon>
+                  </Group>
+                </Stack>
+              ) : (
+                <Group gap={4} wrap="nowrap" justify="flex-end" style={{ width: "100%" }}>
+                  <Group gap={4} justify="flex-end" wrap="wrap" style={{ flex: 1 }}>
+                    {attachmentSlots.map((slot) => {
+                      const currentSelection = model.wargearSelections?.find((s) => s.attachmentSlotId === slot.id);
+                      const optionName = wargearOptions.find(
+                        (option) => option.id === currentSelection?.wargearOptionId,
+                      )?.name;
+                      return (
+                        <Badge key={slot.id} variant="light" color={optionName ? "blue" : "gray"} size="sm">
+                          {slot.name}: {optionName ?? "Unassigned"}
+                        </Badge>
+                      );
+                    })}
+                  </Group>
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    title="Edit loadout"
+                    onClick={() => setIsEditingWargear(true)}
+                  >
+                    <IconPencil size={12} />
+                  </ActionIcon>
+                </Group>
+              ))}
           </Stack>
         </Group>
       </Stack>

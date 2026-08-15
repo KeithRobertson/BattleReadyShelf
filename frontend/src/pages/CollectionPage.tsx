@@ -85,6 +85,7 @@ export default function CollectionPage() {
   const [renamingModelId, setRenamingModelId] = useState<string | null>(null);
   const [updatingFinishedOnModelId, setUpdatingFinishedOnModelId] = useState<string | null>(null);
   const [updatingDescriptionModelId, setUpdatingDescriptionModelId] = useState<string | null>(null);
+  const [updatingWargearSlotKey, setUpdatingWargearSlotKey] = useState<string | null>(null);
   const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [selectedModelIds, setSelectedModelIds] = useState<Set<string>>(new Set());
@@ -285,6 +286,41 @@ export default function CollectionPage() {
       setError(String(e));
     } finally {
       setUpdatingDescriptionModelId(null);
+    }
+  }
+
+  /**
+   * Assigns (or clears, if wargearOptionId is null) the wargear filling one of a model's
+   * attachment slots, leaving its other slot assignments untouched.
+   */
+  async function handleUpdateWargearSelection(
+    model: CollectionModel,
+    attachmentSlotId: string,
+    wargearOptionId: string | null,
+  ) {
+    if (!model.id) return;
+    const modelId = model.id;
+    const slotKey = `${modelId}:${attachmentSlotId}`;
+    setError(null);
+    setUpdatingWargearSlotKey(slotKey);
+    try {
+      const otherSelections = (model.wargearSelections ?? []).filter(
+        (s) => s.attachmentSlotId !== attachmentSlotId,
+      );
+      const wargearSelections = [
+        ...otherSelections,
+        { attachmentSlotId, wargearOptionId: wargearOptionId ?? undefined },
+      ];
+      const updated = (
+        await updateCollectionModel({ path: { collectionModelId: modelId }, body: { wargearSelections } })
+      ).data;
+      if (updated) {
+        setModels((s) => s.map((m) => (m.id === modelId ? updated : m)));
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setUpdatingWargearSlotKey(null);
     }
   }
 
@@ -662,12 +698,20 @@ export default function CollectionPage() {
                                 onUpdateDescription={(description) =>
                                   m.id && handleUpdateDescription(m.id, description)
                                 }
+                                onUpdateWargearSelection={(attachmentSlotId, wargearOptionId) =>
+                                  handleUpdateWargearSelection(m, attachmentSlotId, wargearOptionId)
+                                }
                                 isUploading={uploadingModelId === m.id}
                                 deletingImageId={deletingImageId}
                                 isRenaming={renamingModelId === m.id}
                                 isDeleting={deletingModelId === m.id}
                                 isUpdatingFinishedOn={updatingFinishedOnModelId === m.id}
                                 isUpdatingDescription={updatingDescriptionModelId === m.id}
+                                updatingWargearSlotId={
+                                  updatingWargearSlotKey?.startsWith(`${m.id}:`)
+                                    ? updatingWargearSlotKey.slice(`${m.id}:`.length)
+                                    : null
+                                }
                                 selected={!!m.id && selectedModelIds.has(m.id)}
                                 onToggleSelected={(isSelected) => m.id && toggleSelected(m.id, isSelected)}
                               />

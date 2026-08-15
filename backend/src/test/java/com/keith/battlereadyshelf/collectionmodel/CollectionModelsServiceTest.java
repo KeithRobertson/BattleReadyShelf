@@ -3,9 +3,9 @@ package com.keith.battlereadyshelf.collectionmodel;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
+
+import static java.time.Month.JUNE;
 
 import com.keith.battlereadyshelf.armycollection.ArmyCollectionEntity;
 import com.keith.battlereadyshelf.armycollection.ArmyCollectionRepository;
@@ -15,6 +15,7 @@ import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionEntity;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionMapperImpl;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionRepository;
+import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionsService;
 import com.keith.battlereadyshelf.storage.PresignedUrlService;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +26,7 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,9 +37,15 @@ class CollectionModelsServiceTest {
     @Mock private ArmyCollectionRepository armyCollectionRepository;
     @Mock private ModelDefinitionRepository modelDefinitionRepository;
     @Mock private CollectionModelImageRepository collectionModelImageRepository;
+
+    @Mock
+    private CollectionModelWargearSelectionRepository collectionModelWargearSelectionRepository;
+
+    @Mock private ModelDefinitionsService modelDefinitionsService;
     @Mock private PresignedUrlService presignedUrlService;
 
     @Captor private ArgumentCaptor<CollectionModelEntity> collectionModelEntityCaptor;
+    @Captor private ArgumentCaptor<List<CollectionModelWargearSelectionEntity>> selectionCaptor;
 
     private CollectionModelsService collectionModelsService;
 
@@ -46,14 +54,22 @@ class CollectionModelsServiceTest {
         lenient()
                 .when(collectionModelImageRepository.findAllByCollectionModelId(any()))
                 .thenReturn(List.of());
+        lenient()
+                .when(collectionModelWargearSelectionRepository.findAllByCollectionModelId(any()))
+                .thenReturn(List.of());
+        lenient()
+                .when(modelDefinitionsService.enrichWithAttachmentSlotsAndWargearOptions(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
         collectionModelsService =
                 new CollectionModelsService(
                         collectionModelRepository,
                         armyCollectionRepository,
                         modelDefinitionRepository,
                         collectionModelImageRepository,
+                        collectionModelWargearSelectionRepository,
                         new CollectionModelMapperImpl(new ModelDefinitionMapperImpl()),
                         new CollectionModelImageMapperImpl(),
+                        modelDefinitionsService,
                         presignedUrlService);
     }
 
@@ -94,7 +110,8 @@ class CollectionModelsServiceTest {
                                 .id(collectionModelId)
                                 .modelDefinition(new ModelDefinition("Poxwalker").id(poxwalkerId))
                                 .name("My Poxwalker")
-                                .images(List.of()));
+                                .images(List.of())
+                                .wargearSelections(List.of()));
     }
 
     @Test
@@ -176,7 +193,8 @@ class CollectionModelsServiceTest {
                                 .modelDefinition(new ModelDefinition("Poxwalker").id(poxwalkerId))
                                 .name("My Poxwalker")
                                 .description("Freshly painted")
-                                .images(List.of()));
+                                .images(List.of())
+                                .wargearSelections(List.of()));
     }
 
     @Test
@@ -235,8 +253,8 @@ class CollectionModelsServiceTest {
                 collectionModelsService.bulkCreateCollectionModels(
                         userId, armyCollectionId, poxwalkerId, 60);
 
-        assertThat(createdCollectionModels).hasSize(60);
         assertThat(createdCollectionModels)
+                .hasSize(60)
                 .allSatisfy(
                         model -> {
                             assertThat(model.getId()).isNotNull();
@@ -321,7 +339,7 @@ class CollectionModelsServiceTest {
 
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, "Poxwalker #1", "Front rank", null);
+                        userId, collectionModelId, "Poxwalker #1", "Front rank", null, null);
 
         assertThat(updated.getName()).isEqualTo("Poxwalker #1");
         assertThat(updated.getDescription()).isEqualTo("Front rank");
@@ -350,10 +368,10 @@ class CollectionModelsServiceTest {
         when(collectionModelRepository.save(any(CollectionModelEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        var finishedOn = java.time.LocalDate.of(2025, 6, 1);
+        var finishedOn = LocalDate.of(2025, JUNE, 1);
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, null, null, finishedOn);
+                        userId, collectionModelId, null, null, finishedOn, null);
 
         assertThat(updated.getFinishedOn()).isEqualTo(finishedOn);
     }
@@ -390,10 +408,62 @@ class CollectionModelsServiceTest {
 
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, "Poxwalker #1", null, null);
+                        userId, collectionModelId, "Poxwalker #1", null, null, null);
 
         assertThat(updated.getName()).isEqualTo("Poxwalker #1");
         assertThat(updated.getDescription()).isEqualTo("Original description");
+    }
+
+    @Test
+    void updateCollectionModel_replacesWargearSelections_whenProvided() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var plagueMarineId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var leftArmId = UUID.randomUUID();
+        var boltgunId = UUID.randomUUID();
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .modelDefinition(
+                                                ModelDefinitionEntity.builder()
+                                                        .id(plagueMarineId)
+                                                        .name("Plague Marine")
+                                                        .build())
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelRepository.save(any(CollectionModelEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var wargearSelections =
+                List.of(
+                        new com.keith.battlereadyshelf.generated.model.WargearSelection(leftArmId)
+                                .wargearOptionId(boltgunId));
+
+        collectionModelsService.updateCollectionModel(
+                userId, collectionModelId, null, null, null, wargearSelections);
+
+        verify(collectionModelWargearSelectionRepository)
+                .deleteAllByCollectionModelId(collectionModelId);
+        verify(collectionModelWargearSelectionRepository).saveAll(selectionCaptor.capture());
+        var savedSelections = selectionCaptor.getValue();
+        assertThat(savedSelections)
+                .containsExactly(
+                        CollectionModelWargearSelectionEntity.builder()
+                                .collectionModelId(collectionModelId)
+                                .attachmentSlotId(leftArmId)
+                                .wargearOptionId(boltgunId)
+                                .build());
     }
 
     @Test
@@ -421,7 +491,7 @@ class CollectionModelsServiceTest {
         assertThatThrownBy(
                         () ->
                                 collectionModelsService.updateCollectionModel(
-                                        userId, collectionModelId, "New name", null, null))
+                                        userId, collectionModelId, "New name", null, null, null))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -489,7 +559,9 @@ class CollectionModelsServiceTest {
                                         .build()));
 
         assertThatThrownBy(
-                        () -> collectionModelsService.deleteCollectionModel(userId, collectionModelId))
+                        () ->
+                                collectionModelsService.deleteCollectionModel(
+                                        userId, collectionModelId))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -525,7 +597,7 @@ class CollectionModelsServiceTest {
                 userId, armyCollectionId, List.of(ownedModelId, otherArmyCollectionModelId));
 
         verify(collectionModelRepository).delete(ownedModel);
-        verify(collectionModelRepository, org.mockito.Mockito.never()).delete(otherModel);
+        verify(collectionModelRepository, never()).delete(otherModel);
     }
 
     @Test
@@ -542,10 +614,11 @@ class CollectionModelsServiceTest {
                                         .name("Someone else's collection")
                                         .build()));
 
+        var collectionModelIds = List.of(UUID.randomUUID());
         assertThatThrownBy(
                         () ->
                                 collectionModelsService.bulkDeleteCollectionModels(
-                                        userId, armyCollectionId, List.of(UUID.randomUUID())))
+                                        userId, armyCollectionId, collectionModelIds))
                 .isInstanceOf(NotFoundException.class);
     }
 }

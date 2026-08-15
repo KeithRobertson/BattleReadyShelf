@@ -4,18 +4,21 @@ import com.keith.battlereadyshelf.armycollection.ArmyCollectionRepository;
 import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.CollectionModel;
 import com.keith.battlereadyshelf.generated.model.CollectionModelImage;
+import com.keith.battlereadyshelf.generated.model.WargearSelection;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionRepository;
+import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionsService;
 import com.keith.battlereadyshelf.storage.PresignedUrlService;
 
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -24,8 +27,11 @@ public class CollectionModelsService {
     private final ArmyCollectionRepository armyCollectionRepository;
     private final ModelDefinitionRepository modelDefinitionRepository;
     private final CollectionModelImageRepository collectionModelImageRepository;
+    private final CollectionModelWargearSelectionRepository
+            collectionModelWargearSelectionRepository;
     private final CollectionModelMapper collectionModelMapper;
     private final CollectionModelImageMapper collectionModelImageMapper;
+    private final ModelDefinitionsService modelDefinitionsService;
     private final PresignedUrlService presignedUrlService;
 
     public List<CollectionModel> getCollectionModels(UUID userId, UUID armyCollectionId) {
@@ -58,8 +64,8 @@ public class CollectionModelsService {
     }
 
     /**
-     * Creates {@code count} unnamed collection models of the given model definition in one go
-     * (e.g. adding 60 Poxwalkers at once) so they can be individually named afterwards.
+     * Creates {@code count} unnamed collection models of the given model definition in one go (e.g.
+     * adding 60 Poxwalkers at once) so they can be individually named afterwards.
      */
     public List<CollectionModel> bulkCreateCollectionModels(
             UUID userId, UUID armyCollectionId, UUID modelDefinitionId, int count) {
@@ -75,13 +81,13 @@ public class CollectionModelsService {
                                                         + modelDefinitionId));
 
         var newEntities =
-                IntStream.range(0, count)
-                        .mapToObj(
-                                i ->
+                Stream.generate(
+                                () ->
                                         CollectionModelEntity.builder()
                                                 .armyCollectionId(armyCollectionId)
                                                 .modelDefinition(modelDefinition)
                                                 .build())
+                        .limit(count)
                         .toList();
 
         return collectionModelRepository.saveAll(newEntities).stream()
@@ -89,9 +95,18 @@ public class CollectionModelsService {
                 .toList();
     }
 
-    /** Renames/updates the name, description, and/or finished-on date of an existing collection model. */
+    /**
+     * Renames/updates the name, description, finished-on date, and/or wargear slot assignments of
+     * an existing collection model.
+     */
+    @Transactional
     public CollectionModel updateCollectionModel(
-            UUID userId, UUID collectionModelId, String name, String description, LocalDate finishedOn) {
+            UUID userId,
+            UUID collectionModelId,
+            String name,
+            String description,
+            LocalDate finishedOn,
+            List<WargearSelection> wargearSelections) {
         var collectionModel = requireOwnedCollectionModel(userId, collectionModelId);
 
         if (name != null) {
@@ -103,14 +118,38 @@ public class CollectionModelsService {
         if (finishedOn != null) {
             collectionModel.setFinishedOn(finishedOn);
         }
+        if (wargearSelections != null) {
+            replaceWargearSelections(collectionModelId, wargearSelections);
+        }
 
         return toDtoWithImages(collectionModelRepository.save(collectionModel));
     }
 
+    private void replaceWargearSelections(
+            UUID collectionModelId, List<WargearSelection> wargearSelections) {
+        // Hibernate's default flush ordering runs inserts before deletes within a transaction,
+        // so without an explicit flush here, re-inserting a selection for the same slot would
+        // violate the unique (collection_model_id, attachment_slot_id) constraint before the
+        // old row is actually removed.
+        collectionModelWargearSelectionRepository.deleteAllByCollectionModelId(collectionModelId);
+        collectionModelWargearSelectionRepository.flush();
+        var newSelections =
+                wargearSelections.stream()
+                        .map(
+                                selection ->
+                                        CollectionModelWargearSelectionEntity.builder()
+                                                .collectionModelId(collectionModelId)
+                                                .attachmentSlotId(selection.getAttachmentSlotId())
+                                                .wargearOptionId(selection.getWargearOptionId())
+                                                .build())
+                        .toList();
+        collectionModelWargearSelectionRepository.saveAll(newSelections);
+    }
+
     /**
-     * Deletes a collection model along with its images (both the R2 objects and the DB rows;
-     * the DB rows would also cascade-delete on their own, but the R2 objects need explicit
-     * cleanup since Postgres cascades don't reach out-of-database storage).
+     * Deletes a collection model along with its images (both the R2 objects and the DB rows; the DB
+     * rows would also cascade-delete on their own, but the R2 objects need explicit cleanup since
+     * Postgres cascades don't reach out-of-database storage).
      */
     public void deleteCollectionModel(UUID userId, UUID collectionModelId) {
         var collectionModel = requireOwnedCollectionModel(userId, collectionModelId);
@@ -118,21 +157,23 @@ public class CollectionModelsService {
     }
 
     /**
-     * Deletes multiple collection models (and their images) at once. Ids that don't exist or
-     * don't belong to this army collection are silently skipped rather than failing the whole
-     * batch.
+     * Deletes multiple collection models (and their images) at once. Ids that don't exist or don't
+     * belong to this army collection are silently skipped rather than failing the whole batch.
      */
     public void bulkDeleteCollectionModels(
             UUID userId, UUID armyCollectionId, List<UUID> collectionModelIds) {
         requireOwnedArmyCollection(userId, armyCollectionId);
 
-        collectionModelRepository.findAllById(collectionModelIds.stream().distinct().toList()).stream()
+        collectionModelRepository
+                .findAllById(collectionModelIds.stream().distinct().toList())
+                .stream()
                 .filter(model -> model.getArmyCollectionId().equals(armyCollectionId))
                 .forEach(this::deleteImagesAndModel);
     }
 
     private void deleteImagesAndModel(CollectionModelEntity collectionModel) {
-        var images = collectionModelImageRepository.findAllByCollectionModelId(collectionModel.getId());
+        var images =
+                collectionModelImageRepository.findAllByCollectionModelId(collectionModel.getId());
         images.forEach(
                 image -> {
                     deleteVariantIfPresent(image.getOriginal());
@@ -170,11 +211,21 @@ public class CollectionModelsService {
 
     private CollectionModel toDtoWithImages(CollectionModelEntity entity) {
         var dto = collectionModelMapper.toDto(entity);
+        dto.setModelDefinition(
+                modelDefinitionsService.enrichWithAttachmentSlotsAndWargearOptions(
+                        dto.getModelDefinition()));
         var images =
                 collectionModelImageRepository.findAllByCollectionModelId(entity.getId()).stream()
                         .map(this::toImageDtoWithUrls)
                         .toList();
         dto.setImages(images);
+        var wargearSelections =
+                collectionModelWargearSelectionRepository
+                        .findAllByCollectionModelId(entity.getId())
+                        .stream()
+                        .map(collectionModelMapper::toDto)
+                        .toList();
+        dto.setWargearSelections(wargearSelections);
         return dto;
     }
 
