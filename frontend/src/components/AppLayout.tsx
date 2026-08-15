@@ -1,7 +1,16 @@
 import { AppShell, Avatar, Burger, Group, Menu, NavLink, Text, Title, UnstyledButton } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { GoogleLogin } from "@react-oauth/google";
-import { IconChevronDown, IconLogout, IconSettings, IconStack2, IconSwords, IconUsers } from "@tabler/icons-react";
+import {
+  IconChevronDown,
+  IconLogout,
+  IconSettings,
+  IconShieldLock,
+  IconStack2,
+  IconSwords,
+  IconTags,
+  IconUsers,
+} from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
@@ -20,15 +29,18 @@ const navItems = [
   { label: "Army Builder", to: "/army-builder", icon: IconSwords },
 ];
 
+const adminNavItems = [
+  { label: "Manage Users", to: "/admin/users", icon: IconUsers },
+  { label: "Manage Model Definitions", to: "/admin/model-definitions", icon: IconTags },
+];
+
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, loginWithGoogleIdToken, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [navOpened, { toggle: toggleNav }] = useDisclosure();
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
-  const visibleNavItems = isAdmin
-    ? [...navItems, { label: "Manage Users", to: "/admin/users", icon: IconUsers }]
-    : navItems;
+  const isAdminRoute = location.pathname.startsWith("/admin");
 
   return (
     <AppShell
@@ -92,7 +104,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       </AppShell.Header>
 
       <AppShell.Navbar p="md">
-        {visibleNavItems.map((item) => (
+        {navItems.map((item) => (
           <NavLink
             key={item.to}
             component={Link}
@@ -103,6 +115,26 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             onClick={toggleNav}
           />
         ))}
+        {isAdmin && (
+          <NavLink
+            label="Administration"
+            leftSection={<IconShieldLock size={18} stroke={1.5} />}
+            defaultOpened={isAdminRoute}
+            childrenOffset={28}
+          >
+            {adminNavItems.map((item) => (
+              <NavLink
+                key={item.to}
+                component={Link}
+                to={item.to}
+                label={item.label}
+                leftSection={<item.icon size={18} stroke={1.5} />}
+                active={location.pathname === item.to}
+                onClick={toggleNav}
+              />
+            ))}
+          </NavLink>
+        )}
       </AppShell.Navbar>
 
       <AppShell.Main>{children}</AppShell.Main>
