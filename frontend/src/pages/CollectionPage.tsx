@@ -57,17 +57,40 @@ type ModelGroup = {
   models: CollectionModel[];
 };
 
-type SortOrder = "name-asc" | "name-desc";
+type SortField = "name" | "status" | "date";
+type SortDirection = "asc" | "desc";
+type SortOrder = `${SortField}-${SortDirection}`;
 
 const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
   { value: "name-asc", label: "Name (A–Z)" },
   { value: "name-desc", label: "Name (Z–A)" },
+  { value: "status-asc", label: "Status (Boxed → Painted)" },
+  { value: "status-desc", label: "Status (Painted → Boxed)" },
+  { value: "date-asc", label: "Date finished (oldest first)" },
+  { value: "date-desc", label: "Date finished (newest first)" },
 ];
 
-/** Sorts models by name; unnamed models always sort to the end regardless of direction. */
+/** Sorts models by the chosen field/direction; models missing that field's value always sort to the end. */
 function sortModels(models: CollectionModel[], sortOrder: SortOrder): CollectionModel[] {
-  const direction = sortOrder === "name-asc" ? 1 : -1;
+  const [field, dir] = sortOrder.split("-") as [SortField, SortDirection];
+  const direction = dir === "asc" ? 1 : -1;
   return [...models].sort((a, b) => {
+    if (field === "status") {
+      const rankA = a.status ? COLLECTION_MODEL_STATUSES.indexOf(a.status) : -1;
+      const rankB = b.status ? COLLECTION_MODEL_STATUSES.indexOf(b.status) : -1;
+      if (rankA === -1 && rankB === -1) return 0;
+      if (rankA === -1) return 1;
+      if (rankB === -1) return -1;
+      return direction * (rankA - rankB);
+    }
+    if (field === "date") {
+      const dateA = a.finishedOn;
+      const dateB = b.finishedOn;
+      if (!dateA && !dateB) return 0;
+      if (!dateA) return 1;
+      if (!dateB) return -1;
+      return direction * dateA.localeCompare(dateB);
+    }
     const nameA = a.name?.trim();
     const nameB = b.name?.trim();
     if (!nameA && !nameB) return 0;
@@ -738,7 +761,7 @@ export default function CollectionPage() {
                     data={SORT_OPTIONS}
                     value={sortOrder}
                     onChange={(value) => value && setSortOrder(value as SortOrder)}
-                    w={160}
+                    w={220}
                     size="xs"
                     allowDeselect={false}
                   />

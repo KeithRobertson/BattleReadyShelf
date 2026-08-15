@@ -762,7 +762,7 @@ components:
       type: string
       description: >-
         A collection model's progress through the typical painting pipeline.
-      enum: [ BOXED, ASSEMBLED, PRIMED, PAINTED ]
+      enum: [ BOXED, ASSEMBLING, ASSEMBLED, PRIMING, PRIMED, PAINTING, PAINTED ]
     BulkCreateCollectionModelsRequest:
       type: object
       properties:

@@ -1,28 +1,54 @@
 import type { CollectionModelStatus } from "../generated";
 
-/** Statuses in painting-pipeline order, for consistent display/filtering across the app. */
-export const COLLECTION_MODEL_STATUSES: CollectionModelStatus[] = ["BOXED", "ASSEMBLED", "PRIMED", "PAINTED"];
+/**
+ * Statuses in painting-pipeline order, for consistent display/filtering across the app.
+ * The "-ING" statuses are interstitial/in-progress markers between the completed milestones
+ * (e.g. ASSEMBLING sits between BOXED and ASSEMBLED).
+ */
+export const COLLECTION_MODEL_STATUSES: CollectionModelStatus[] = [
+  "BOXED",
+  "ASSEMBLING",
+  "ASSEMBLED",
+  "PRIMING",
+  "PRIMED",
+  "PAINTING",
+  "PAINTED",
+];
 
 export const COLLECTION_MODEL_STATUS_LABELS: Record<CollectionModelStatus, string> = {
   BOXED: "Boxed",
+  ASSEMBLING: "Assembling",
   ASSEMBLED: "Assembled",
+  PRIMING: "Priming",
   PRIMED: "Primed",
+  PAINTING: "Painting",
   PAINTED: "Painted",
 };
 
+/**
+ * A red-to-green gradient across the 7 pipeline stages, evenly spaced across the hue range
+ * from red (0°, still in the box) to green (120°, fully painted/battle-ready), so the badge
+ * colour itself visually communicates progress at a glance.
+ */
 export const COLLECTION_MODEL_STATUS_COLORS: Record<CollectionModelStatus, string> = {
-  BOXED: "gray",
-  ASSEMBLED: "blue",
-  PRIMED: "yellow",
-  PAINTED: "green",
+  BOXED: "#b12525",
+  ASSEMBLING: "#b15425",
+  ASSEMBLED: "#b18225",
+  PRIMING: "#b1b125",
+  PRIMED: "#82b125",
+  PAINTING: "#54b125",
+  PAINTED: "#25b125",
 };
 
 /** Very light background tint per status, used for subtle card colouration (kept low-contrast so it stays cohesive). */
 export const COLLECTION_MODEL_STATUS_BACKGROUNDS: Record<CollectionModelStatus, string> = {
-  BOXED: "var(--mantine-color-gray-0)",
-  ASSEMBLED: "var(--mantine-color-blue-0)",
-  PRIMED: "var(--mantine-color-yellow-0)",
-  PAINTED: "var(--mantine-color-green-0)",
+  BOXED: "#fce9e9",
+  ASSEMBLING: "#fcefe9",
+  ASSEMBLED: "#fcf5e9",
+  PRIMING: "#fcfce9",
+  PRIMED: "#f5fce9",
+  PAINTING: "#effce9",
+  PAINTED: "#e9fce9",
 };
 
 export const COLLECTION_MODEL_STATUS_OPTIONS = COLLECTION_MODEL_STATUSES.map((status) => ({

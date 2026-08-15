@@ -1,0 +1,3 @@
+ALTER TYPE collection_model_status ADD VALUE 'ASSEMBLING' AFTER 'BOXED';
+ALTER TYPE collection_model_status ADD VALUE 'PRIMING' AFTER 'ASSEMBLED';
+ALTER TYPE collection_model_status ADD VALUE 'PAINTING' AFTER 'PRIMED';
