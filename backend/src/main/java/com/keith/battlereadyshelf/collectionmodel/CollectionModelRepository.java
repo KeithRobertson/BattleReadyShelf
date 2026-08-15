@@ -1,5 +1,6 @@
 package com.keith.battlereadyshelf.collectionmodel;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -8,6 +9,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface CollectionModelRepository extends JpaRepository<CollectionModelEntity, UUID> {
+    @EntityGraph(attributePaths = "modelDefinition")
     List<CollectionModelEntity> findAllByArmyCollectionId(UUID armyCollectionId);
 
     @Query(
