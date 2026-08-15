@@ -12,11 +12,10 @@ import java.time.OffsetDateTime;
 
 @Mapper(componentModel = "spring")
 public interface CollectionModelImageMapper {
-    @Mapping(target = "contentType", source = "original.contentType")
-    @Mapping(target = "sizeBytes", source = "original.sizeBytes")
+    @Mapping(target = "contentType", source = "large.contentType")
+    @Mapping(target = "sizeBytes", source = "large.sizeBytes")
     @Mapping(target = "thumbnailUrl", ignore = true)
     @Mapping(target = "largeUrl", ignore = true)
-    @Mapping(target = "originalUrl", ignore = true)
     CollectionModelImage toDto(CollectionModelImageEntity entity);
 
     default OffsetDateTime map(Instant instant) {

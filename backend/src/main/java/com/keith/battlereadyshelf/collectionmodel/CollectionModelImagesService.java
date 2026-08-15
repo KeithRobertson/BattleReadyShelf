@@ -17,7 +17,6 @@ import java.util.UUID;
 
 @Service
 public class CollectionModelImagesService {
-    private static final String VARIANT_ORIGINAL = "original";
     private static final String VARIANT_LARGE = "large";
     private static final String VARIANT_THUMBNAIL = "thumbnail";
 
@@ -46,14 +45,13 @@ public class CollectionModelImagesService {
     /** A requested upload for a single rendition of an image. */
     public record VariantUploadRequest(String contentType, long contentLengthBytes) {}
 
-    public record UploadUrls(URI original, URI large, URI thumbnail) {}
+    public record UploadUrls(URI large, URI thumbnail) {}
 
     public record UploadUrlResult(CollectionModelImage image, UploadUrls uploadUrls) {}
 
     public UploadUrlResult createUploadUrl(
             UUID userId,
             UUID collectionModelId,
-            VariantUploadRequest original,
             VariantUploadRequest large,
             VariantUploadRequest thumbnail) {
         var collectionModel =
@@ -64,8 +62,6 @@ public class CollectionModelImagesService {
         }
 
         var imageId = UUID.randomUUID();
-        var originalVariant =
-                buildVariant(userId, collectionModel.getId(), imageId, VARIANT_ORIGINAL, original);
         var largeVariant =
                 buildVariant(userId, collectionModel.getId(), imageId, VARIANT_LARGE, large);
         var thumbnailVariant =
@@ -77,7 +73,6 @@ public class CollectionModelImagesService {
                         CollectionModelImageEntity.builder()
                                 .id(imageId)
                                 .collectionModelId(collectionModel.getId())
-                                .original(originalVariant)
                                 .large(largeVariant)
                                 .thumbnail(thumbnailVariant)
                                 .createdAt(Instant.now())
@@ -86,14 +81,11 @@ public class CollectionModelImagesService {
         var uploadUrls =
                 new UploadUrls(
                         presignedUrlService.presignUpload(
-                                originalVariant.getStorageKey(), original.contentType()),
-                        presignedUrlService.presignUpload(
                                 largeVariant.getStorageKey(), large.contentType()),
                         presignedUrlService.presignUpload(
                                 thumbnailVariant.getStorageKey(), thumbnail.contentType()));
 
         var imageDto = collectionModelImageMapper.toDto(savedImage);
-        imageDto.setOriginalUrl(presignedUrlService.presignDownload(originalVariant.getStorageKey()));
         imageDto.setLargeUrl(presignedUrlService.presignDownload(largeVariant.getStorageKey()));
         imageDto.setThumbnailUrl(
                 presignedUrlService.presignDownload(thumbnailVariant.getStorageKey()));
@@ -150,7 +142,6 @@ public class CollectionModelImagesService {
                                         new NotFoundException(
                                                 "Collection model image not found: " + imageId));
 
-        deleteVariantIfPresent(image.getOriginal());
         deleteVariantIfPresent(image.getLarge());
         deleteVariantIfPresent(image.getThumbnail());
         collectionModelImageRepository.delete(image);

@@ -405,7 +405,6 @@ export default function CollectionPage() {
         await createCollectionModelImageUploadUrl({
           path: { collectionModelId: modelId },
           body: {
-            original: { contentType: variants.original.type, contentLengthBytes: variants.original.size },
             large: { contentType: variants.large.type, contentLengthBytes: variants.large.size },
             thumbnail: { contentType: variants.thumbnail.type, contentLengthBytes: variants.thumbnail.size },
           },
@@ -415,7 +414,6 @@ export default function CollectionPage() {
         throw new Error("Failed to request upload URL");
       }
       const uploads = [
-        { url: created.uploadUrls.original, body: variants.original, contentType: variants.original.type },
         { url: created.uploadUrls.large, body: variants.large, contentType: variants.large.type },
         { url: created.uploadUrls.thumbnail, body: variants.thumbnail, contentType: variants.thumbnail.type },
       ];

@@ -178,7 +178,6 @@ public class CollectionModelsService {
                 collectionModelImageRepository.findAllByCollectionModelId(collectionModel.getId());
         images.forEach(
                 image -> {
-                    deleteVariantIfPresent(image.getOriginal());
                     deleteVariantIfPresent(image.getLarge());
                     deleteVariantIfPresent(image.getThumbnail());
                 });
@@ -271,13 +270,8 @@ public class CollectionModelsService {
 
     private CollectionModelImage toImageDtoWithUrls(CollectionModelImageEntity imageEntity) {
         var imageDto = collectionModelImageMapper.toDto(imageEntity);
-        var originalUrl = presignDownloadIfPresent(imageEntity.getOriginal());
-        imageDto.setOriginalUrl(originalUrl);
-        // Fall back to the original rendition for images uploaded before large/thumbnail
-        // renditions existed.
-        imageDto.setLargeUrl(orElse(presignDownloadIfPresent(imageEntity.getLarge()), originalUrl));
-        imageDto.setThumbnailUrl(
-                orElse(presignDownloadIfPresent(imageEntity.getThumbnail()), originalUrl));
+        imageDto.setLargeUrl(presignDownloadIfPresent(imageEntity.getLarge()));
+        imageDto.setThumbnailUrl(presignDownloadIfPresent(imageEntity.getThumbnail()));
         return imageDto;
     }
 
@@ -285,10 +279,6 @@ public class CollectionModelsService {
         return variant == null || variant.getStorageKey() == null
                 ? null
                 : presignedUrlService.presignDownload(variant.getStorageKey());
-    }
-
-    private static URI orElse(URI value, URI fallback) {
-        return value != null ? value : fallback;
     }
 
     private void requireOwnedArmyCollection(UUID userId, UUID armyCollectionId) {

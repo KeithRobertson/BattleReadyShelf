@@ -8,11 +8,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * One stored rendition of a {@link CollectionModelImageEntity} (e.g. the original upload, or a
- * resized thumbnail/large rendition). {@code storageKey} is required for the original rendition;
- * it (and the other fields) may be {@code null} for the large/thumbnail renditions of images
- * uploaded before those renditions existed. {@code contentType} and {@code sizeBytes} are
- * best-effort metadata about the stored object.
+ * One stored rendition of a {@link CollectionModelImageEntity} (i.e. its resized large or
+ * thumbnail rendition). {@code storageKey} may be {@code null} for images uploaded before the
+ * large/thumbnail split existed. {@code contentType} and {@code sizeBytes} are best-effort
+ * metadata about the stored object.
  */
 @Embeddable
 @Data

@@ -528,7 +528,6 @@ class CollectionModelsServiceTest {
                 CollectionModelImageEntity.builder()
                         .id(imageId)
                         .collectionModelId(collectionModelId)
-                        .original(ImageVariant.builder().storageKey("original-key").build())
                         .large(ImageVariant.builder().storageKey("large-key").build())
                         .thumbnail(ImageVariant.builder().storageKey("thumbnail-key").build())
                         .build();
@@ -547,7 +546,6 @@ class CollectionModelsServiceTest {
 
         collectionModelsService.deleteCollectionModel(userId, collectionModelId);
 
-        verify(presignedUrlService).deleteObject("original-key");
         verify(presignedUrlService).deleteObject("large-key");
         verify(presignedUrlService).deleteObject("thumbnail-key");
         verify(collectionModelImageRepository).deleteAll(List.of(image));

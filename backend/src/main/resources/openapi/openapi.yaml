@@ -644,12 +644,12 @@ components:
         contentType:
           type: string
           readOnly: true
-          description: The content type of the original, full-resolution image.
+          description: The content type of the large (~1600px) rendition.
         sizeBytes:
           type: integer
           format: int64
           readOnly: true
-          description: The size in bytes of the original, full-resolution image.
+          description: The size in bytes of the large (~1600px) rendition.
         thumbnailUrl:
           type: string
           format: uri
@@ -660,11 +660,6 @@ components:
           format: uri
           readOnly: true
           description: A short-lived presigned URL for a large (~1600px) rendition, for use in detail views.
-        originalUrl:
-          type: string
-          format: uri
-          readOnly: true
-          description: A short-lived presigned URL for the original, unmodified upload.
     ImageVariantUploadRequest:
       type: object
       properties:
@@ -678,29 +673,24 @@ components:
     CollectionModelImageUploadRequest:
       type: object
       properties:
-        original:
-          $ref: '#/components/schemas/ImageVariantUploadRequest'
         large:
           $ref: '#/components/schemas/ImageVariantUploadRequest'
         thumbnail:
           $ref: '#/components/schemas/ImageVariantUploadRequest'
-      required: [ original, large, thumbnail ]
+      required: [ large, thumbnail ]
     ImageVariantUploadUrls:
       type: object
       description: >-
         Short-lived presigned URLs. PUT the raw bytes for each rendition here with a matching
         Content-Type header.
       properties:
-        original:
-          type: string
-          format: uri
         large:
           type: string
           format: uri
         thumbnail:
           type: string
           format: uri
-      required: [ original, large, thumbnail ]
+      required: [ large, thumbnail ]
     CollectionModelImageUploadResponse:
       type: object
       properties:

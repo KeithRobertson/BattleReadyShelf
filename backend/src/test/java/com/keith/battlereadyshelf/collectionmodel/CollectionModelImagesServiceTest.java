@@ -117,21 +117,14 @@ class CollectionModelImagesServiceTest {
 
         var result =
                 collectionModelImagesService.createUploadUrl(
-                        userId,
-                        collectionModelId,
-                        DEFAULT_VARIANT_REQUEST,
-                        DEFAULT_VARIANT_REQUEST,
-                        DEFAULT_VARIANT_REQUEST);
+                        userId, collectionModelId, DEFAULT_VARIANT_REQUEST, DEFAULT_VARIANT_REQUEST);
 
         verify(collectionModelImageRepository).save(collectionModelImageEntityCaptor.capture());
         var savedEntity = collectionModelImageEntityCaptor.getValue();
         assertThat(savedEntity.getCollectionModelId()).isEqualTo(collectionModelId);
-        assertThat(savedEntity.getOriginal().getContentType()).isEqualTo("image/jpeg");
-        assertThat(savedEntity.getOriginal().getSizeBytes()).isEqualTo(1024L);
+        assertThat(savedEntity.getLarge().getContentType()).isEqualTo("image/jpeg");
+        assertThat(savedEntity.getLarge().getSizeBytes()).isEqualTo(1024L);
         var expectedKeyPrefix = "keith/users/" + userId + "/models/" + collectionModelId + "/";
-        assertThat(savedEntity.getOriginal().getStorageKey())
-                .startsWith(expectedKeyPrefix)
-                .endsWith("/original.jpg");
         assertThat(savedEntity.getLarge().getStorageKey())
                 .startsWith(expectedKeyPrefix)
                 .endsWith("/large.jpg");
@@ -141,10 +134,8 @@ class CollectionModelImagesServiceTest {
 
         assertThat(result.image().getId()).isEqualTo(createdImageId);
         assertThat(result.image().getContentType()).isEqualTo("image/jpeg");
-        assertThat(result.image().getOriginalUrl()).isEqualTo(expectedDownloadUrl);
         assertThat(result.image().getLargeUrl()).isEqualTo(expectedDownloadUrl);
         assertThat(result.image().getThumbnailUrl()).isEqualTo(expectedDownloadUrl);
-        assertThat(result.uploadUrls().original()).isEqualTo(expectedUploadUrl);
         assertThat(result.uploadUrls().large()).isEqualTo(expectedUploadUrl);
         assertThat(result.uploadUrls().thumbnail()).isEqualTo(expectedUploadUrl);
     }
@@ -161,11 +152,7 @@ class CollectionModelImagesServiceTest {
         assertThatThrownBy(
                         () ->
                                 collectionModelImagesService.createUploadUrl(
-                                        userId,
-                                        collectionModelId,
-                                        DEFAULT_VARIANT_REQUEST,
-                                        DEFAULT_VARIANT_REQUEST,
-                                        DEFAULT_VARIANT_REQUEST))
+                                        userId, collectionModelId, DEFAULT_VARIANT_REQUEST, DEFAULT_VARIANT_REQUEST))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -182,11 +169,7 @@ class CollectionModelImagesServiceTest {
         assertThatThrownBy(
                         () ->
                                 collectionModelImagesService.createUploadUrl(
-                                        userId,
-                                        collectionModelId,
-                                        unsupportedVariant,
-                                        DEFAULT_VARIANT_REQUEST,
-                                        DEFAULT_VARIANT_REQUEST))
+                                        userId, collectionModelId, unsupportedVariant, DEFAULT_VARIANT_REQUEST))
                 .isInstanceOf(ApiException.class);
     }
 
@@ -204,11 +187,7 @@ class CollectionModelImagesServiceTest {
         assertThatThrownBy(
                         () ->
                                 collectionModelImagesService.createUploadUrl(
-                                        userId,
-                                        collectionModelId,
-                                        tooLargeVariant,
-                                        DEFAULT_VARIANT_REQUEST,
-                                        DEFAULT_VARIANT_REQUEST))
+                                        userId, collectionModelId, tooLargeVariant, DEFAULT_VARIANT_REQUEST))
                 .isInstanceOf(ApiException.class);
     }
 
@@ -234,11 +213,7 @@ class CollectionModelImagesServiceTest {
         assertThatThrownBy(
                         () ->
                                 serviceWithDisabledUploads.createUploadUrl(
-                                        userId,
-                                        collectionModelId,
-                                        DEFAULT_VARIANT_REQUEST,
-                                        DEFAULT_VARIANT_REQUEST,
-                                        DEFAULT_VARIANT_REQUEST))
+                                        userId, collectionModelId, DEFAULT_VARIANT_REQUEST, DEFAULT_VARIANT_REQUEST))
                 .isInstanceOf(ApiException.class);
     }
 
@@ -256,11 +231,6 @@ class CollectionModelImagesServiceTest {
                 CollectionModelImageEntity.builder()
                         .id(imageId)
                         .collectionModelId(collectionModelId)
-                        .original(
-                                ImageVariant.builder()
-                                        .storageKey(keyPrefix + "original.jpg")
-                                        .contentType("image/jpeg")
-                                        .build())
                         .large(
                                 ImageVariant.builder()
                                         .storageKey(keyPrefix + "large.jpg")
@@ -276,7 +246,6 @@ class CollectionModelImagesServiceTest {
 
         collectionModelImagesService.deleteImage(userId, collectionModelId, imageId);
 
-        verify(presignedUrlService).deleteObject(imageEntity.getOriginal().getStorageKey());
         verify(presignedUrlService).deleteObject(imageEntity.getLarge().getStorageKey());
         verify(presignedUrlService).deleteObject(imageEntity.getThumbnail().getStorageKey());
         verify(collectionModelImageRepository).delete(imageEntity);
@@ -297,9 +266,9 @@ class CollectionModelImagesServiceTest {
                                 CollectionModelImageEntity.builder()
                                         .id(imageId)
                                         .collectionModelId(otherCollectionModelId)
-                                        .original(
+                                        .large(
                                                 ImageVariant.builder()
-                                                        .storageKey("some/other/original.jpg")
+                                                        .storageKey("some/other/large.jpg")
                                                         .contentType("image/jpeg")
                                                         .build())
                                         .build()));

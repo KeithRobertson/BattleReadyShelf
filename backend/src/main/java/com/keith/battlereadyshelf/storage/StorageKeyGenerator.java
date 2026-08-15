@@ -10,8 +10,8 @@ import java.util.UUID;
  * {prefix}/users/{userId}/models/{modelId}/{imageId}/{variant}.{ext}}. The prefix segment
  * namespaces environments/developers sharing the same bucket (see {@link
  * StorageProperties#getPrefix()}), while the remaining path mirrors the ownership hierarchy
- * already enforced in Postgres. Each logical image has 3 renditions ({@code original}, {@code
- * large}, {@code thumbnail}) stored under the same {@code imageId} directory.
+ * already enforced in Postgres. Each logical image has 2 renditions ({@code large}, {@code
+ * thumbnail}) stored under the same {@code imageId} directory.
  */
 @Component
 public class StorageKeyGenerator {

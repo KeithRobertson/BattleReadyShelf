@@ -25,12 +25,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * An image attached to a {@link CollectionModelEntity}, stored in Cloudflare R2 as 3 renditions:
- * the original upload, a large (~1600px) rendition for detail views, and a thumbnail (~300px)
- * rendition for list/grid views.
+ * An image attached to a {@link CollectionModelEntity}, stored in Cloudflare R2 as 2 renditions:
+ * a large (~1600px) rendition for detail views, and a thumbnail (~300px) rendition for list/grid
+ * views. The original, unmodified upload is never stored -- only these re-encoded renditions,
+ * which also lets us cap the storage cost per image via the client-side compression budget.
  *
  * <p>Implements {@link Persistable} because {@code id} is assigned up-front (so it can be reused
- * across the 3 R2 storage keys before the entity is ever saved) rather than left {@code null} for
+ * across the R2 storage keys before the entity is ever saved) rather than left {@code null} for
  * Hibernate to generate on insert. Without this, Spring Data JPA's default "is this entity new?"
  * check (which just checks for a null {@code id}) would treat the entity as already persisted and
  * issue an {@code UPDATE} instead of an {@code INSERT}, failing with a {@code
@@ -54,12 +55,6 @@ public class CollectionModelImageEntity implements Persistable<UUID> {
 
     @Column(name = "collection_model_id", nullable = false)
     private UUID collectionModelId;
-
-    @Embedded
-    @AttributeOverride(name = "storageKey", column = @Column(name = "original_storage_key"))
-    @AttributeOverride(name = "contentType", column = @Column(name = "original_content_type"))
-    @AttributeOverride(name = "sizeBytes", column = @Column(name = "original_size_bytes"))
-    private ImageVariant original;
 
     @Embedded
     @AttributeOverride(name = "storageKey", column = @Column(name = "large_storage_key"))

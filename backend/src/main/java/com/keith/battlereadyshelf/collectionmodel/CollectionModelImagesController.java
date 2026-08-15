@@ -29,15 +29,11 @@ public class CollectionModelImagesController implements CollectionModelImagesApi
                 collectionModelImagesService.createUploadUrl(
                         currentUser.id(),
                         collectionModelId,
-                        toVariantRequest(collectionModelImageUploadRequest.getOriginal()),
                         toVariantRequest(collectionModelImageUploadRequest.getLarge()),
                         toVariantRequest(collectionModelImageUploadRequest.getThumbnail()));
 
         var uploadUrls =
-                new ImageVariantUploadUrls(
-                        result.uploadUrls().original(),
-                        result.uploadUrls().large(),
-                        result.uploadUrls().thumbnail());
+                new ImageVariantUploadUrls(result.uploadUrls().large(), result.uploadUrls().thumbnail());
 
         return ResponseEntity.status(201)
                 .body(new CollectionModelImageUploadResponse(result.image(), uploadUrls));
