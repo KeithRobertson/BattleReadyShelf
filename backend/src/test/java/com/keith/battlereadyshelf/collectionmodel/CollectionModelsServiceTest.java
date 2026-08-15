@@ -11,6 +11,7 @@ import com.keith.battlereadyshelf.armycollection.ArmyCollectionEntity;
 import com.keith.battlereadyshelf.armycollection.ArmyCollectionRepository;
 import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.CollectionModel;
+import com.keith.battlereadyshelf.generated.model.CollectionModelStatus;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionEntity;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionMapperImpl;
@@ -111,6 +112,7 @@ class CollectionModelsServiceTest {
                                 .modelDefinition(new ModelDefinition("Poxwalker").id(poxwalkerId))
                                 .name("My Poxwalker")
                                 .images(List.of())
+                                .status(CollectionModelStatus.BOXED)
                                 .wargearSelections(List.of()));
     }
 
@@ -194,6 +196,7 @@ class CollectionModelsServiceTest {
                                 .name("My Poxwalker")
                                 .description("Freshly painted")
                                 .images(List.of())
+                                .status(CollectionModelStatus.BOXED)
                                 .wargearSelections(List.of()));
     }
 
@@ -339,7 +342,7 @@ class CollectionModelsServiceTest {
 
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, "Poxwalker #1", "Front rank", null, null);
+                        userId, collectionModelId, "Poxwalker #1", "Front rank", null, null, null);
 
         assertThat(updated.getName()).isEqualTo("Poxwalker #1");
         assertThat(updated.getDescription()).isEqualTo("Front rank");
@@ -371,7 +374,7 @@ class CollectionModelsServiceTest {
         var finishedOn = LocalDate.of(2025, JUNE, 1);
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, null, null, finishedOn, null);
+                        userId, collectionModelId, null, null, finishedOn, null, null);
 
         assertThat(updated.getFinishedOn()).isEqualTo(finishedOn);
     }
@@ -408,7 +411,7 @@ class CollectionModelsServiceTest {
 
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, "Poxwalker #1", null, null, null);
+                        userId, collectionModelId, "Poxwalker #1", null, null, null, null);
 
         assertThat(updated.getName()).isEqualTo("Poxwalker #1");
         assertThat(updated.getDescription()).isEqualTo("Original description");
@@ -451,7 +454,7 @@ class CollectionModelsServiceTest {
                                 .wargearOptionId(boltgunId));
 
         collectionModelsService.updateCollectionModel(
-                userId, collectionModelId, null, null, null, wargearSelections);
+                userId, collectionModelId, null, null, null, null, wargearSelections);
 
         verify(collectionModelWargearSelectionRepository)
                 .deleteAllByCollectionModelId(collectionModelId);
@@ -491,7 +494,13 @@ class CollectionModelsServiceTest {
         assertThatThrownBy(
                         () ->
                                 collectionModelsService.updateCollectionModel(
-                                        userId, collectionModelId, "New name", null, null, null))
+                                        userId,
+                                        collectionModelId,
+                                        "New name",
+                                        null,
+                                        null,
+                                        null,
+                                        null))
                 .isInstanceOf(NotFoundException.class);
     }
 

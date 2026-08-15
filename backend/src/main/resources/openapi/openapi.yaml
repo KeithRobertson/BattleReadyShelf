@@ -552,6 +552,20 @@ components:
           type: string
         description:
           type: string
+        modelCount:
+          type: integer
+          format: int32
+          readOnly: true
+          description: Total number of collection models in this army collection.
+        modelCountsByStatus:
+          type: object
+          readOnly: true
+          description: >-
+            Number of collection models in this army collection per status. Statuses with no
+            models are omitted.
+          additionalProperties:
+            type: integer
+            format: int32
       required: [ name ]
     UpdateArmyCollectionRequest:
       type: object
@@ -717,6 +731,9 @@ components:
           type: string
           format: date
           description: The date the model was finished being painted, if known.
+        status:
+          allOf:
+            - $ref: '#/components/schemas/CollectionModelStatus'
         images:
           readOnly: true
           type: array
@@ -741,6 +758,11 @@ components:
           format: uuid
           description: The wargear option assigned to this slot, or null/omitted to leave it empty.
       required: [ attachmentSlotId ]
+    CollectionModelStatus:
+      type: string
+      description: >-
+        A collection model's progress through the typical painting pipeline.
+      enum: [ BOXED, ASSEMBLED, PRIMED, PAINTED ]
     BulkCreateCollectionModelsRequest:
       type: object
       properties:
@@ -773,6 +795,8 @@ components:
         finishedOn:
           type: string
           format: date
+        status:
+          $ref: '#/components/schemas/CollectionModelStatus'
         wargearSelections:
           type: array
           description: >-

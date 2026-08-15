@@ -9,6 +9,8 @@ import java.util.UUID;
 
 @Mapper(componentModel = "spring")
 public interface ArmyCollectionMapper {
+    @Mapping(target = "modelCount", ignore = true)
+    @Mapping(target = "modelCountsByStatus", ignore = true)
     ArmyCollection toDto(ArmyCollectionEntity entity);
 
     @Mapping(target = "id", ignore = true)

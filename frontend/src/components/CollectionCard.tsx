@@ -1,16 +1,20 @@
-import { Card, Group, Stack, Text, UnstyledButton } from "@mantine/core";
+import { Badge, Card, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import { IconChevronRight, IconStack2 } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
-import type { ArmyCollection } from "../generated";
+import type { ArmyCollection, CollectionModelStatus } from "../generated";
+import {
+  COLLECTION_MODEL_STATUS_COLORS,
+  COLLECTION_MODEL_STATUS_LABELS,
+  COLLECTION_MODEL_STATUSES,
+} from "../utils/collectionModelStatus";
 
-export default function CollectionCard({
-  collection,
-  modelCount,
-}: {
-  collection: ArmyCollection;
-  modelCount?: number;
-}) {
+export default function CollectionCard({ collection }: { collection: ArmyCollection }) {
   const navigate = useNavigate();
+  const modelCount = collection.modelCount;
+  const statusEntries = COLLECTION_MODEL_STATUSES.map((status) => ({
+    status,
+    count: collection.modelCountsByStatus?.[status as CollectionModelStatus] ?? 0,
+  })).filter((entry) => entry.count > 0);
 
   return (
     <UnstyledButton
@@ -30,7 +34,7 @@ export default function CollectionCard({
 
           <Group gap="xl" wrap="nowrap">
             {/* Stats panel: model count today, total points etc. later */}
-            <Stack gap={0} align="center" miw={80}>
+            <Stack gap={4} align="center" miw={80}>
               <Text fw={700} size="xl">
                 {modelCount ?? "–"}
               </Text>
@@ -40,6 +44,15 @@ export default function CollectionCard({
                   {modelCount === 1 ? "model" : "models"}
                 </Text>
               </Group>
+              {statusEntries.length > 0 && (
+                <Group gap={4} wrap="wrap" justify="center">
+                  {statusEntries.map(({ status, count }) => (
+                    <Badge key={status} color={COLLECTION_MODEL_STATUS_COLORS[status]} variant="light" size="xs">
+                      {COLLECTION_MODEL_STATUS_LABELS[status]}: {count}
+                    </Badge>
+                  ))}
+                </Group>
+              )}
             </Stack>
             <IconChevronRight size={20} stroke={1.5} />
           </Group>

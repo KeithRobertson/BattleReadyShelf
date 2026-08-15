@@ -9,6 +9,7 @@ import {
   Group,
   Loader,
   Modal,
+  MultiSelect,
   NumberInput,
   Select,
   SegmentedControl,
@@ -26,7 +27,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import ModelCard from "../components/ModelCard";
-import type { ArmyCollection, CollectionModel, ModelDefinition } from "../generated";
+import type { ArmyCollection, CollectionModel, CollectionModelStatus, ModelDefinition } from "../generated";
 import {
   bulkCreateCollectionModels,
   bulkDeleteCollectionModels,
@@ -40,6 +41,12 @@ import {
   updateArmyCollection,
   updateCollectionModel,
 } from "../generated";
+import {
+  COLLECTION_MODEL_STATUS_COLORS,
+  COLLECTION_MODEL_STATUS_LABELS,
+  COLLECTION_MODEL_STATUS_OPTIONS,
+  COLLECTION_MODEL_STATUSES,
+} from "../utils/collectionModelStatus";
 import { createImageVariants } from "../utils/imageVariants";
 
 type ModelGroup = {
@@ -87,10 +94,12 @@ export default function CollectionPage() {
   const [updatingFinishedOnModelId, setUpdatingFinishedOnModelId] = useState<string | null>(null);
   const [updatingDescriptionModelId, setUpdatingDescriptionModelId] = useState<string | null>(null);
   const [updatingWargearSlotKey, setUpdatingWargearSlotKey] = useState<string | null>(null);
+  const [updatingStatusModelId, setUpdatingStatusModelId] = useState<string | null>(null);
   const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [selectedModelIds, setSelectedModelIds] = useState<Set<string>>(new Set());
   const [isEditMode, setIsEditMode] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<CollectionModelStatus[]>([]);
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [pendingDelete, setPendingDelete] = useState<{ mode: "single" | "bulk"; modelId?: string } | null>(null);
   const [isEditingCollectionName, setIsEditingCollectionName] = useState(false);
@@ -101,9 +110,23 @@ export default function CollectionPage() {
   const [savingCollectionDescription, setSavingCollectionDescription] = useState(false);
   const [sortOrder, setSortOrder] = useState<SortOrder>("name-asc");
 
-  const groupedModels = useMemo<ModelGroup[]>(() => {
-    const groups = new Map<string, ModelGroup>();
+  const statusCounts = useMemo(() => {
+    const counts = new Map<CollectionModelStatus, number>();
     for (const m of models) {
+      if (m.status) {
+        counts.set(m.status, (counts.get(m.status) ?? 0) + 1);
+      }
+    }
+    return COLLECTION_MODEL_STATUSES.map((status) => ({ status, count: counts.get(status) ?? 0 })).filter(
+      (entry) => entry.count > 0,
+    );
+  }, [models]);
+
+  const groupedModels = useMemo<ModelGroup[]>(() => {
+    const filteredModels =
+      statusFilter.length === 0 ? models : models.filter((m) => m.status && statusFilter.includes(m.status));
+    const groups = new Map<string, ModelGroup>();
+    for (const m of filteredModels) {
       const key = m.modelDefinitionId ?? "unknown";
       const label = m.modelDefinition?.name ?? "Unknown type";
       const existing = groups.get(key);
@@ -116,7 +139,7 @@ export default function CollectionPage() {
     return [...groups.values()]
       .sort((a, b) => a.label.localeCompare(b.label))
       .map((group) => ({ ...group, models: sortModels(group.models, sortOrder) }));
-  }, [models, sortOrder]);
+  }, [models, sortOrder, statusFilter]);
 
 
   useEffect(() => {
@@ -288,6 +311,21 @@ export default function CollectionPage() {
       setError(String(e));
     } finally {
       setUpdatingDescriptionModelId(null);
+    }
+  }
+
+  async function handleUpdateStatus(modelId: string, status: CollectionModelStatus) {
+    setError(null);
+    setUpdatingStatusModelId(modelId);
+    try {
+      const updated = (await updateCollectionModel({ path: { collectionModelId: modelId }, body: { status } })).data;
+      if (updated) {
+        setModels((s) => s.map((m) => (m.id === modelId ? updated : m)));
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setUpdatingStatusModelId(null);
     }
   }
 
@@ -651,14 +689,37 @@ export default function CollectionPage() {
           ) : (
             <>
               <Group justify="space-between" wrap="wrap">
-                <Text size="sm" c="dimmed">
-                  {isEditMode
-                    ? selectedModelIds.size > 0
-                      ? `${selectedModelIds.size} selected`
-                      : "Select models to bulk delete"
-                    : `${models.length} model${models.length === 1 ? "" : "s"}`}
-                </Text>
+                <Group gap="xs" wrap="wrap">
+                  <Text size="sm" c="dimmed">
+                    {isEditMode
+                      ? selectedModelIds.size > 0
+                        ? `${selectedModelIds.size} selected`
+                        : "Select models to bulk delete"
+                      : (() => {
+                          const shownCount = groupedModels.reduce((sum, g) => sum + g.models.length, 0);
+                          return statusFilter.length > 0
+                            ? `${shownCount} of ${models.length} model${models.length === 1 ? "" : "s"}`
+                            : `${shownCount} model${shownCount === 1 ? "" : "s"}`;
+                        })()}
+                  </Text>
+                  {!isEditMode &&
+                    statusCounts.map(({ status, count }) => (
+                      <Badge key={status} color={COLLECTION_MODEL_STATUS_COLORS[status]} variant="light" size="sm">
+                        {COLLECTION_MODEL_STATUS_LABELS[status]}: {count}
+                      </Badge>
+                    ))}
+                </Group>
                 <Group gap="sm" align="flex-end">
+                  <MultiSelect
+                    label="Filter by status"
+                    placeholder={statusFilter.length === 0 ? "All" : undefined}
+                    data={COLLECTION_MODEL_STATUS_OPTIONS}
+                    value={statusFilter}
+                    onChange={(value) => setStatusFilter(value as CollectionModelStatus[])}
+                    w={220}
+                    size="xs"
+                    clearable
+                  />
                   <Select
                     label="Sort by"
                     data={SORT_OPTIONS}
@@ -727,12 +788,16 @@ export default function CollectionPage() {
                                 onUpdateWargearSelection={(attachmentSlotId, wargearOptionId) =>
                                   handleUpdateWargearSelection(m, attachmentSlotId, wargearOptionId)
                                 }
+                                onUpdateStatus={(status) =>
+                                  m.id && handleUpdateStatus(m.id, status as CollectionModelStatus)
+                                }
                                 isUploading={uploadingModelId === m.id}
                                 deletingImageId={deletingImageId}
                                 isRenaming={renamingModelId === m.id}
                                 isDeleting={deletingModelId === m.id}
                                 isUpdatingFinishedOn={updatingFinishedOnModelId === m.id}
                                 isUpdatingDescription={updatingDescriptionModelId === m.id}
+                                isUpdatingStatus={updatingStatusModelId === m.id}
                                 updatingWargearSlotId={
                                   updatingWargearSlotKey?.startsWith(`${m.id}:`)
                                     ? updatingWargearSlotKey.slice(`${m.id}:`.length)

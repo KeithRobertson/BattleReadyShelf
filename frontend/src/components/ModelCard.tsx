@@ -18,6 +18,12 @@ import { DateInput } from "@mantine/dates";
 import { IconCalendar, IconCheck, IconPencil, IconPhoto, IconTrash, IconUpload, IconX } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import type { CollectionModel } from "../generated";
+import {
+  COLLECTION_MODEL_STATUS_BACKGROUNDS,
+  COLLECTION_MODEL_STATUS_COLORS,
+  COLLECTION_MODEL_STATUS_LABELS,
+  COLLECTION_MODEL_STATUS_OPTIONS,
+} from "../utils/collectionModelStatus";
 
 const MAX_VISIBLE_THUMBNAILS = 4;
 
@@ -31,12 +37,14 @@ type ModelCardProps = {
   onUpdateFinishedOn: (finishedOn: string | null) => void;
   onUpdateDescription: (description: string) => void;
   onUpdateWargearSelection: (attachmentSlotId: string, wargearOptionId: string | null) => void;
+  onUpdateStatus: (status: string) => void;
   isUploading: boolean;
   deletingImageId: string | null;
   isRenaming: boolean;
   isDeleting: boolean;
   isUpdatingFinishedOn: boolean;
   isUpdatingDescription: boolean;
+  isUpdatingStatus: boolean;
   updatingWargearSlotId: string | null;
   selected: boolean;
   onToggleSelected: (selected: boolean) => void;
@@ -52,12 +60,14 @@ export default function ModelCard({
   onUpdateFinishedOn,
   onUpdateDescription,
   onUpdateWargearSelection,
+  onUpdateStatus,
   isUploading,
   deletingImageId,
   isRenaming,
   isDeleting,
   isUpdatingFinishedOn,
   isUpdatingDescription,
+  isUpdatingStatus,
   updatingWargearSlotId,
   selected,
   onToggleSelected,
@@ -129,7 +139,14 @@ export default function ModelCard({
   }
 
   return (
-    <Card withBorder radius="md" padding="md">
+    <Card
+      withBorder
+      radius="md"
+      padding="md"
+      style={{
+        backgroundColor: model.status ? COLLECTION_MODEL_STATUS_BACKGROUNDS[model.status] : undefined,
+      }}
+    >
       <Stack gap="xs">
         <Group justify="space-between" wrap="nowrap" align="flex-start">
           <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
@@ -286,6 +303,23 @@ export default function ModelCard({
           </div>
 
           <Stack gap={6} align="flex-end" style={{ flex: 1, minWidth: 0 }}>
+            {editMode ? (
+              <Select
+                size="xs"
+                data={COLLECTION_MODEL_STATUS_OPTIONS}
+                value={model.status ?? null}
+                onChange={(value) => value && onUpdateStatus(value)}
+                allowDeselect={false}
+                disabled={isUpdatingStatus}
+                rightSection={isUpdatingStatus ? <Loader size={12} /> : undefined}
+                style={{ width: "100%" }}
+              />
+            ) : (
+              <Badge color={model.status ? COLLECTION_MODEL_STATUS_COLORS[model.status] : "gray"} variant="light">
+                {model.status ? COLLECTION_MODEL_STATUS_LABELS[model.status] : "Unknown"}
+              </Badge>
+            )}
+
             {isEditingDescription ? (
               <Stack gap={4} style={{ width: "100%" }}>
                 <Textarea

@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.keith.battlereadyshelf.collectionmodel.CollectionModelRepository;
 import com.keith.battlereadyshelf.generated.model.ArmyCollection;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -17,12 +18,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
 class ArmyCollectionsServiceTest {
     @Mock private ArmyCollectionRepository armyCollectionRepository;
+    @Mock private CollectionModelRepository collectionModelRepository;
 
     @Captor private ArgumentCaptor<ArmyCollectionEntity> armyCollectionEntityCaptor;
 
@@ -32,7 +35,9 @@ class ArmyCollectionsServiceTest {
     void setUp() {
         armyCollectionsService =
                 new ArmyCollectionsService(
-                        armyCollectionRepository, new ArmyCollectionMapperImpl());
+                        armyCollectionRepository,
+                        collectionModelRepository,
+                        new ArmyCollectionMapperImpl());
     }
 
     @Test
@@ -54,7 +59,9 @@ class ArmyCollectionsServiceTest {
                 .containsExactly(
                         new ArmyCollection("Starter Collection")
                                 .id(UUID.fromString("11111111-1111-1111-1111-111111111111"))
-                                .description("Stored collection"));
+                                .description("Stored collection")
+                                .modelCount(0)
+                                .modelCountsByStatus(Map.of()));
         verify(armyCollectionRepository).findAllByUserId(userId);
     }
 
@@ -81,7 +88,9 @@ class ArmyCollectionsServiceTest {
                 .isEqualTo(
                         new ArmyCollection("Test Collection")
                                 .id(UUID.fromString("22222222-2222-2222-2222-222222222222"))
-                                .description("Test Description"));
+                                .description("Test Description")
+                                .modelCount(0)
+                                .modelCountsByStatus(Map.of()));
     }
 
     @Test
@@ -104,7 +113,9 @@ class ArmyCollectionsServiceTest {
                 .isEqualTo(
                         new ArmyCollection("Starter Collection")
                                 .id(armyCollectionId)
-                                .description("Stored collection"));
+                                .description("Stored collection")
+                                .modelCount(0)
+                                .modelCountsByStatus(Map.of()));
     }
 
     @Test

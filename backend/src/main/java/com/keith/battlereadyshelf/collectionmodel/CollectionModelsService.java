@@ -106,6 +106,7 @@ public class CollectionModelsService {
             String name,
             String description,
             LocalDate finishedOn,
+            com.keith.battlereadyshelf.generated.model.CollectionModelStatus status,
             List<WargearSelection> wargearSelections) {
         var collectionModel = requireOwnedCollectionModel(userId, collectionModelId);
 
@@ -117,6 +118,9 @@ public class CollectionModelsService {
         }
         if (finishedOn != null) {
             collectionModel.setFinishedOn(finishedOn);
+        }
+        if (status != null) {
+            collectionModel.setStatus(CollectionModelStatus.valueOf(status.name()));
         }
         if (wargearSelections != null) {
             replaceWargearSelections(collectionModelId, wargearSelections);
