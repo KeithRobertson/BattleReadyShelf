@@ -569,7 +569,53 @@ components:
           readOnly: true
         name:
           type: string
+        attachmentSlots:
+          readOnly: true
+          type: array
+          description: >-
+            Slots on this model (e.g. "Left Arm", "Right Arm") that can be filled with wargear.
+          items:
+            $ref: '#/components/schemas/AttachmentSlot'
+        wargearOptions:
+          readOnly: true
+          type: array
+          description: >-
+            Known wargear options for this model, and which slot(s) each one fills. This is not
+            an exhaustive/enforced list - it exists to describe common/default loadouts.
+          items:
+            $ref: '#/components/schemas/WargearOption'
       required: [ name ]
+    AttachmentSlot:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+      required: [ name ]
+    WargearOption:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+        isDefault:
+          type: boolean
+          description: Whether this option is part of the model's default loadout.
+        attachmentSlotIds:
+          type: array
+          description: >-
+            The slot(s) this wargear option fills. An option filling more than one slot (e.g. a
+            two-handed weapon) consumes all of those slots at once.
+          items:
+            type: string
+            format: uuid
+      required: [ name, isDefault, attachmentSlotIds ]
     CollectionModelImage:
       type: object
       properties:
