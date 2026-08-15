@@ -739,11 +739,35 @@ export default function CollectionPage() {
                         })()}
                   </Text>
                   {!isEditMode &&
-                    statusCounts.map(({ status, count }) => (
-                      <Badge key={status} color={COLLECTION_MODEL_STATUS_COLORS[status]} variant="light" size="sm">
-                        {COLLECTION_MODEL_STATUS_LABELS[status]}: {count}
-                      </Badge>
-                    ))}
+                    statusCounts.map(({ status, count }) => {
+                      const isActive = statusFilter.includes(status);
+                      return (
+                        <Badge
+                          key={status}
+                          color={COLLECTION_MODEL_STATUS_COLORS[status]}
+                          variant={isActive ? "filled" : "light"}
+                          size="sm"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() =>
+                            setStatusFilter((prev) =>
+                              prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status],
+                            )
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setStatusFilter((prev) =>
+                                prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status],
+                              );
+                            }
+                          }}
+                          style={{ cursor: "pointer" }}
+                        >
+                          {COLLECTION_MODEL_STATUS_LABELS[status]}: {count}
+                        </Badge>
+                      );
+                    })}
                 </Group>
                 <Group gap="sm" align="flex-end">
                   <MultiSelect
