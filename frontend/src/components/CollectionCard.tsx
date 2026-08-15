@@ -1,4 +1,4 @@
-import { Badge, Card, Group, Stack, Text, UnstyledButton } from "@mantine/core";
+import { Card, Divider, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import { IconChevronRight, IconStack2 } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import type { ArmyCollection, CollectionModelStatus } from "../generated";
@@ -14,7 +14,35 @@ export default function CollectionCard({ collection }: { collection: ArmyCollect
   const statusEntries = COLLECTION_MODEL_STATUSES.map((status) => ({
     status,
     count: collection.modelCountsByStatus?.[status as CollectionModelStatus] ?? 0,
-  })).filter((entry) => entry.count > 0);
+  }));
+
+  const renderStatusCell = (entry: (typeof statusEntries)[number], fullWidth = false) => (
+    <Group
+      key={entry.status}
+      justify="space-between"
+      gap={8}
+      wrap="nowrap"
+      style={{ gridColumn: fullWidth ? "1 / -1" : undefined }}
+    >
+      <Group gap={6} wrap="nowrap">
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            backgroundColor: COLLECTION_MODEL_STATUS_COLORS[entry.status],
+            flexShrink: 0,
+          }}
+        />
+        <Text size="xs" c="dimmed">
+          {COLLECTION_MODEL_STATUS_LABELS[entry.status]}
+        </Text>
+      </Group>
+      <Text size="xs" fw={600}>
+        {entry.count}
+      </Text>
+    </Group>
+  );
 
   return (
     <UnstyledButton
@@ -34,25 +62,35 @@ export default function CollectionCard({ collection }: { collection: ArmyCollect
 
           <Group gap="xl" wrap="nowrap">
             {/* Stats panel: model count today, total points etc. later */}
-            <Stack gap={4} align="center" miw={80}>
-              <Text fw={700} size="xl">
-                {modelCount ?? "–"}
-              </Text>
-              <Group gap={4} wrap="nowrap">
-                <IconStack2 size={14} stroke={1.5} />
-                <Text size="xs" c="dimmed">
-                  {modelCount === 1 ? "model" : "models"}
+            <Stack gap={2} miw={200}>
+              <Group justify="space-between" gap={8} wrap="nowrap">
+                <Group gap={4} wrap="nowrap">
+                  <IconStack2 size={14} stroke={1.5} />
+                  <Text size="xs" c="dimmed">
+                    Total
+                  </Text>
+                </Group>
+                <Text fw={700} size="sm">
+                  {modelCount ?? "–"}
                 </Text>
               </Group>
-              {statusEntries.length > 0 && (
-                <Group gap={4} wrap="wrap" justify="center">
-                  {statusEntries.map(({ status, count }) => (
-                    <Badge key={status} color={COLLECTION_MODEL_STATUS_COLORS[status]} variant="light" size="xs">
-                      {COLLECTION_MODEL_STATUS_LABELS[status]}: {count}
-                    </Badge>
-                  ))}
-                </Group>
-              )}
+              <Divider my={2} />
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  columnGap: 16,
+                  rowGap: 2,
+                }}
+              >
+                {renderStatusCell(statusEntries[0], true)}
+                {renderStatusCell(statusEntries[1])}
+                {renderStatusCell(statusEntries[2])}
+                {renderStatusCell(statusEntries[3])}
+                {renderStatusCell(statusEntries[4])}
+                {renderStatusCell(statusEntries[5])}
+                {renderStatusCell(statusEntries[6])}
+              </div>
             </Stack>
             <IconChevronRight size={20} stroke={1.5} />
           </Group>
