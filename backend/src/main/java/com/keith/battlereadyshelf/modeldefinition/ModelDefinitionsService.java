@@ -61,15 +61,46 @@ public class ModelDefinitionsService {
      * embed a model definition and need it fully populated, not just its id/name.
      */
     public ModelDefinition enrichWithAttachmentSlotsAndWargearOptions(ModelDefinition modelDefinition) {
-        var modelDefinitionId = modelDefinition.getId();
-        var attachmentSlots =
-                attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(modelDefinitionId)).stream()
-                        .map(modelDefinitionMapper::toDto)
-                        .toList();
-        var wargearOptions =
-                wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(modelDefinitionId)).stream()
-                        .map(modelDefinitionMapper::toDto)
-                        .toList();
-        return modelDefinition.attachmentSlots(attachmentSlots).wargearOptions(wargearOptions);
+        return enrichAllWithAttachmentSlotsAndWargearOptions(List.of(modelDefinition)).getFirst();
+    }
+
+    /**
+     * Batched form of {@link #enrichWithAttachmentSlotsAndWargearOptions(ModelDefinition)}: fetches
+     * attachment slots and wargear options for all given model definitions with two {@code IN}
+     * queries total (rather than two queries per model definition), avoiding an N+1 query pattern
+     * when enriching a whole list (e.g., every model in a collection).
+     */
+    public List<ModelDefinition> enrichAllWithAttachmentSlotsAndWargearOptions(
+            List<ModelDefinition> modelDefinitions) {
+        var modelDefinitionIds =
+                modelDefinitions.stream().map(ModelDefinition::getId).distinct().toList();
+
+        Map<UUID, List<AttachmentSlot>> attachmentSlotsByModelDefinitionId =
+                attachmentSlotRepository.findAllByModelDefinitionIdIn(modelDefinitionIds).stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        AttachmentSlotEntity::getModelDefinitionId,
+                                        Collectors.mapping(
+                                                modelDefinitionMapper::toDto, Collectors.toList())));
+
+        Map<UUID, List<WargearOption>> wargearOptionsByModelDefinitionId =
+                wargearOptionRepository.findAllByModelDefinitionIdIn(modelDefinitionIds).stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        WargearOptionEntity::getModelDefinitionId,
+                                        Collectors.mapping(
+                                                modelDefinitionMapper::toDto, Collectors.toList())));
+
+        return modelDefinitions.stream()
+                .map(
+                        modelDefinition ->
+                                modelDefinition
+                                        .attachmentSlots(
+                                                attachmentSlotsByModelDefinitionId.getOrDefault(
+                                                        modelDefinition.getId(), List.of()))
+                                        .wargearOptions(
+                                                wargearOptionsByModelDefinitionId.getOrDefault(
+                                                        modelDefinition.getId(), List.of())))
+                .toList();
     }
 }

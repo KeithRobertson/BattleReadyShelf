@@ -9,5 +9,8 @@ public interface CollectionModelWargearSelectionRepository
         extends JpaRepository<CollectionModelWargearSelectionEntity, UUID> {
     List<CollectionModelWargearSelectionEntity> findAllByCollectionModelId(UUID collectionModelId);
 
+    List<CollectionModelWargearSelectionEntity> findAllByCollectionModelIdIn(
+            List<UUID> collectionModelIds);
+
     void deleteAllByCollectionModelId(UUID collectionModelId);
 }

@@ -18,6 +18,7 @@ import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -37,9 +38,8 @@ public class CollectionModelsService {
     public List<CollectionModel> getCollectionModels(UUID userId, UUID armyCollectionId) {
         requireOwnedArmyCollection(userId, armyCollectionId);
 
-        return collectionModelRepository.findAllByArmyCollectionId(armyCollectionId).stream()
-                .map(this::toDtoWithImages)
-                .toList();
+        return toDtosWithImages(
+                collectionModelRepository.findAllByArmyCollectionId(armyCollectionId));
     }
 
     public CollectionModel createCollectionModel(
@@ -90,9 +90,7 @@ public class CollectionModelsService {
                         .limit(count)
                         .toList();
 
-        return collectionModelRepository.saveAll(newEntities).stream()
-                .map(this::toDtoWithImages)
-                .toList();
+        return toDtosWithImages(collectionModelRepository.saveAll(newEntities));
     }
 
     /**
@@ -213,24 +211,62 @@ public class CollectionModelsService {
         return collectionModel;
     }
 
-    private CollectionModel toDtoWithImages(CollectionModelEntity entity) {
-        var dto = collectionModelMapper.toDto(entity);
-        dto.setModelDefinition(
-                modelDefinitionsService.enrichWithAttachmentSlotsAndWargearOptions(
-                        dto.getModelDefinition()));
-        var images =
-                collectionModelImageRepository.findAllByCollectionModelId(entity.getId()).stream()
-                        .map(this::toImageDtoWithUrls)
-                        .toList();
-        dto.setImages(images);
-        var wargearSelections =
-                collectionModelWargearSelectionRepository
-                        .findAllByCollectionModelId(entity.getId())
+    /**
+     * Maps a batch of collection model entities to fully-populated DTOs (model definition,
+     * images with presigned URLs, and wargear selections), fetching each of those associations
+     * with a single {@code IN} query across the whole batch rather than one query per entity, to
+     * avoid an N+1 query pattern when listing a whole army collection.
+     */
+    private List<CollectionModel> toDtosWithImages(List<CollectionModelEntity> entities) {
+        if (entities.isEmpty()) {
+            return List.of();
+        }
+
+        var collectionModelIds = entities.stream().map(CollectionModelEntity::getId).toList();
+
+        var imagesByCollectionModelId =
+                collectionModelImageRepository.findAllByCollectionModelIdIn(collectionModelIds)
                         .stream()
-                        .map(collectionModelMapper::toDto)
-                        .toList();
-        dto.setWargearSelections(wargearSelections);
-        return dto;
+                        .collect(
+                                Collectors.groupingBy(
+                                        CollectionModelImageEntity::getCollectionModelId));
+
+        var wargearSelectionsByCollectionModelId =
+                collectionModelWargearSelectionRepository
+                        .findAllByCollectionModelIdIn(collectionModelIds)
+                        .stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        CollectionModelWargearSelectionEntity::getCollectionModelId));
+
+        var dtos = entities.stream().map(collectionModelMapper::toDto).toList();
+        var enrichedModelDefinitions =
+                modelDefinitionsService.enrichAllWithAttachmentSlotsAndWargearOptions(
+                        dtos.stream().map(CollectionModel::getModelDefinition).toList());
+
+        for (int i = 0; i < entities.size(); i++) {
+            var entity = entities.get(i);
+            var dto = dtos.get(i);
+            dto.setModelDefinition(enrichedModelDefinitions.get(i));
+            dto.setImages(
+                    imagesByCollectionModelId
+                            .getOrDefault(entity.getId(), List.of())
+                            .stream()
+                            .map(this::toImageDtoWithUrls)
+                            .toList());
+            dto.setWargearSelections(
+                    wargearSelectionsByCollectionModelId
+                            .getOrDefault(entity.getId(), List.of())
+                            .stream()
+                            .map(collectionModelMapper::toDto)
+                            .toList());
+        }
+
+        return dtos;
+    }
+
+    private CollectionModel toDtoWithImages(CollectionModelEntity entity) {
+        return toDtosWithImages(List.of(entity)).getFirst();
     }
 
     private CollectionModelImage toImageDtoWithUrls(CollectionModelImageEntity imageEntity) {

@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface CollectionModelImageRepository
         extends JpaRepository<CollectionModelImageEntity, UUID> {
     List<CollectionModelImageEntity> findAllByCollectionModelId(UUID collectionModelId);
+
+    List<CollectionModelImageEntity> findAllByCollectionModelIdIn(List<UUID> collectionModelIds);
 }

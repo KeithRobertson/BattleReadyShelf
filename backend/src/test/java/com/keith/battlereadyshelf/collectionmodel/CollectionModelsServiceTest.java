@@ -56,10 +56,19 @@ class CollectionModelsServiceTest {
                 .when(collectionModelImageRepository.findAllByCollectionModelId(any()))
                 .thenReturn(List.of());
         lenient()
+                .when(collectionModelImageRepository.findAllByCollectionModelIdIn(any()))
+                .thenReturn(List.of());
+        lenient()
                 .when(collectionModelWargearSelectionRepository.findAllByCollectionModelId(any()))
                 .thenReturn(List.of());
         lenient()
+                .when(collectionModelWargearSelectionRepository.findAllByCollectionModelIdIn(any()))
+                .thenReturn(List.of());
+        lenient()
                 .when(modelDefinitionsService.enrichWithAttachmentSlotsAndWargearOptions(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        lenient()
+                .when(modelDefinitionsService.enrichAllWithAttachmentSlotsAndWargearOptions(any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         collectionModelsService =
                 new CollectionModelsService(
