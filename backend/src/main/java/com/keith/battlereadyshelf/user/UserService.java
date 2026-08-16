@@ -4,6 +4,7 @@ import com.keith.battlereadyshelf.auth.AuthService;
 import com.keith.battlereadyshelf.error.ForbiddenException;
 import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.error.UnauthorizedException;
+import com.keith.battlereadyshelf.generated.model.ThemePreference;
 import com.keith.battlereadyshelf.generated.model.UserDto;
 import com.keith.battlereadyshelf.generated.model.UserRole;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
@@ -30,6 +31,17 @@ public class UserService {
 
     public List<UserDto> getUsers() {
         return userRepository.findAll().stream().map(AuthService::toUserDto).toList();
+    }
+
+    /** Updates the current user's own theme preference (self-service, no admin check needed). */
+    public UserDto updateThemePreference(UUID userId, ThemePreference themePreference) {
+        var user =
+                userRepository
+                        .findById(userId)
+                        .orElseThrow(
+                                () -> new UnauthorizedException("Authenticated user does not exist."));
+        user.setThemePreference(com.keith.battlereadyshelf.user.ThemePreference.valueOf(themePreference.name()));
+        return AuthService.toUserDto(userRepository.save(user));
     }
 
     public UserDto updateUserRole(

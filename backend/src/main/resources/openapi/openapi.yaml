@@ -56,6 +56,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /api/v1/users/me/theme-preference:
+    patch:
+      tags: [ "Users" ]
+      summary: Update the current authenticated user's theme preference
+      operationId: updateMyThemePreference
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateThemePreferenceRequest'
+      responses:
+        '200':
+          description: The updated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/users:
     get:
       tags: [ "Users" ]
@@ -1396,16 +1422,30 @@ components:
           readOnly: true
           allOf:
             - $ref: '#/components/schemas/UserRole'
+        themePreference:
+          allOf:
+            - $ref: '#/components/schemas/ThemePreference'
       required: [ id, email ]
     UserRole:
       type: string
       enum: [ USER, ADMIN, SUPERADMIN ]
+    ThemePreference:
+      type: string
+      description: >-
+        A user's preferred UI colour scheme. AUTO follows the device's system preference.
+      enum: [ LIGHT, DARK, AUTO ]
     UpdateUserRoleRequest:
       type: object
       properties:
         role:
           $ref: '#/components/schemas/UserRole'
       required: [ role ]
+    UpdateThemePreferenceRequest:
+      type: object
+      properties:
+        themePreference:
+          $ref: '#/components/schemas/ThemePreference'
+      required: [ themePreference ]
     BulkUpdateUserRolesRequest:
       type: object
       properties:

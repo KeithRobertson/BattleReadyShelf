@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.keith.battlereadyshelf.error.ForbiddenException;
 import com.keith.battlereadyshelf.error.NotFoundException;
+import com.keith.battlereadyshelf.error.UnauthorizedException;
 import com.keith.battlereadyshelf.generated.model.UserRole;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 
@@ -31,6 +32,44 @@ class UserServiceTest {
     @BeforeEach
     void setUp() {
         userService = new UserService(userRepository);
+    }
+
+    @Test
+    void updateThemePreference_updatesThemePreferenceForCurrentUser() {
+        var userId = UUID.randomUUID();
+        var user =
+                User.builder()
+                        .id(userId)
+                        .email("user@example.com")
+                        .role(Role.USER)
+                        .themePreference(ThemePreference.AUTO)
+                        .build();
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result =
+                userService.updateThemePreference(
+                        userId, com.keith.battlereadyshelf.generated.model.ThemePreference.DARK);
+
+        assertThat(result.getThemePreference())
+                .isEqualTo(com.keith.battlereadyshelf.generated.model.ThemePreference.DARK);
+        assertThat(user.getThemePreference()).isEqualTo(ThemePreference.DARK);
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void updateThemePreference_throwsUnauthorizedWhenUserDoesNotExist() {
+        var userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(
+                        () ->
+                                userService.updateThemePreference(
+                                        userId,
+                                        com.keith.battlereadyshelf.generated.model.ThemePreference.LIGHT))
+                .isInstanceOf(UnauthorizedException.class);
+
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.keith.battlereadyshelf.user;
 
 import com.keith.battlereadyshelf.generated.api.UsersApi;
 import com.keith.battlereadyshelf.generated.model.BulkUpdateUserRolesRequest;
+import com.keith.battlereadyshelf.generated.model.UpdateThemePreferenceRequest;
 import com.keith.battlereadyshelf.generated.model.UpdateUserRoleRequest;
 import com.keith.battlereadyshelf.generated.model.UserDto;
 import com.keith.battlereadyshelf.security.AuthenticatedUserProvider;
@@ -25,6 +26,15 @@ public class UserController implements UsersApi {
     public ResponseEntity<UserDto> getCurrentUser() {
         var currentUser = authenticatedUserProvider.getCurrentUser();
         return ResponseEntity.ok(userService.getUserDtoById(currentUser.id()));
+    }
+
+    @Override
+    public ResponseEntity<UserDto> updateMyThemePreference(
+            UpdateThemePreferenceRequest updateThemePreferenceRequest) {
+        var currentUser = authenticatedUserProvider.getCurrentUser();
+        return ResponseEntity.ok(
+                userService.updateThemePreference(
+                        currentUser.id(), updateThemePreferenceRequest.getThemePreference()));
     }
 
     @Override

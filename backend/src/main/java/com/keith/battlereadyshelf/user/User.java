@@ -36,6 +36,12 @@ public class User {
     @Builder.Default
     private Role role = Role.USER;
 
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "theme_preference", nullable = false, columnDefinition = "theme_preference")
+    @Builder.Default
+    private ThemePreference themePreference = ThemePreference.AUTO;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

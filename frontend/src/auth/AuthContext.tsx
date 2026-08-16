@@ -1,6 +1,8 @@
+import { useMantineColorScheme } from "@mantine/core";
 import type { ReactNode } from "react";
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
-import { type CurrentUser, fetchCurrentUser, loginWithGoogle } from "./authApi";
+import type { ThemePreference } from "../generated";
+import { type CurrentUser, fetchCurrentUser, loginWithGoogle, updateThemePreference } from "./authApi";
 import { getStoredToken, setStoredToken, setUnauthorizedHandler } from "./tokenStorage";
 import { googleLogout } from '@react-oauth/google';
 
@@ -11,6 +13,8 @@ export type AuthContextValue = {
   isLoading: boolean;
   loginWithGoogleIdToken: (idToken: string) => Promise<void>;
   logout: () => void;
+  /** Persists the user's preferred theme server-side and applies it immediately. */
+  setThemePreference: (themePreference: ThemePreference) => Promise<void>;
 };
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -19,6 +23,7 @@ export const AuthContext = createContext<AuthContextValue | undefined>(undefined
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { setColorScheme } = useMantineColorScheme();
 
   useEffect(() => {
     // If any API call is rejected as unauthorized (expired/invalid token), make
@@ -39,6 +44,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, []);
 
+  // Apply the user's saved theme preference (from the database) whenever it becomes known/changes,
+  // so it follows them across devices/browsers rather than relying on a per-browser default.
+  useEffect(() => {
+    if (user?.themePreference) {
+      setColorScheme(user.themePreference.toLowerCase() as "light" | "dark" | "auto");
+    }
+  }, [user?.themePreference, setColorScheme]);
+
   const loginWithGoogleIdToken = useCallback(async (idToken: string) => {
     const { token, user: loggedInUser } = await loginWithGoogle(idToken);
     setStoredToken(token);
@@ -51,9 +64,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     googleLogout();
   }, []);
 
+  const setThemePreference = useCallback(async (themePreference: ThemePreference) => {
+    const updatedUser = await updateThemePreference(themePreference);
+    setUser(updatedUser);
+  }, []);
+
   const value = useMemo(
-    () => ({ user, isAuthenticated: user !== null, isLoading, loginWithGoogleIdToken, logout }),
-    [user, isLoading, loginWithGoogleIdToken, logout],
+    () => ({
+      user,
+      isAuthenticated: user !== null,
+      isLoading,
+      loginWithGoogleIdToken,
+      logout,
+      setThemePreference,
+    }),
+    [user, isLoading, loginWithGoogleIdToken, logout, setThemePreference],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

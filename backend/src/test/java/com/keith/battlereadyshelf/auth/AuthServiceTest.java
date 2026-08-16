@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.keith.battlereadyshelf.error.ForbiddenException;
 import com.keith.battlereadyshelf.generated.model.GoogleAuthRequest;
+import com.keith.battlereadyshelf.generated.model.ThemePreference;
 import com.keith.battlereadyshelf.generated.model.UserDto;
 import com.keith.battlereadyshelf.generated.model.UserRole;
 import com.keith.battlereadyshelf.security.JwtService;
@@ -95,7 +96,8 @@ class AuthServiceTest {
                 .isEqualTo(
                         new UserDto(userId, "allowed@example.com")
                                 .displayName("Allowed User")
-                                .role(UserRole.USER));
+                                .role(UserRole.USER)
+                                .themePreference(ThemePreference.AUTO));
     }
 
     @Test
@@ -122,7 +124,8 @@ class AuthServiceTest {
                 .isEqualTo(
                         new UserDto(userId, "allowed@example.com")
                                 .displayName("Existing User")
-                                .role(UserRole.USER));
+                                .role(UserRole.USER)
+                                .themePreference(ThemePreference.AUTO));
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.keith.battlereadyshelf.auth;
 import com.keith.battlereadyshelf.error.ForbiddenException;
 import com.keith.battlereadyshelf.generated.model.AuthResponse;
 import com.keith.battlereadyshelf.generated.model.GoogleAuthRequest;
+import com.keith.battlereadyshelf.generated.model.ThemePreference;
 import com.keith.battlereadyshelf.generated.model.UserDto;
 import com.keith.battlereadyshelf.generated.model.UserRole;
 import com.keith.battlereadyshelf.security.JwtService;
@@ -93,6 +94,7 @@ public class AuthService {
     public static UserDto toUserDto(User user) {
         return new UserDto(user.getId(), user.getEmail())
                 .displayName(user.getDisplayName())
-                .role(UserRole.valueOf(user.getRole().name()));
+                .role(UserRole.valueOf(user.getRole().name()))
+                .themePreference(ThemePreference.valueOf(user.getThemePreference().name()));
     }
 }

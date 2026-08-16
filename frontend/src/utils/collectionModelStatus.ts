@@ -40,15 +40,20 @@ export const COLLECTION_MODEL_STATUS_COLORS: Record<CollectionModelStatus, strin
   PAINTED: "#25b125",
 };
 
-/** Very light background tint per status, used for subtle card colouration (kept low-contrast so it stays cohesive). */
+/**
+ * Very light/dark background tint per status, used for subtle card colouration. Each value uses the
+ * CSS `light-dark()` function so the correct variant is picked automatically based on the active
+ * Mantine colour scheme (Mantine keeps the standard `color-scheme` CSS property in sync with the
+ * user's light/dark/auto preference) — components never need to branch on colour scheme themselves.
+ */
 export const COLLECTION_MODEL_STATUS_BACKGROUNDS: Record<CollectionModelStatus, string> = {
-  BOXED: "#fce9e9",
-  ASSEMBLING: "#fcefe9",
-  ASSEMBLED: "#fcf5e9",
-  PRIMING: "#fcfce9",
-  PRIMED: "#f5fce9",
-  PAINTING: "#effce9",
-  PAINTED: "#e9fce9",
+  BOXED: "light-dark(#fce9e9, #3a2323)",
+  ASSEMBLING: "light-dark(#fcefe9, #3a2c23)",
+  ASSEMBLED: "light-dark(#fcf5e9, #3a3423)",
+  PRIMING: "light-dark(#fcfce9, #383a23)",
+  PRIMED: "light-dark(#f5fce9, #2f3a23)",
+  PAINTING: "light-dark(#effce9, #283a23)",
+  PAINTED: "light-dark(#e9fce9, #233a23)",
 };
 
 export const COLLECTION_MODEL_STATUS_OPTIONS = COLLECTION_MODEL_STATUSES.map((status) => ({

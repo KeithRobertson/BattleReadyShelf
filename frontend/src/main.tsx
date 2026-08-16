@@ -9,6 +9,7 @@ import "./auth/apiClient";
 import { AuthProvider } from "./auth/AuthContext";
 import "./index.css";
 import App from "./App";
+import { theme } from "./theme";
 
 const rootElement = document.getElementById("root");
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
@@ -16,7 +17,7 @@ const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
 if (rootElement) {
   createRoot(rootElement).render(
     <StrictMode>
-      <MantineProvider defaultColorScheme="auto">
+      <MantineProvider theme={theme} defaultColorScheme="auto">
         <GoogleOAuthProvider clientId={googleClientId}>
           <BrowserRouter basename={import.meta.env.BASE_URL}>
             <AuthProvider>
