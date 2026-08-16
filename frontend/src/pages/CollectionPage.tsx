@@ -362,13 +362,14 @@ export default function CollectionPage() {
   }
 
   /**
-   * Assigns (or clears, if wargearOptionId is null) the wargear filling one of a model's
-   * attachment slots, leaving its other slot assignments untouched.
+   * Assigns (or clears) the wargear filling one of a model's attachment slots, either to a
+   * recognised wargear option (wargearOptionId) or a free-text custom label for homebrew/converted
+   * loadouts (customLabel), leaving its other slot assignments untouched.
    */
   async function handleUpdateWargearSelection(
     model: CollectionModel,
     attachmentSlotId: string,
-    wargearOptionId: string | null,
+    update: { wargearOptionId?: string | null; customLabel?: string | null },
   ) {
     if (!model.id) return;
     const modelId = model.id;
@@ -381,7 +382,11 @@ export default function CollectionPage() {
       );
       const wargearSelections = [
         ...otherSelections,
-        { attachmentSlotId, wargearOptionId: wargearOptionId ?? undefined },
+        {
+          attachmentSlotId,
+          wargearOptionId: update.wargearOptionId ?? undefined,
+          customLabel: update.customLabel ?? undefined,
+        },
       ];
       const updated = (
         await updateCollectionModel({ path: { collectionModelId: modelId }, body: { wargearSelections } })

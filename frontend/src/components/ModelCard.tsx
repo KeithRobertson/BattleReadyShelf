@@ -26,6 +26,7 @@ import {
 } from "../utils/collectionModelStatus";
 
 const MAX_VISIBLE_THUMBNAILS = 4;
+const CUSTOM_WARGEAR_VALUE = "__custom__";
 
 type ModelCardProps = {
   model: CollectionModel;
@@ -36,7 +37,10 @@ type ModelCardProps = {
   onDeleteModel: () => void;
   onUpdateFinishedOn: (finishedOn: string | null) => void;
   onUpdateDescription: (description: string) => void;
-  onUpdateWargearSelection: (attachmentSlotId: string, wargearOptionId: string | null) => void;
+  onUpdateWargearSelection: (
+    attachmentSlotId: string,
+    update: { wargearOptionId?: string | null; customLabel?: string | null },
+  ) => void;
   onUpdateStatus: (status: string) => void;
   isUploading: boolean;
   deletingImageId: string | null;
@@ -89,6 +93,8 @@ export default function ModelCard({
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState(description ?? "");
   const [isEditingWargear, setIsEditingWargear] = useState(false);
+  const [customWargearModeBySlot, setCustomWargearModeBySlot] = useState<Record<string, boolean>>({});
+  const [customLabelDraftsBySlot, setCustomLabelDraftsBySlot] = useState<Record<string, string>>({});
   const attachmentSlots = model.modelDefinition?.attachmentSlots ?? [];
   const wargearOptions = model.modelDefinition?.wargearOptions ?? [];
 
@@ -99,6 +105,8 @@ export default function ModelCard({
       setIsEditingFinishedOn(false);
       setIsEditingDescription(false);
       setIsEditingWargear(false);
+      setCustomWargearModeBySlot({});
+      setCustomLabelDraftsBySlot({});
     }
   }, [editMode]);
 
@@ -431,20 +439,67 @@ export default function ModelCard({
                     );
                     const currentSelection = model.wargearSelections?.find((s) => s.attachmentSlotId === slot.id);
                     const isUpdatingThisSlot = updatingWargearSlotId === slot.id;
+                    const slotId = slot.id ?? "";
+                    const isCustom = customWargearModeBySlot[slotId] ?? !!currentSelection?.customLabel;
+                    const selectData = [
+                      ...slotOptions.map((option) => ({ value: option.id ?? "", label: option.name ?? "" })),
+                      { value: CUSTOM_WARGEAR_VALUE, label: "Custom..." },
+                    ];
+                    const selectValue = isCustom
+                      ? CUSTOM_WARGEAR_VALUE
+                      : (currentSelection?.wargearOptionId ?? null);
+
+                    function commitCustomLabel() {
+                      const label = (customLabelDraftsBySlot[slotId] ?? "").trim();
+                      onUpdateWargearSelection(slotId, {
+                        wargearOptionId: null,
+                        customLabel: label.length > 0 ? label : null,
+                      });
+                    }
+
                     return (
-                      <Select
-                        key={slot.id}
-                        size="xs"
-                        label={slot.name}
-                        placeholder="Unassigned"
-                        clearable
-                        data={slotOptions.map((option) => ({ value: option.id ?? "", label: option.name ?? "" }))}
-                        value={currentSelection?.wargearOptionId ?? null}
-                        onChange={(value) => slot.id && onUpdateWargearSelection(slot.id, value)}
-                        disabled={isUpdatingThisSlot}
-                        rightSection={isUpdatingThisSlot ? <Loader size={12} /> : undefined}
-                        style={{ width: "100%" }}
-                      />
+                      <Stack key={slot.id} gap={2} style={{ width: "100%" }}>
+                        <Select
+                          size="xs"
+                          label={slot.name}
+                          placeholder="Unassigned"
+                          clearable
+                          data={selectData}
+                          value={selectValue}
+                          onChange={(value) => {
+                            if (!slotId) return;
+                            if (value === CUSTOM_WARGEAR_VALUE) {
+                              setCustomWargearModeBySlot((m) => ({ ...m, [slotId]: true }));
+                              setCustomLabelDraftsBySlot((m) => ({
+                                ...m,
+                                [slotId]: currentSelection?.customLabel ?? "",
+                              }));
+                              return;
+                            }
+                            setCustomWargearModeBySlot((m) => ({ ...m, [slotId]: false }));
+                            onUpdateWargearSelection(slotId, { wargearOptionId: value, customLabel: null });
+                          }}
+                          disabled={isUpdatingThisSlot}
+                          rightSection={isUpdatingThisSlot ? <Loader size={12} /> : undefined}
+                          style={{ width: "100%" }}
+                        />
+                        {isCustom && (
+                          <TextInput
+                            size="xs"
+                            placeholder="Describe the wargear you modeled"
+                            value={customLabelDraftsBySlot[slotId] ?? currentSelection?.customLabel ?? ""}
+                            onChange={(e) => {
+                              const newValue = e.currentTarget.value;
+                              setCustomLabelDraftsBySlot((m) => ({ ...m, [slotId]: newValue }));
+                            }}
+                            onBlur={commitCustomLabel}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") commitCustomLabel();
+                            }}
+                            disabled={isUpdatingThisSlot}
+                          />
+                        )}
+                      </Stack>
                     );
                   })}
                   <Group gap={4} justify="flex-end">
@@ -461,9 +516,16 @@ export default function ModelCard({
                       const optionName = wargearOptions.find(
                         (option) => option.id === currentSelection?.wargearOptionId,
                       )?.name;
+                      const displayLabel = optionName ?? currentSelection?.customLabel;
                       return (
-                        <Badge key={slot.id} variant="light" color={optionName ? "blue" : "gray"} size="sm">
-                          {slot.name}: {optionName ?? "Unassigned"}
+                        <Badge
+                          key={slot.id}
+                          variant="light"
+                          color={optionName ? "blue" : currentSelection?.customLabel ? "grape" : "gray"}
+                          size="sm"
+                          title={currentSelection?.customLabel ? "Custom..." : undefined}
+                        >
+                          {slot.name}: {displayLabel ?? "Unassigned"}
                         </Badge>
                       );
                     })}

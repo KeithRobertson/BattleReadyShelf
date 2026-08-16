@@ -1,6 +1,7 @@
 package com.keith.battlereadyshelf.collectionmodel;
 
 import com.keith.battlereadyshelf.armycollection.ArmyCollectionRepository;
+import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.CollectionModel;
 import com.keith.battlereadyshelf.generated.model.CollectionModelImage;
@@ -129,6 +130,17 @@ public class CollectionModelsService {
 
     private void replaceWargearSelections(
             UUID collectionModelId, List<WargearSelection> wargearSelections) {
+        for (var selection : wargearSelections) {
+            if (selection.getWargearOptionId() != null
+                    && selection.getCustomLabel() != null
+                    && !selection.getCustomLabel().isBlank()) {
+                throw new BadRequestException(
+                        "A wargear selection cannot have both a wargearOptionId and a customLabel;"
+                                + " choose one for slot "
+                                + selection.getAttachmentSlotId());
+            }
+        }
+
         // Hibernate's default flush ordering runs inserts before deletes within a transaction,
         // so without an explicit flush here, re-inserting a selection for the same slot would
         // violate the unique (collection_model_id, attachment_slot_id) constraint before the
@@ -143,6 +155,11 @@ public class CollectionModelsService {
                                                 .collectionModelId(collectionModelId)
                                                 .attachmentSlotId(selection.getAttachmentSlotId())
                                                 .wargearOptionId(selection.getWargearOptionId())
+                                                .customLabel(
+                                                        selection.getCustomLabel() != null
+                                                                        && !selection.getCustomLabel().isBlank()
+                                                                ? selection.getCustomLabel().trim()
+                                                                : null)
                                                 .build())
                         .toList();
         collectionModelWargearSelectionRepository.saveAll(newSelections);

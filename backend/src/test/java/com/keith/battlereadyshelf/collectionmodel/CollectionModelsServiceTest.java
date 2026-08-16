@@ -479,6 +479,104 @@ class CollectionModelsServiceTest {
     }
 
     @Test
+    void updateCollectionModel_savesCustomLabel_whenNoWargearOptionMatches() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var plagueMarineId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var leftArmId = UUID.randomUUID();
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .modelDefinition(
+                                                ModelDefinitionEntity.builder()
+                                                        .id(plagueMarineId)
+                                                        .name("Plague Marine")
+                                                        .build())
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelRepository.save(any(CollectionModelEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var wargearSelections =
+                List.of(
+                        new com.keith.battlereadyshelf.generated.model.WargearSelection(leftArmId)
+                                .customLabel("  Converted power sword  "));
+
+        collectionModelsService.updateCollectionModel(
+                userId, collectionModelId, null, null, null, null, wargearSelections);
+
+        verify(collectionModelWargearSelectionRepository).saveAll(selectionCaptor.capture());
+        var savedSelections = selectionCaptor.getValue();
+        assertThat(savedSelections)
+                .containsExactly(
+                        CollectionModelWargearSelectionEntity.builder()
+                                .collectionModelId(collectionModelId)
+                                .attachmentSlotId(leftArmId)
+                                .customLabel("Converted power sword")
+                                .build());
+    }
+
+    @Test
+    void updateCollectionModel_rejectsSelectionWithBothWargearOptionIdAndCustomLabel() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var plagueMarineId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var leftArmId = UUID.randomUUID();
+        var boltgunId = UUID.randomUUID();
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .modelDefinition(
+                                                ModelDefinitionEntity.builder()
+                                                        .id(plagueMarineId)
+                                                        .name("Plague Marine")
+                                                        .build())
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+
+        var wargearSelections =
+                List.of(
+                        new com.keith.battlereadyshelf.generated.model.WargearSelection(leftArmId)
+                                .wargearOptionId(boltgunId)
+                                .customLabel("Converted power sword"));
+
+        assertThatThrownBy(
+                        () ->
+                                collectionModelsService.updateCollectionModel(
+                                        userId,
+                                        collectionModelId,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        wargearSelections))
+                .isInstanceOf(com.keith.battlereadyshelf.error.BadRequestException.class);
+        verify(collectionModelWargearSelectionRepository, never()).deleteAllByCollectionModelId(any());
+    }
+
+    @Test
     void updateCollectionModel_throwsNotFound_whenModelNotOwnedByUser() {
         var userId = UUID.randomUUID();
         var otherUserId = UUID.randomUUID();

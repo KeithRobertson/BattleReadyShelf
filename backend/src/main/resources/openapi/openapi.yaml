@@ -1312,6 +1312,14 @@ components:
           type: string
           format: uuid
           description: The wargear option assigned to this slot, or null/omitted to leave it empty.
+        customLabel:
+          type: string
+          description: >-
+            A free-text wargear name for this slot when nothing in the model definition's
+            recognised wargear options matches what the user actually modeled (e.g. a
+            conversion). Mutually exclusive with wargearOptionId: setting both on the same
+            selection is rejected. Custom labels are personal to this collection model and are
+            not considered by army list validation.
       required: [ attachmentSlotId ]
     CollectionModelStatus:
       type: string

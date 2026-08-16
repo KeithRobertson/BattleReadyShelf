@@ -37,4 +37,14 @@ public class CollectionModelWargearSelectionEntity {
 
     @Column(name = "wargear_option_id")
     private UUID wargearOptionId;
+
+    /**
+     * A free-text, user-entered wargear name for this slot when no existing {@link
+     * com.keith.battlereadyshelf.modeldefinition.WargearOptionEntity} matches what they actually
+     * modeled (e.g. a converted/homebrew loadout). Mutually exclusive with {@link
+     * #wargearOptionId}; doesn't participate in army list validation since it isn't a recognised
+     * wargear option, but lets users still record what they built.
+     */
+    @Column(name = "custom_label")
+    private String customLabel;
 }
