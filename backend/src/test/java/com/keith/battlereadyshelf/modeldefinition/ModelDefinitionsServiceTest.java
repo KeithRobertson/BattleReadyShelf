@@ -1,8 +1,14 @@
 package com.keith.battlereadyshelf.modeldefinition;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
+import com.keith.battlereadyshelf.collectionmodel.CollectionModelRepository;
+import com.keith.battlereadyshelf.error.ConflictException;
+import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.AttachmentSlot;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.WargearOption;
@@ -21,6 +27,7 @@ class ModelDefinitionsServiceTest {
     @Mock private ModelDefinitionRepository modelDefinitionRepository;
     @Mock private AttachmentSlotRepository attachmentSlotRepository;
     @Mock private WargearOptionRepository wargearOptionRepository;
+    @Mock private CollectionModelRepository collectionModelRepository;
 
     private ModelDefinitionsService modelDefinitionsService;
 
@@ -31,7 +38,8 @@ class ModelDefinitionsServiceTest {
                         modelDefinitionRepository,
                         attachmentSlotRepository,
                         wargearOptionRepository,
-                        new ModelDefinitionMapperImpl());
+                        new ModelDefinitionMapperImpl(),
+                        collectionModelRepository);
     }
 
     @Test
@@ -55,6 +63,7 @@ class ModelDefinitionsServiceTest {
                 .containsExactly(
                         new ModelDefinition("Poxwalker")
                                 .id(poxwalkerId)
+                                .version(1)
                                 .attachmentSlots(List.of())
                                 .wargearOptions(List.of()));
     }
@@ -106,6 +115,7 @@ class ModelDefinitionsServiceTest {
                 .containsExactly(
                         new ModelDefinition("Plague Marine")
                                 .id(plagueMarineId)
+                                .version(1)
                                 .attachmentSlots(
                                         List.of(
                                                 new AttachmentSlot("Left Arm").id(leftArmId),
@@ -114,6 +124,38 @@ class ModelDefinitionsServiceTest {
                                         List.of(
                                                 new WargearOption("Boltgun", true, List.of(leftArmId))
                                                         .id(boltgunId))));
+    }
+
+    @Test
+    void deleteModelDefinition_deletesWhenNotInUse() {
+        var modelDefinitionId = UUID.randomUUID();
+        when(modelDefinitionRepository.existsById(modelDefinitionId)).thenReturn(true);
+        when(collectionModelRepository.countByModelDefinitionId(modelDefinitionId)).thenReturn(0L);
+
+        modelDefinitionsService.deleteModelDefinition(modelDefinitionId);
+
+        verify(modelDefinitionRepository).deleteById(modelDefinitionId);
+    }
+
+    @Test
+    void deleteModelDefinition_throwsNotFoundWhenMissing() {
+        var modelDefinitionId = UUID.randomUUID();
+        when(modelDefinitionRepository.existsById(modelDefinitionId)).thenReturn(false);
+
+        assertThatThrownBy(() -> modelDefinitionsService.deleteModelDefinition(modelDefinitionId))
+                .isInstanceOf(NotFoundException.class);
+        verify(modelDefinitionRepository, never()).deleteById(modelDefinitionId);
+    }
+
+    @Test
+    void deleteModelDefinition_throwsConflictWhenStillInUse() {
+        var modelDefinitionId = UUID.randomUUID();
+        when(modelDefinitionRepository.existsById(modelDefinitionId)).thenReturn(true);
+        when(collectionModelRepository.countByModelDefinitionId(modelDefinitionId)).thenReturn(3L);
+
+        assertThatThrownBy(() -> modelDefinitionsService.deleteModelDefinition(modelDefinitionId))
+                .isInstanceOf(ConflictException.class);
+        verify(modelDefinitionRepository, never()).deleteById(modelDefinitionId);
     }
 }
 

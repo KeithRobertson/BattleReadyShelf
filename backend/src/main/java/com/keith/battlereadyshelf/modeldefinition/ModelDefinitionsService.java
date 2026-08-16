@@ -1,5 +1,8 @@
 package com.keith.battlereadyshelf.modeldefinition;
 
+import com.keith.battlereadyshelf.collectionmodel.CollectionModelRepository;
+import com.keith.battlereadyshelf.error.ConflictException;
+import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.AttachmentSlot;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.WargearOption;
@@ -7,6 +10,7 @@ import com.keith.battlereadyshelf.generated.model.WargearOption;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -20,6 +24,28 @@ public class ModelDefinitionsService {
     private final AttachmentSlotRepository attachmentSlotRepository;
     private final WargearOptionRepository wargearOptionRepository;
     private final ModelDefinitionMapper modelDefinitionMapper;
+    private final CollectionModelRepository collectionModelRepository;
+
+    /**
+     * Deletes a published model definition and all its attachment slots/wargear options, any open
+     * draft for it, and its publish history (all cascade via FK). Refuses (409) if any user's
+     * collection models still reference it, since those rows are protected by an {@code ON DELETE
+     * RESTRICT} foreign key and would otherwise fail with an opaque database error.
+     */
+    @Transactional
+    public void deleteModelDefinition(UUID modelDefinitionId) {
+        if (!modelDefinitionRepository.existsById(modelDefinitionId)) {
+            throw new NotFoundException("Model definition not found: " + modelDefinitionId);
+        }
+        var inUseCount = collectionModelRepository.countByModelDefinitionId(modelDefinitionId);
+        if (inUseCount > 0) {
+            throw new ConflictException(
+                    "Cannot delete: this model definition is still used by "
+                            + inUseCount
+                            + " collection model(s). Remove or reassign them first.");
+        }
+        modelDefinitionRepository.deleteById(modelDefinitionId);
+    }
 
     public List<ModelDefinition> getAllModelDefinitions() {
         var modelDefinitionEntities = modelDefinitionRepository.findAll();

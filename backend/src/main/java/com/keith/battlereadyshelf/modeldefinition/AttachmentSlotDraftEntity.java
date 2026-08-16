@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,24 +14,28 @@ import lombok.NoArgsConstructor;
 
 import java.util.UUID;
 
+/**
+ * A draft edit of an {@link AttachmentSlotEntity}. If {@code publishedAttachmentSlotId} is null,
+ * this slot is new and will be created on publish; otherwise publishing updates the existing
+ * published slot in place, preserving its id.
+ */
 @Entity
-@Table(name = "model_definitions")
+@Table(name = "attachment_slot_drafts")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ModelDefinitionEntity {
+public class AttachmentSlotDraftEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, unique = true)
-    private String name;
+    @Column(name = "model_definition_draft_id", nullable = false)
+    private UUID modelDefinitionDraftId;
 
-    @Column(columnDefinition = "text")
-    private String description;
+    @Column(name = "published_attachment_slot_id")
+    private UUID publishedAttachmentSlotId;
 
-    @Builder.Default
     @Column(nullable = false)
-    private int version = 1;
+    private String name;
 }

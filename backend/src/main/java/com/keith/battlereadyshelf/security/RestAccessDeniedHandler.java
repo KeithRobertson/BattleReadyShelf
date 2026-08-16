@@ -12,14 +12,14 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
 
+import lombok.RequiredArgsConstructor;
+
 import java.io.IOException;
 
 @Component
+@RequiredArgsConstructor
 public class RestAccessDeniedHandler implements AccessDeniedHandler {
-    // Spring Boot 4 only auto-configures a Jackson 3 (tools.jackson) ObjectMapper bean by
-    // default; we need classic Jackson 2 here to serialize the openapi-generated ApiError DTO,
-    // so a plain instance is created directly rather than injected.
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     @Override
     public void handle(

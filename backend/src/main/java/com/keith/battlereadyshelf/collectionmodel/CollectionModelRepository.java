@@ -12,6 +12,8 @@ public interface CollectionModelRepository extends JpaRepository<CollectionModel
     @EntityGraph(attributePaths = "modelDefinition")
     List<CollectionModelEntity> findAllByArmyCollectionId(UUID armyCollectionId);
 
+    long countByModelDefinitionId(UUID modelDefinitionId);
+
     @Query(
             "select c.armyCollectionId as armyCollectionId, c.status as status, count(c) as count "
                     + "from CollectionModelEntity c "

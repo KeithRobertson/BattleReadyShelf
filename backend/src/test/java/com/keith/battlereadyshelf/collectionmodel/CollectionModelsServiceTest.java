@@ -118,7 +118,7 @@ class CollectionModelsServiceTest {
                 .containsExactly(
                         new CollectionModel(poxwalkerId)
                                 .id(collectionModelId)
-                                .modelDefinition(new ModelDefinition("Poxwalker").id(poxwalkerId))
+                                .modelDefinition(new ModelDefinition("Poxwalker").id(poxwalkerId).version(1))
                                 .name("My Poxwalker")
                                 .images(List.of())
                                 .status(CollectionModelStatus.BOXED)
@@ -201,7 +201,7 @@ class CollectionModelsServiceTest {
                 .isEqualTo(
                         new CollectionModel(poxwalkerId)
                                 .id(createdId)
-                                .modelDefinition(new ModelDefinition("Poxwalker").id(poxwalkerId))
+                                .modelDefinition(new ModelDefinition("Poxwalker").id(poxwalkerId).version(1))
                                 .name("My Poxwalker")
                                 .description("Freshly painted")
                                 .images(List.of())
