@@ -915,7 +915,7 @@ export default function CollectionPage() {
                                       variant="subtle"
                                       color="gray"
                                       size="sm"
-                                      style={{ cursor: "grab" }}
+                                      style={{ cursor: "grab", touchAction: "none" }}
                                       onClick={(e) => e.stopPropagation()}
                                       aria-label="Drag to reorder"
                                       {...attributes}
