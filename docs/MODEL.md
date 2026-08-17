@@ -1,3 +1,18 @@
+IMPORTANT:
+
+This document is NOT the source of truth for the current implementation.
+
+For current behaviour, use this order of authority:
+
+1. Existing source code
+2. Database migrations
+3. OpenAPI specification
+4. Tests
+5. This document
+
+This document describes future domain intent only.
+Do not create missing entities, tables, endpoints, or relationships merely because they appear here.
+
 # Domain Model - BattleReadyShelf
 
 > **Status: aspirational / target design.** This describes where the domain model is heading, not what's implemented today. As of now only the **Collection domain** partially exists in code (`ModelDefinition`, `CollectionModel`, `CollectionModelImage`, `ArmyCollection` — see `backend/src/main/java/com/keith/battlereadyshelf/`). The full **Rules domain** (GameSystem, Faction, UnitDefinition, WargearDefinition, points rules) and the **Army domain** (ArmyList/ArmyUnit as distinct from the current simple `ArmyCollection`) described below do not exist yet. Treat entity/field names here as design intent, not ground truth — check the actual entities/migrations for current reality.
