@@ -911,18 +911,20 @@ export default function CollectionPage() {
                               <Accordion.Control>
                                 <Group justify="space-between" wrap="nowrap" pr="sm">
                                   <Group gap="xs">
-                                    <ActionIcon
-                                      variant="subtle"
-                                      color="gray"
-                                      size="sm"
-                                      style={{ cursor: "grab", touchAction: "none" }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      aria-label="Drag to reorder"
-                                      {...attributes}
-                                      {...listeners}
-                                    >
-                                      <IconGripVertical size={16} />
-                                    </ActionIcon>
+                                    {isEditMode && (
+                                      <ActionIcon
+                                        variant="subtle"
+                                        color="gray"
+                                        size="sm"
+                                        style={{ cursor: "grab", touchAction: "none" }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        aria-label="Drag to reorder"
+                                        {...attributes}
+                                        {...listeners}
+                                      >
+                                        <IconGripVertical size={16} />
+                                      </ActionIcon>
+                                    )}
                                     <Text fw={500}>{group.label}</Text>
                                     <Badge variant="light">{group.models.length}</Badge>
                                   </Group>
