@@ -7,6 +7,7 @@
 - **Build army lists** for competitive or casual play (future)
 - **Support multiple game systems** eventually (game-agnostic architecture is the long-term goal)
 
+When implementing a feature, keep conversational responses concise. Prefer doing the work and reporting the result rather than explaining every intermediate step. Don't repeat code or large command output. Summarise test/build results rather than reproducing them.
 Do not read docs/MODEL.md unless the task involves domain modelling, future architecture, rules/army functionality, or explicitly references that document. For implementation tasks, treat source code, migrations, and OpenAPI as the current source of truth.
 See `docs/MODEL.md` for the full target domain model — it is explicitly aspirational; only a small part of it exists in code today (see "Current Domain Model" below).
 
