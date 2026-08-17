@@ -11,13 +11,39 @@ import {
   Title,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { IconAlertCircle, IconPlus } from "@tabler/icons-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/useAuth";
 import CollectionCard from "../components/CollectionCard";
 import type { ArmyCollection } from "../generated";
-import { createArmyCollection, getArmyCollections } from "../generated";
+import { createArmyCollection, getArmyCollections, reorderArmyCollections } from "../generated";
+
+/** Wraps a single CollectionCard so it can be reordered via drag-and-drop. */
+function SortableCollectionCard({ collection }: { collection: ArmyCollection }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: collection.id ?? "",
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.6 : 1,
+      }}
+    >
+      <CollectionCard
+        collection={collection}
+        dragHandleProps={{ attributes, listeners }}
+      />
+    </div>
+  );
+}
 
 export default function CollectionsPage() {
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
@@ -58,13 +84,35 @@ export default function CollectionsPage() {
       if (!created) {
         throw new Error("Failed to create collection");
       }
-      setCollections((s) => [created, ...s]);
+      setCollections((s) => [...s, created]);
       setName("");
       setDescription("");
       close();
     } catch (e) {
       setError(String(e));
     }
+  }
+
+  const dragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = collections.findIndex((c) => c.id === active.id);
+    const newIndex = collections.findIndex((c) => c.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const previous = collections;
+    const reordered = arrayMove(collections, oldIndex, newIndex);
+    setCollections(reordered);
+
+    reorderArmyCollections({
+      body: { armyCollectionIds: reordered.map((c) => c.id as string) },
+      throwOnError: true,
+    }).catch((e) => {
+      setCollections(previous);
+      setError(String(e));
+    });
   }
 
   return (
@@ -98,11 +146,15 @@ export default function CollectionsPage() {
       ) : collections.length === 0 ? (
         <Text c="dimmed">You haven't created any collections yet.</Text>
       ) : (
-        <Stack gap="md">
-          {collections.map((c) => (
-            <CollectionCard key={c.id} collection={c} />
-          ))}
-        </Stack>
+        <DndContext sensors={dragSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={collections.map((c) => c.id ?? "")} strategy={verticalListSortingStrategy}>
+            <Stack gap="md">
+              {collections.map((c) => (
+                <SortableCollectionCard key={c.id} collection={c} />
+              ))}
+            </Stack>
+          </SortableContext>
+        </DndContext>
       )}
 
       <Modal opened={opened} onClose={close} title="Create collection">

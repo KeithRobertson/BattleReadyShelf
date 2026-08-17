@@ -21,7 +21,20 @@ import {
   Title,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconAlertCircle, IconArrowLeft, IconCheck, IconPencil, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
+import { DndContext, DragOverlay, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
+import type { DragEndEvent, DragStartEvent, DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  IconAlertCircle,
+  IconArrowLeft,
+  IconCheck,
+  IconGripVertical,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+  IconX,
+} from "@tabler/icons-react";
 import { isAxiosError } from "axios";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -39,6 +52,7 @@ import {
   getArmyCollection,
   getCollectionModels,
   getModelDefinitions,
+  reorderModelDefinitionGroups,
   updateArmyCollection,
   updateCollectionModel,
 } from "../generated";
@@ -98,6 +112,40 @@ function sortModels(models: CollectionModel[], sortOrder: SortOrder): Collection
     if (!nameB) return -1;
     return direction * nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
   });
+}
+
+/**
+ * Wraps a single Accordion.Item so it can be reordered via drag-and-drop. The drag handle (not the
+ * whole control) carries the dnd-kit listeners, so clicking elsewhere in the header still toggles
+ * the accordion section as normal.
+ */
+function SortableAccordionGroup({
+  group,
+  children,
+}: {
+  group: ModelGroup;
+  children: (dragHandleProps: {
+    attributes: DraggableAttributes;
+    listeners: DraggableSyntheticListeners;
+    isDragging: boolean;
+  }) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: group.key });
+  return (
+    <Accordion.Item
+      value={group.key}
+      ref={setNodeRef}
+      style={{
+        // While dragging, only the transform (not a full-height carry of the expanded panel) moves with
+        // the pointer - the panel content is hidden below so the item collapses to just its header height.
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.6 : 1,
+      }}
+    >
+      {children({ attributes, listeners, isDragging })}
+    </Accordion.Item>
+  );
 }
 
 export default function CollectionPage() {
@@ -162,10 +210,49 @@ export default function CollectionPage() {
         groups.set(key, { key, label, models: [m] });
       }
     }
+    const orderIndex = new Map((armyCollection?.modelDefinitionOrder ?? []).map((id, i) => [id, i]));
     return [...groups.values()]
-      .sort((a, b) => a.label.localeCompare(b.label))
+      .sort((a, b) => {
+        const aIndex = orderIndex.get(a.key);
+        const bIndex = orderIndex.get(b.key);
+        if (aIndex !== undefined && bIndex !== undefined) return aIndex - bIndex;
+        if (aIndex !== undefined) return -1;
+        if (bIndex !== undefined) return 1;
+        return a.label.localeCompare(b.label);
+      })
       .map((group) => ({ ...group, models: sortModels(group.models, sortOrder) }));
-  }, [models, sortOrder, statusFilter]);
+  }, [models, sortOrder, statusFilter, armyCollection?.modelDefinitionOrder]);
+
+  const groupDragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const [draggingGroupKey, setDraggingGroupKey] = useState<string | null>(null);
+
+  function handleGroupDragStart(event: DragStartEvent) {
+    setDraggingGroupKey(String(event.active.id));
+  }
+
+  function handleGroupDragEnd(event: DragEndEvent) {
+    setDraggingGroupKey(null);
+    const { active, over } = event;
+    if (!over || active.id === over.id || !collectionId) return;
+    const oldIndex = groupedModels.findIndex((g) => g.key === active.id);
+    const newIndex = groupedModels.findIndex((g) => g.key === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reorderedIds = arrayMove(groupedModels, oldIndex, newIndex)
+      .map((g) => g.key)
+      .filter((key) => key !== "unknown");
+    const previousOrder = armyCollection?.modelDefinitionOrder ?? [];
+    setArmyCollection((prev) => (prev ? { ...prev, modelDefinitionOrder: reorderedIds } : prev));
+
+    reorderModelDefinitionGroups({
+      path: { armyCollectionId: collectionId },
+      body: { modelDefinitionIds: reorderedIds },
+      throwOnError: true,
+    }).catch((e) => {
+      setArmyCollection((prev) => (prev ? { ...prev, modelDefinitionOrder: previousOrder } : prev));
+      setError(String(e));
+    });
+  }
 
 
   useEffect(() => {
@@ -806,77 +893,134 @@ export default function CollectionPage() {
                   )}
                 </Group>
               </Group>
-              <Accordion multiple defaultValue={groupedModels.map((g) => g.key)} variant="separated">
-                {groupedModels.map((group) => {
-                  const selectedInGroup = group.models.filter((m) => m.id && selectedModelIds.has(m.id)).length;
-                  return (
-                    <Accordion.Item key={group.key} value={group.key}>
-                      <Accordion.Control>
-                        <Group justify="space-between" wrap="nowrap" pr="sm">
+              <DndContext
+                sensors={groupDragSensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleGroupDragStart}
+                onDragEnd={handleGroupDragEnd}
+                onDragCancel={() => setDraggingGroupKey(null)}
+              >
+                <SortableContext items={groupedModels.map((g) => g.key)} strategy={verticalListSortingStrategy}>
+                  <Accordion multiple defaultValue={groupedModels.map((g) => g.key)} variant="separated">
+                    {groupedModels.map((group) => {
+                      const selectedInGroup = group.models.filter((m) => m.id && selectedModelIds.has(m.id)).length;
+                      return (
+                        <SortableAccordionGroup key={group.key} group={group}>
+                          {({ attributes, listeners }) => (
+                            <>
+                              <Accordion.Control>
+                                <Group justify="space-between" wrap="nowrap" pr="sm">
+                                  <Group gap="xs">
+                                    <ActionIcon
+                                      variant="subtle"
+                                      color="gray"
+                                      size="sm"
+                                      style={{ cursor: "grab" }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      aria-label="Drag to reorder"
+                                      {...attributes}
+                                      {...listeners}
+                                    >
+                                      <IconGripVertical size={16} />
+                                    </ActionIcon>
+                                    <Text fw={500}>{group.label}</Text>
+                                    <Badge variant="light">{group.models.length}</Badge>
+                                  </Group>
+                                  {isEditMode && selectedInGroup > 0 && (
+                                    <Badge color="red" variant="light">
+                                      {selectedInGroup} selected
+                                    </Badge>
+                                  )}
+                                </Group>
+                              </Accordion.Control>
+                              {/* Hide panel content for every group while any drag is active so the whole list
+                                  collapses to just headers - reordering shouldn't require moving expanded content. */}
+                              {!draggingGroupKey && (
+                              <Accordion.Panel>
+                                <Stack gap="xs">
+                                  {isEditMode && (
+                                    <Checkbox
+                                      label="Select all in this group"
+                                      checked={selectedInGroup === group.models.length}
+                                      indeterminate={selectedInGroup > 0 && selectedInGroup < group.models.length}
+                                      onChange={(e) => toggleGroupSelected(group, e.currentTarget.checked)}
+                                    />
+                                  )}
+                                  <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+                                    {group.models.map((m) => (
+                                      <ModelCard
+                                        key={m.id}
+                                        model={m}
+                                        editMode={isEditMode}
+                                        onUploadImage={(file) => m.id && handleUploadImage(m.id, file)}
+                                        onDeleteImage={(imageId) => m.id && handleDeleteImage(m.id, imageId)}
+                                        onRename={(newName) => m.id && handleRenameModel(m.id, newName)}
+                                        onDeleteModel={() => m.id && requestDeleteModel(m.id)}
+                                        onUpdateFinishedOn={(finishedOn) => m.id && handleUpdateFinishedOn(m.id, finishedOn)}
+                                        onUpdateDescription={(description) =>
+                                          m.id && handleUpdateDescription(m.id, description)
+                                        }
+                                        onUpdateWargearSelection={(attachmentSlotId, wargearOptionId) =>
+                                          handleUpdateWargearSelection(m, attachmentSlotId, wargearOptionId)
+                                        }
+                                        onUpdateStatus={(status) =>
+                                          m.id && handleUpdateStatus(m.id, status as CollectionModelStatus)
+                                        }
+                                        isUploading={uploadingModelId === m.id}
+                                        deletingImageId={deletingImageId}
+                                        isRenaming={renamingModelId === m.id}
+                                        isDeleting={deletingModelId === m.id}
+                                        isUpdatingFinishedOn={updatingFinishedOnModelId === m.id}
+                                        isUpdatingDescription={updatingDescriptionModelId === m.id}
+                                        isUpdatingStatus={updatingStatusModelId === m.id}
+                                        updatingWargearSlotId={
+                                          updatingWargearSlotKey?.startsWith(`${m.id}:`)
+                                            ? updatingWargearSlotKey.slice(`${m.id}:`.length)
+                                            : null
+                                        }
+                                        selected={!!m.id && selectedModelIds.has(m.id)}
+                                        onToggleSelected={(isSelected) => m.id && toggleSelected(m.id, isSelected)}
+                                      />
+                                    ))}
+                                  </SimpleGrid>
+                                </Stack>
+                              </Accordion.Panel>
+                              )}
+                            </>
+                          )}
+                        </SortableAccordionGroup>
+                      );
+                    })}
+                  </Accordion>
+                </SortableContext>
+                <DragOverlay>
+                  {draggingGroupKey &&
+                    (() => {
+                      const draggedGroup = groupedModels.find((g) => g.key === draggingGroupKey);
+                      if (!draggedGroup) return null;
+                      return (
+                        <Group
+                          justify="space-between"
+                          wrap="nowrap"
+                          pr="sm"
+                          p="md"
+                          style={{
+                            background: "var(--mantine-color-body)",
+                            border: "1px solid var(--mantine-color-default-border)",
+                            borderRadius: "var(--mantine-radius-default)",
+                            boxShadow: "var(--mantine-shadow-md)",
+                          }}
+                        >
                           <Group gap="xs">
-                            <Text fw={500}>{group.label}</Text>
-                            <Badge variant="light">{group.models.length}</Badge>
+                            <IconGripVertical size={16} />
+                            <Text fw={500}>{draggedGroup.label}</Text>
+                            <Badge variant="light">{draggedGroup.models.length}</Badge>
                           </Group>
-                          {isEditMode && selectedInGroup > 0 && (
-                            <Badge color="red" variant="light">
-                              {selectedInGroup} selected
-                            </Badge>
-                          )}
                         </Group>
-                      </Accordion.Control>
-                      <Accordion.Panel>
-                        <Stack gap="xs">
-                          {isEditMode && (
-                            <Checkbox
-                              label="Select all in this group"
-                              checked={selectedInGroup === group.models.length}
-                              indeterminate={selectedInGroup > 0 && selectedInGroup < group.models.length}
-                              onChange={(e) => toggleGroupSelected(group, e.currentTarget.checked)}
-                            />
-                          )}
-                          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-                            {group.models.map((m) => (
-                              <ModelCard
-                                key={m.id}
-                                model={m}
-                                editMode={isEditMode}
-                                onUploadImage={(file) => m.id && handleUploadImage(m.id, file)}
-                                onDeleteImage={(imageId) => m.id && handleDeleteImage(m.id, imageId)}
-                                onRename={(newName) => m.id && handleRenameModel(m.id, newName)}
-                                onDeleteModel={() => m.id && requestDeleteModel(m.id)}
-                                onUpdateFinishedOn={(finishedOn) => m.id && handleUpdateFinishedOn(m.id, finishedOn)}
-                                onUpdateDescription={(description) =>
-                                  m.id && handleUpdateDescription(m.id, description)
-                                }
-                                onUpdateWargearSelection={(attachmentSlotId, wargearOptionId) =>
-                                  handleUpdateWargearSelection(m, attachmentSlotId, wargearOptionId)
-                                }
-                                onUpdateStatus={(status) =>
-                                  m.id && handleUpdateStatus(m.id, status as CollectionModelStatus)
-                                }
-                                isUploading={uploadingModelId === m.id}
-                                deletingImageId={deletingImageId}
-                                isRenaming={renamingModelId === m.id}
-                                isDeleting={deletingModelId === m.id}
-                                isUpdatingFinishedOn={updatingFinishedOnModelId === m.id}
-                                isUpdatingDescription={updatingDescriptionModelId === m.id}
-                                isUpdatingStatus={updatingStatusModelId === m.id}
-                                updatingWargearSlotId={
-                                  updatingWargearSlotKey?.startsWith(`${m.id}:`)
-                                    ? updatingWargearSlotKey.slice(`${m.id}:`.length)
-                                    : null
-                                }
-                                selected={!!m.id && selectedModelIds.has(m.id)}
-                                onToggleSelected={(isSelected) => m.id && toggleSelected(m.id, isSelected)}
-                              />
-                            ))}
-                          </SimpleGrid>
-                        </Stack>
-                      </Accordion.Panel>
-                    </Accordion.Item>
-                  );
-                })}
-              </Accordion>
+                      );
+                    })()}
+                </DragOverlay>
+              </DndContext>
             </>
           )}
         </>

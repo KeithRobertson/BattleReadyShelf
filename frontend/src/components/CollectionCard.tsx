@@ -1,5 +1,6 @@
 import { Card, Divider, Group, Stack, Text, UnstyledButton } from "@mantine/core";
-import { IconChevronRight, IconStack2 } from "@tabler/icons-react";
+import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
+import { IconChevronRight, IconGripVertical, IconStack2 } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import type { ArmyCollection, CollectionModelStatus } from "../generated";
 import {
@@ -8,7 +9,14 @@ import {
   COLLECTION_MODEL_STATUSES,
 } from "../utils/collectionModelStatus";
 
-export default function CollectionCard({ collection }: { collection: ArmyCollection }) {
+export default function CollectionCard({
+  collection,
+  dragHandleProps,
+}: {
+  collection: ArmyCollection;
+  /** When provided, renders a drag handle carrying these dnd-kit listeners/attributes. */
+  dragHandleProps?: { attributes: DraggableAttributes; listeners: DraggableSyntheticListeners };
+}) {
   const navigate = useNavigate();
   const modelCount = collection.modelCount;
   const statusEntries = COLLECTION_MODEL_STATUSES.map((status) => ({
@@ -45,57 +53,69 @@ export default function CollectionCard({ collection }: { collection: ArmyCollect
   );
 
   return (
-    <UnstyledButton
-      onClick={() => collection.id && navigate(`/collections/${collection.id}`)}
-      style={{ display: "block", width: "100%" }}
-    >
-      <Card withBorder radius="md" padding="lg" shadow="sm">
-        <Group justify="space-between" wrap="nowrap" align="center">
-          <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
-            <Text fw={600} size="lg">
-              {collection.name}
-            </Text>
-            <Text size="sm" c="dimmed" lineClamp={2}>
-              {collection.description || "No description"}
-            </Text>
-          </Stack>
+    <Card withBorder radius="md" padding="lg" shadow="sm">
+      <Group wrap="nowrap" align="stretch" gap="sm">
+        {dragHandleProps && (
+          <UnstyledButton
+            {...dragHandleProps.attributes}
+            {...dragHandleProps.listeners}
+            style={{ cursor: "grab", display: "flex", alignItems: "center", touchAction: "none" }}
+            aria-label="Drag to reorder"
+          >
+            <IconGripVertical size={18} stroke={1.5} />
+          </UnstyledButton>
+        )}
+        <UnstyledButton
+          onClick={() => collection.id && navigate(`/collections/${collection.id}`)}
+          style={{ display: "block", flex: 1, minWidth: 0 }}
+        >
+          <Group justify="space-between" wrap="nowrap" align="center">
+            <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
+              <Text fw={600} size="lg">
+                {collection.name}
+              </Text>
+              <Text size="sm" c="dimmed" lineClamp={2}>
+                {collection.description || "No description"}
+              </Text>
+            </Stack>
 
-          <Group gap="xl" wrap="nowrap">
-            {/* Stats panel: model count today, total points etc. later */}
-            <Stack gap={2} miw={200}>
-              <Group justify="space-between" gap={8} wrap="nowrap">
-                <Group gap={4} wrap="nowrap">
-                  <IconStack2 size={14} stroke={1.5} />
-                  <Text size="xs" c="dimmed">
-                    Total
+            <Group gap="xl" wrap="nowrap">
+              {/* Stats panel: model count today, total points etc. later */}
+              <Stack gap={2} miw={200}>
+                <Group justify="space-between" gap={8} wrap="nowrap">
+                  <Group gap={4} wrap="nowrap">
+                    <IconStack2 size={14} stroke={1.5} />
+                    <Text size="xs" c="dimmed">
+                      Total
+                    </Text>
+                  </Group>
+                  <Text fw={700} size="sm">
+                    {modelCount ?? "–"}
                   </Text>
                 </Group>
-                <Text fw={700} size="sm">
-                  {modelCount ?? "–"}
-                </Text>
-              </Group>
-              <Divider my={2} />
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  columnGap: 16,
-                  rowGap: 2,
-                }}
-              >
-                {renderStatusCell(statusEntries[0], true)}
-                {renderStatusCell(statusEntries[1])}
-                {renderStatusCell(statusEntries[2])}
-                {renderStatusCell(statusEntries[3])}
-                {renderStatusCell(statusEntries[4])}
-                {renderStatusCell(statusEntries[5])}
-                {renderStatusCell(statusEntries[6])}
-              </div>
-            </Stack>
-            <IconChevronRight size={20} stroke={1.5} />
+                <Divider my={2} />
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    columnGap: 16,
+                    rowGap: 2,
+                  }}
+                >
+                  {renderStatusCell(statusEntries[0], true)}
+                  {renderStatusCell(statusEntries[1])}
+                  {renderStatusCell(statusEntries[2])}
+                  {renderStatusCell(statusEntries[3])}
+                  {renderStatusCell(statusEntries[4])}
+                  {renderStatusCell(statusEntries[5])}
+                  {renderStatusCell(statusEntries[6])}
+                </div>
+              </Stack>
+              <IconChevronRight size={20} stroke={1.5} />
+            </Group>
           </Group>
-        </Group>
-      </Card>
-    </UnstyledButton>
+        </UnstyledButton>
+      </Group>
+    </Card>
   );
 }

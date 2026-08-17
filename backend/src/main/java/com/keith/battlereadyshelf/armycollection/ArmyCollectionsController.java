@@ -2,6 +2,8 @@ package com.keith.battlereadyshelf.armycollection;
 
 import com.keith.battlereadyshelf.generated.api.ArmyCollectionsApi;
 import com.keith.battlereadyshelf.generated.model.ArmyCollection;
+import com.keith.battlereadyshelf.generated.model.ReorderArmyCollectionsRequest;
+import com.keith.battlereadyshelf.generated.model.ReorderModelDefinitionGroupsRequest;
 import com.keith.battlereadyshelf.generated.model.UpdateArmyCollectionRequest;
 import com.keith.battlereadyshelf.security.AuthenticatedUserProvider;
 
@@ -54,4 +56,28 @@ public class ArmyCollectionsController implements ArmyCollectionsApi {
                         updateArmyCollectionRequest.getDescription());
         return ResponseEntity.ok(updatedArmyCollection);
     }
+
+    @Override
+    public ResponseEntity<List<ArmyCollection>> reorderArmyCollections(
+            ReorderArmyCollectionsRequest reorderArmyCollectionsRequest) {
+        var currentUser = authenticatedUserProvider.getCurrentUser();
+        var reorderedArmyCollections =
+                armyCollectionsService.reorderArmyCollections(
+                        currentUser.id(), reorderArmyCollectionsRequest.getArmyCollectionIds());
+        return ResponseEntity.ok(reorderedArmyCollections);
+    }
+
+    @Override
+    public ResponseEntity<ArmyCollection> reorderModelDefinitionGroups(
+            UUID armyCollectionId,
+            ReorderModelDefinitionGroupsRequest reorderModelDefinitionGroupsRequest) {
+        var currentUser = authenticatedUserProvider.getCurrentUser();
+        var updatedArmyCollection =
+                armyCollectionsService.reorderModelDefinitionGroups(
+                        currentUser.id(),
+                        armyCollectionId,
+                        reorderModelDefinitionGroupsRequest.getModelDefinitionIds());
+        return ResponseEntity.ok(updatedArmyCollection);
+    }
 }
+

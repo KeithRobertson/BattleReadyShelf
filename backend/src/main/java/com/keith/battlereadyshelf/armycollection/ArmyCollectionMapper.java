@@ -11,9 +11,11 @@ import java.util.UUID;
 public interface ArmyCollectionMapper {
     @Mapping(target = "modelCount", ignore = true)
     @Mapping(target = "modelCountsByStatus", ignore = true)
+    @Mapping(target = "modelDefinitionOrder", ignore = true)
     ArmyCollection toDto(ArmyCollectionEntity entity);
 
     @Mapping(target = "id", ignore = true)
+    @Mapping(target = "displayOrder", ignore = true)
     @Mapping(target = "userId", source = "userId")
     @Mapping(target = "name", source = "armyCollection.name")
     @Mapping(target = "description", source = "armyCollection.description")

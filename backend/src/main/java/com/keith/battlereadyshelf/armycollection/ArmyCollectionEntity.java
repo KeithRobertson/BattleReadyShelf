@@ -31,4 +31,8 @@ public class ArmyCollectionEntity {
     private String name;
 
     @Column private String description;
+
+    @Column(name = "display_order", nullable = false)
+    @Builder.Default
+    private Integer displayOrder = 0;
 }

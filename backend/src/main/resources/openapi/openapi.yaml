@@ -231,6 +231,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArmyCollection'
+  /api/v1/army-collections/order:
+    patch:
+      tags: [ "ArmyCollections" ]
+      summary: Reorder the current user's army collections (drag-to-reorder on the Collections page)
+      operationId: reorderArmyCollections
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderArmyCollectionsRequest'
+      responses:
+        '200':
+          description: The army collections in their new order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ArmyCollection'
+        '400':
+          description: The given ids don't match exactly the user's existing army collection ids
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/army-collections/{armyCollectionId}:
     get:
       tags: [ "ArmyCollections" ]
@@ -277,6 +305,41 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateArmyCollectionRequest'
+      responses:
+        '200':
+          description: The updated army collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArmyCollection'
+        '404':
+          description: Army collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/army-collections/{armyCollectionId}/model-definition-order:
+    patch:
+      tags: [ "ArmyCollections" ]
+      summary: >-
+        Reorder the model-definition groups (accordion sections) shown within an army collection's
+        model list
+      operationId: reorderModelDefinitionGroups
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: armyCollectionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderModelDefinitionGroupsRequest'
       responses:
         '200':
           description: The updated army collection
@@ -937,6 +1000,17 @@ components:
           additionalProperties:
             type: integer
             format: int32
+        modelDefinitionOrder:
+          type: array
+          readOnly: true
+          description: >-
+            The user's chosen display order of model-definition groups (accordion sections) within
+            this collection, as model definition ids. Only definitions the user has explicitly
+            reordered are listed here; any other groups present in the collection should be shown
+            after these, in alphabetical order.
+          items:
+            type: string
+            format: uuid
       required: [ name ]
     UpdateArmyCollectionRequest:
       type: object
@@ -945,6 +1019,28 @@ components:
           type: string
         description:
           type: string
+    ReorderArmyCollectionsRequest:
+      type: object
+      properties:
+        armyCollectionIds:
+          type: array
+          description: >-
+            All of the current user's army collection ids, in the desired display order. Must be
+            exactly the set of the user's existing army collection ids.
+          items:
+            type: string
+            format: uuid
+      required: [ armyCollectionIds ]
+    ReorderModelDefinitionGroupsRequest:
+      type: object
+      properties:
+        modelDefinitionIds:
+          type: array
+          description: The model definition ids present in this collection, in the desired display order.
+          items:
+            type: string
+            format: uuid
+      required: [ modelDefinitionIds ]
     ModelDefinition:
       type: object
       properties:
