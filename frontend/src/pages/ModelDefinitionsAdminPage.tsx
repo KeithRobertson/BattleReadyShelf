@@ -206,7 +206,6 @@ export default function ModelDefinitionsAdminPage() {
   }
 
   async function handleDiscardDraft(draftId: string) {
-    if (!window.confirm("Discard this draft? This cannot be undone.")) return;
     setError(null);
     try {
       await discardModelDefinitionDraft({ path: { draftId } });
@@ -219,8 +218,6 @@ export default function ModelDefinitionsAdminPage() {
   async function handleDiscardSelected() {
     const ids = [...selectedDraftIds];
     if (ids.length === 0) return;
-    if (!window.confirm(`Discard ${ids.length} selected draft${ids.length === 1 ? "" : "s"}? This cannot be undone.`))
-      return;
     setError(null);
     setDiscarding(true);
     try {
@@ -257,8 +254,7 @@ export default function ModelDefinitionsAdminPage() {
     }
   }
 
-  async function handlePublishDraft(draftId: string, draftName: string) {
-    if (!window.confirm(`Publish "${draftName}"? This makes it live for all users.`)) return;
+  async function handlePublishDraft(draftId: string) {
     setError(null);
     setPublishingDraftIds((ids) => new Set(ids).add(draftId));
     try {
@@ -279,12 +275,6 @@ export default function ModelDefinitionsAdminPage() {
   async function handlePublishSelected() {
     const ids = [...selectedDraftIds];
     if (ids.length === 0) return;
-    if (
-      !window.confirm(
-        `Publish ${ids.length} selected draft${ids.length === 1 ? "" : "s"}? This makes them live for all users.`,
-      )
-    )
-      return;
     setError(null);
     setPublishingSelected(true);
     setPublishingDraftIds((current) => new Set([...current, ...ids]));
@@ -328,12 +318,6 @@ export default function ModelDefinitionsAdminPage() {
   }
 
   async function handleDeleteModelDefinition(modelDefinitionId: string) {
-    if (
-      !window.confirm(
-        "Permanently delete this model definition? This cannot be undone and will remove its slots, wargear options, and publish history.",
-      )
-    )
-      return;
     setError(null);
     try {
       await deleteModelDefinition({ path: { modelDefinitionId } });
@@ -352,13 +336,6 @@ export default function ModelDefinitionsAdminPage() {
   async function handleDeleteSelectedModelDefinitions() {
     const ids = [...selectedModelDefinitionIds];
     if (ids.length === 0) return;
-    if (
-      !window.confirm(
-        `Permanently delete ${ids.length} selected model definition${ids.length === 1 ? "" : "s"}? ` +
-          "This cannot be undone and will remove their slots, wargear options, and publish history.",
-      )
-    )
-      return;
     setError(null);
     setDeletingSelectedModelDefinitions(true);
     try {
@@ -561,7 +538,7 @@ export default function ModelDefinitionsAdminPage() {
                                       color="green"
                                       leftSection={<IconCircleCheck size={14} />}
                                       loading={publishingDraftIds.has(draftId)}
-                                      onClick={() => handlePublishDraft(draftId, draft.name)}
+                                      onClick={() => handlePublishDraft(draftId)}
                                     >
                                       Publish
                                     </Button>
