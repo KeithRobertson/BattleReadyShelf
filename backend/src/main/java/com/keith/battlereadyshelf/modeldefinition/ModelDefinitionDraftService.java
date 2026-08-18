@@ -3,6 +3,7 @@ package com.keith.battlereadyshelf.modeldefinition;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.NotFoundException;
+import com.keith.battlereadyshelf.generated.model.Faction;
 import com.keith.battlereadyshelf.generated.model.FactionExportItem;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionDraft;
@@ -57,6 +58,11 @@ public class ModelDefinitionDraftService {
 
     public List<ModelDefinitionDraft> getAllDrafts() {
         return modelDefinitionDraftRepository.findAll().stream().map(this::toDraftDto).toList();
+    }
+
+    /** Lists all factions, for admin tooling such as grouping model definitions by faction. */
+    public List<Faction> getAllFactions() {
+        return factionRepository.findAll().stream().map(modelDefinitionMapper::toDto).toList();
     }
 
     public ModelDefinitionDraft getDraft(UUID draftId) {

@@ -1,6 +1,7 @@
 package com.keith.battlereadyshelf.modeldefinition;
 
 import com.keith.battlereadyshelf.generated.api.ModelDefinitionAdminApi;
+import com.keith.battlereadyshelf.generated.model.Faction;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionDraft;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionExport;
@@ -36,6 +37,11 @@ public class ModelDefinitionAdminController implements ModelDefinitionAdminApi {
     @Override
     public ResponseEntity<List<ModelDefinitionDraft>> getModelDefinitionDrafts() {
         return ResponseEntity.ok(modelDefinitionDraftService.getAllDrafts());
+    }
+
+    @Override
+    public ResponseEntity<List<Faction>> getFactions() {
+        return ResponseEntity.ok(modelDefinitionDraftService.getAllFactions());
     }
 
     @Override

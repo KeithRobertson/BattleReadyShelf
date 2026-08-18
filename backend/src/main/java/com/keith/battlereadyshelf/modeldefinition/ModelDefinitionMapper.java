@@ -2,6 +2,7 @@ package com.keith.battlereadyshelf.modeldefinition;
 
 import com.keith.battlereadyshelf.generated.model.AttachmentSlot;
 import com.keith.battlereadyshelf.generated.model.AttachmentSlotDraft;
+import com.keith.battlereadyshelf.generated.model.Faction;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionDraft;
 import com.keith.battlereadyshelf.generated.model.WargearOption;
@@ -49,4 +50,6 @@ public interface ModelDefinitionMapper {
     default OffsetDateTime map(Instant instant) {
         return instant == null ? null : instant.atOffset(UTC);
     }
+
+    Faction toDto(FactionEntity entity);
 }

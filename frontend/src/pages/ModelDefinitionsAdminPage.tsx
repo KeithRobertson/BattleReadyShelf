@@ -17,35 +17,64 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import {
-  IconAlertCircle,
-  IconDownload,
-  IconPlus,
-  IconTrash,
-  IconUpload,
-} from "@tabler/icons-react";
+import { IconAlertCircle, IconCircleCheck, IconDownload, IconPlus, IconTrash, IconUpload } from "@tabler/icons-react";
 import { isAxiosError } from "axios";
 import type React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/useAuth";
 import ModelDefinitionDraftEditor from "../components/ModelDefinitionDraftEditor";
-import type { ModelDefinition, ModelDefinitionDraft, ModelDefinitionExport } from "../generated";
+import type { Faction, ModelDefinition, ModelDefinitionDraft, ModelDefinitionExport } from "../generated";
 import {
   createModelDefinitionDraft,
   deleteModelDefinition,
   discardModelDefinitionDraft,
   exportModelDefinitions,
+  getFactions,
   getModelDefinitionDrafts,
   getModelDefinitions,
   importModelDefinitions,
+  publishModelDefinitionDraft,
   startModelDefinitionDraft,
 } from "../generated";
+
+interface FactionGroup<T> {
+  faction: Faction | null;
+  items: T[];
+}
+
+const UNCATEGORISED_LABEL = "Uncategorised";
+
+// Groups items by factionId, sorting faction groups by name (uncategorised items last).
+function groupByFaction<T extends { factionId?: string }>(
+  items: T[],
+  factionsById: Map<string, Faction>,
+): FactionGroup<T>[] {
+  const grouped = new Map<string, T[]>();
+  for (const item of items) {
+    const key = item.factionId ?? "";
+    const list = grouped.get(key);
+    if (list) list.push(item);
+    else grouped.set(key, [item]);
+  }
+  const groups: FactionGroup<T>[] = [...grouped.entries()].map(([factionId, groupItems]) => ({
+    faction: factionId ? (factionsById.get(factionId) ?? null) : null,
+    items: groupItems,
+  }));
+  groups.sort((a, b) => {
+    if (!a.faction && !b.faction) return 0;
+    if (!a.faction) return 1;
+    if (!b.faction) return -1;
+    return a.faction.name.localeCompare(b.faction.name);
+  });
+  return groups;
+}
 
 export default function ModelDefinitionsAdminPage() {
   const { user: currentUser, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const isAdmin = currentUser?.role === "ADMIN" || currentUser?.role === "SUPERADMIN";
   const [modelDefinitions, setModelDefinitions] = useState<ModelDefinition[]>([]);
   const [drafts, setDrafts] = useState<ModelDefinitionDraft[]>([]);
+  const [factions, setFactions] = useState<Faction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState<ModelDefinitionDraft | null>(null);
@@ -54,6 +83,10 @@ export default function ModelDefinitionsAdminPage() {
   const [importing, setImporting] = useState(false);
   const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(new Set());
   const [discarding, setDiscarding] = useState(false);
+  const [publishingDraftIds, setPublishingDraftIds] = useState<Set<string>>(new Set());
+  const [publishingSelected, setPublishingSelected] = useState(false);
+  const [selectedModelDefinitionIds, setSelectedModelDefinitionIds] = useState<Set<string>>(new Set());
+  const [deletingSelectedModelDefinitions, setDeletingSelectedModelDefinitions] = useState(false);
 
   const loadAll = useCallback(
     (signal?: AbortSignal) => {
@@ -62,11 +95,12 @@ export default function ModelDefinitionsAdminPage() {
         return;
       }
       setLoading(true);
-      Promise.all([getModelDefinitions({ signal }), getModelDefinitionDrafts({ signal })])
-        .then(([modelDefinitionsRes, draftsRes]) => {
+      Promise.all([getModelDefinitions({ signal }), getModelDefinitionDrafts({ signal }), getFactions({ signal })])
+        .then(([modelDefinitionsRes, draftsRes, factionsRes]) => {
           if (signal?.aborted) return;
           setModelDefinitions(modelDefinitionsRes.data ?? []);
           setDrafts(draftsRes.data ?? []);
+          setFactions(factionsRes.data ?? []);
         })
         .catch((e) => {
           if (!signal?.aborted) setError(String(e));
@@ -89,7 +123,9 @@ export default function ModelDefinitionsAdminPage() {
     try {
       const draft = (await startModelDefinitionDraft({ path: { modelDefinitionId } })).data;
       if (!draft) throw new Error("Failed to start draft");
-      setDrafts((d) => (d.some((x) => x.id === draft.id) ? d.map((x) => (x.id === draft.id ? draft : x)) : [...d, draft]));
+      setDrafts((d) =>
+        d.some((x) => x.id === draft.id) ? d.map((x) => (x.id === draft.id ? draft : x)) : [...d, draft],
+      );
       setEditingDraft(draft);
     } catch (e) {
       setError(String(e));
@@ -138,8 +174,35 @@ export default function ModelDefinitionsAdminPage() {
     });
   }
 
-  function toggleAllDraftsSelected(checked: boolean) {
-    setSelectedDraftIds(checked ? new Set(drafts.map((d) => d.id ?? "")) : new Set());
+  function toggleDraftGroupSelected(groupDraftIds: string[], checked: boolean) {
+    setSelectedDraftIds((ids) => {
+      const next = new Set(ids);
+      for (const id of groupDraftIds) {
+        if (checked) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  }
+
+  function toggleModelDefinitionSelected(modelDefinitionId: string, checked: boolean) {
+    setSelectedModelDefinitionIds((ids) => {
+      const next = new Set(ids);
+      if (checked) next.add(modelDefinitionId);
+      else next.delete(modelDefinitionId);
+      return next;
+    });
+  }
+
+  function toggleModelDefinitionGroupSelected(groupModelDefinitionIds: string[], checked: boolean) {
+    setSelectedModelDefinitionIds((ids) => {
+      const next = new Set(ids);
+      for (const id of groupModelDefinitionIds) {
+        if (checked) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
   }
 
   async function handleDiscardDraft(draftId: string) {
@@ -156,11 +219,7 @@ export default function ModelDefinitionsAdminPage() {
   async function handleDiscardSelected() {
     const ids = [...selectedDraftIds];
     if (ids.length === 0) return;
-    if (
-      !window.confirm(
-        `Discard ${ids.length} selected draft${ids.length === 1 ? "" : "s"}? This cannot be undone.`,
-      )
-    )
+    if (!window.confirm(`Discard ${ids.length} selected draft${ids.length === 1 ? "" : "s"}? This cannot be undone.`))
       return;
     setError(null);
     setDiscarding(true);
@@ -178,14 +237,87 @@ export default function ModelDefinitionsAdminPage() {
     }
   }
 
-  function handlePublished(published: ModelDefinition) {
+  // Applies a successfully-published model definition to state: upserts it into the
+  // published list and removes the now-consumed draft (and closes the editor if it
+  // happened to be open for that same draft).
+  function applyPublishedModelDefinition(published: ModelDefinition, draftId: string) {
     setModelDefinitions((mds) =>
       mds.some((md) => md.id === published.id)
         ? mds.map((md) => (md.id === published.id ? published : md))
         : [...mds, published],
     );
-    setDrafts((d) => d.filter((x) => x.id !== editingDraft?.id));
-    setEditingDraft(null);
+    setDrafts((d) => d.filter((x) => x.id !== draftId));
+    setSelectedDraftIds((ids) => {
+      const next = new Set(ids);
+      next.delete(draftId);
+      return next;
+    });
+    if (editingDraft?.id === draftId) {
+      setEditingDraft(null);
+    }
+  }
+
+  async function handlePublishDraft(draftId: string, draftName: string) {
+    if (!window.confirm(`Publish "${draftName}"? This makes it live for all users.`)) return;
+    setError(null);
+    setPublishingDraftIds((ids) => new Set(ids).add(draftId));
+    try {
+      const published = (await publishModelDefinitionDraft({ path: { draftId }, body: {} })).data;
+      if (!published) throw new Error("Failed to publish draft");
+      applyPublishedModelDefinition(published, draftId);
+    } catch (e) {
+      setError(extractErrorMessage(e));
+    } finally {
+      setPublishingDraftIds((ids) => {
+        const next = new Set(ids);
+        next.delete(draftId);
+        return next;
+      });
+    }
+  }
+
+  async function handlePublishSelected() {
+    const ids = [...selectedDraftIds];
+    if (ids.length === 0) return;
+    if (
+      !window.confirm(
+        `Publish ${ids.length} selected draft${ids.length === 1 ? "" : "s"}? This makes them live for all users.`,
+      )
+    )
+      return;
+    setError(null);
+    setPublishingSelected(true);
+    setPublishingDraftIds((current) => new Set([...current, ...ids]));
+    try {
+      const results = await Promise.allSettled(
+        ids.map((draftId) => publishModelDefinitionDraft({ path: { draftId }, body: {} })),
+      );
+      const failures: string[] = [];
+      results.forEach((result, index) => {
+        const draftId = ids[index];
+        if (result.status === "fulfilled" && result.value.data) {
+          applyPublishedModelDefinition(result.value.data, draftId);
+        } else {
+          const draftName = drafts.find((d) => d.id === draftId)?.name ?? draftId;
+          const reason = result.status === "rejected" ? extractErrorMessage(result.reason) : "Unknown error";
+          failures.push(`${draftName}: ${reason}`);
+        }
+      });
+      if (failures.length > 0) {
+        setError(`Failed to publish ${failures.length} draft(s):\n${failures.join("\n")}`);
+      }
+    } finally {
+      setPublishingSelected(false);
+      setPublishingDraftIds((current) => {
+        const next = new Set(current);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+    }
+  }
+
+  function handlePublished(published: ModelDefinition) {
+    applyPublishedModelDefinition(published, editingDraft?.id ?? "");
   }
 
   function extractErrorMessage(e: unknown): string {
@@ -207,8 +339,55 @@ export default function ModelDefinitionsAdminPage() {
       await deleteModelDefinition({ path: { modelDefinitionId } });
       setModelDefinitions((mds) => mds.filter((md) => md.id !== modelDefinitionId));
       setDrafts((d) => d.filter((draft) => draft.publishedModelDefinitionId !== modelDefinitionId));
+      setSelectedModelDefinitionIds((ids) => {
+        const next = new Set(ids);
+        next.delete(modelDefinitionId);
+        return next;
+      });
     } catch (e) {
       setError(extractErrorMessage(e));
+    }
+  }
+
+  async function handleDeleteSelectedModelDefinitions() {
+    const ids = [...selectedModelDefinitionIds];
+    if (ids.length === 0) return;
+    if (
+      !window.confirm(
+        `Permanently delete ${ids.length} selected model definition${ids.length === 1 ? "" : "s"}? ` +
+          "This cannot be undone and will remove their slots, wargear options, and publish history.",
+      )
+    )
+      return;
+    setError(null);
+    setDeletingSelectedModelDefinitions(true);
+    try {
+      const results = await Promise.allSettled(
+        ids.map((modelDefinitionId) => deleteModelDefinition({ path: { modelDefinitionId } })),
+      );
+      const failures: string[] = [];
+      const deletedIds = new Set<string>();
+      results.forEach((result, index) => {
+        const modelDefinitionId = ids[index];
+        if (result.status === "fulfilled") {
+          deletedIds.add(modelDefinitionId);
+        } else {
+          const name = modelDefinitions.find((md) => md.id === modelDefinitionId)?.name ?? modelDefinitionId;
+          failures.push(`${name}: ${extractErrorMessage(result.reason)}`);
+        }
+      });
+      setModelDefinitions((mds) => mds.filter((md) => !deletedIds.has(md.id ?? "")));
+      setDrafts((d) => d.filter((draft) => !deletedIds.has(draft.publishedModelDefinitionId ?? "")));
+      setSelectedModelDefinitionIds((current) => {
+        const next = new Set(current);
+        for (const id of deletedIds) next.delete(id);
+        return next;
+      });
+      if (failures.length > 0) {
+        setError(`Failed to delete ${failures.length} model definition(s):\n${failures.join("\n")}`);
+      }
+    } finally {
+      setDeletingSelectedModelDefinitions(false);
     }
   }
 
@@ -253,6 +432,13 @@ export default function ModelDefinitionsAdminPage() {
     }
   }
 
+  const factionsById = useMemo(() => new Map(factions.map((f) => [f.id ?? "", f])), [factions]);
+  const draftGroups = useMemo(() => groupByFaction(drafts, factionsById), [drafts, factionsById]);
+  const modelDefinitionGroups = useMemo(
+    () => groupByFaction(modelDefinitions, factionsById),
+    [modelDefinitions, factionsById],
+  );
+
   return (
     <Stack gap="md">
       <Group justify="space-between">
@@ -282,7 +468,7 @@ export default function ModelDefinitionsAdminPage() {
       </Group>
 
       {error && (
-        <Alert color="red" icon={<IconAlertCircle size={16} />}>
+        <Alert color="red" icon={<IconAlertCircle size={16} />} style={{ whiteSpace: "pre-line" }}>
           {error}
         </Alert>
       )}
@@ -302,187 +488,267 @@ export default function ModelDefinitionsAdminPage() {
               <Group justify="space-between" mb="xs">
                 <Title order={4}>Open drafts</Title>
                 {selectedDraftIds.size > 0 && (
-                  <Button
-                    size="xs"
-                    color="red"
-                    variant="light"
-                    leftSection={<IconTrash size={14} />}
-                    loading={discarding}
-                    onClick={handleDiscardSelected}
-                  >
-                    Discard selected ({selectedDraftIds.size})
-                  </Button>
+                  <Group gap="xs">
+                    <Button
+                      size="xs"
+                      color="green"
+                      leftSection={<IconCircleCheck size={14} />}
+                      loading={publishingSelected}
+                      onClick={handlePublishSelected}
+                    >
+                      Publish selected ({selectedDraftIds.size})
+                    </Button>
+                    <Button
+                      size="xs"
+                      color="red"
+                      variant="light"
+                      leftSection={<IconTrash size={14} />}
+                      loading={discarding}
+                      onClick={handleDiscardSelected}
+                    >
+                      Discard selected ({selectedDraftIds.size})
+                    </Button>
+                  </Group>
                 )}
               </Group>
-              <Table striped withTableBorder verticalSpacing="xs">
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th style={{ width: 32 }}>
-                      <Checkbox
-                        aria-label="Select all drafts"
-                        checked={drafts.length > 0 && selectedDraftIds.size === drafts.length}
-                        indeterminate={selectedDraftIds.size > 0 && selectedDraftIds.size < drafts.length}
-                        onChange={(e) => toggleAllDraftsSelected(e.currentTarget.checked)}
-                      />
-                    </Table.Th>
-                    <Table.Th>Name</Table.Th>
-                    <Table.Th>Status</Table.Th>
-                    <Table.Th />
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {drafts.map((draft) => {
-                    const draftId = draft.id ?? "";
-                    return (
-                      <Table.Tr key={draft.id}>
-                        <Table.Td>
-                          <Checkbox
-                            aria-label={`Select draft ${draft.name}`}
-                            checked={selectedDraftIds.has(draftId)}
-                            onChange={(e) => toggleDraftSelected(draftId, e.currentTarget.checked)}
-                          />
-                        </Table.Td>
-                        <Table.Td>{draft.name}</Table.Td>
-                        <Table.Td>
-                          <Badge variant="light" color={draft.publishedModelDefinitionId ? "blue" : "grape"}>
-                            {draft.publishedModelDefinitionId ? "Editing published" : "New"}
-                          </Badge>
-                        </Table.Td>
-                        <Table.Td>
-                          <Group gap="xs" justify="flex-end" wrap="nowrap">
-                            <Button size="xs" variant="light" onClick={() => setEditingDraft(draft)}>
-                              Resume editing
-                            </Button>
-                            <Tooltip label="Discard draft">
-                              <ActionIcon
-                                color="red"
-                                variant="subtle"
-                                aria-label="Discard draft"
-                                onClick={() => handleDiscardDraft(draftId)}
-                              >
-                                <IconTrash size={16} />
-                              </ActionIcon>
-                            </Tooltip>
-                          </Group>
-                        </Table.Td>
-                      </Table.Tr>
-                    );
-                  })}
-                </Table.Tbody>
-              </Table>
+              <Stack gap="md">
+                {draftGroups.map((group) => {
+                  const groupDraftIds = group.items.map((d) => d.id ?? "");
+                  const groupSelectedCount = groupDraftIds.filter((id) => selectedDraftIds.has(id)).length;
+                  return (
+                    <div key={group.faction?.id ?? UNCATEGORISED_LABEL}>
+                      <Text fw={500} size="sm" c="dimmed" mb={4}>
+                        {group.faction?.name ?? UNCATEGORISED_LABEL}
+                      </Text>
+                      <Table striped withTableBorder verticalSpacing="xs">
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th style={{ width: 32 }}>
+                              <Checkbox
+                                aria-label={`Select all drafts in ${group.faction?.name ?? UNCATEGORISED_LABEL}`}
+                                checked={groupDraftIds.length > 0 && groupSelectedCount === groupDraftIds.length}
+                                indeterminate={groupSelectedCount > 0 && groupSelectedCount < groupDraftIds.length}
+                                onChange={(e) => toggleDraftGroupSelected(groupDraftIds, e.currentTarget.checked)}
+                              />
+                            </Table.Th>
+                            <Table.Th>Name</Table.Th>
+                            <Table.Th>Status</Table.Th>
+                            <Table.Th />
+                          </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                          {group.items.map((draft) => {
+                            const draftId = draft.id ?? "";
+                            return (
+                              <Table.Tr key={draft.id}>
+                                <Table.Td>
+                                  <Checkbox
+                                    aria-label={`Select draft ${draft.name}`}
+                                    checked={selectedDraftIds.has(draftId)}
+                                    onChange={(e) => toggleDraftSelected(draftId, e.currentTarget.checked)}
+                                  />
+                                </Table.Td>
+                                <Table.Td>{draft.name}</Table.Td>
+                                <Table.Td>
+                                  <Badge variant="light" color={draft.publishedModelDefinitionId ? "blue" : "grape"}>
+                                    {draft.publishedModelDefinitionId ? "Editing published" : "New"}
+                                  </Badge>
+                                </Table.Td>
+                                <Table.Td>
+                                  <Group gap="xs" justify="flex-end" wrap="nowrap">
+                                    <Button
+                                      size="xs"
+                                      color="green"
+                                      leftSection={<IconCircleCheck size={14} />}
+                                      loading={publishingDraftIds.has(draftId)}
+                                      onClick={() => handlePublishDraft(draftId, draft.name)}
+                                    >
+                                      Publish
+                                    </Button>
+                                    <Button size="xs" variant="light" onClick={() => setEditingDraft(draft)}>
+                                      Resume editing
+                                    </Button>
+                                    <Tooltip label="Discard draft">
+                                      <ActionIcon
+                                        color="red"
+                                        variant="subtle"
+                                        aria-label="Discard draft"
+                                        onClick={() => handleDiscardDraft(draftId)}
+                                      >
+                                        <IconTrash size={16} />
+                                      </ActionIcon>
+                                    </Tooltip>
+                                  </Group>
+                                </Table.Td>
+                              </Table.Tr>
+                            );
+                          })}
+                        </Table.Tbody>
+                      </Table>
+                    </div>
+                  );
+                })}
+              </Stack>
             </div>
           )}
 
           <div>
-            <Title order={4} mb="xs">
-              Published
-            </Title>
+            <Group justify="space-between" mb="xs">
+              <Title order={4}>Published</Title>
+              {selectedModelDefinitionIds.size > 0 && (
+                <Button
+                  size="xs"
+                  color="red"
+                  variant="light"
+                  leftSection={<IconTrash size={14} />}
+                  loading={deletingSelectedModelDefinitions}
+                  onClick={handleDeleteSelectedModelDefinitions}
+                >
+                  Delete selected ({selectedModelDefinitionIds.size})
+                </Button>
+              )}
+            </Group>
             {modelDefinitions.length === 0 ? (
               <Text c="dimmed">No model definitions exist yet.</Text>
             ) : (
-              <Accordion multiple defaultValue={modelDefinitions.map((md) => md.id ?? "")} variant="separated">
-                {modelDefinitions.map((md) => {
-                  const attachmentSlots = md.attachmentSlots ?? [];
-                  const wargearOptions = md.wargearOptions ?? [];
+              <Stack gap="md">
+                {modelDefinitionGroups.map((group) => {
+                  const groupModelDefinitionIds = group.items.map((md) => md.id ?? "");
+                  const groupSelectedCount = groupModelDefinitionIds.filter((id) =>
+                    selectedModelDefinitionIds.has(id),
+                  ).length;
                   return (
-                    <Accordion.Item key={md.id} value={md.id ?? ""}>
-                      <Accordion.Control>
-                        <Group gap="xs" justify="space-between" pr="md">
-                          <Group gap="xs">
-                            <Text fw={500}>{md.name}</Text>
-                            <Badge variant="outline" size="sm">
-                              v{md.version}
-                            </Badge>
-                            {attachmentSlots.length > 0 && (
-                              <Badge variant="light">
-                                {attachmentSlots.length} slot{attachmentSlots.length === 1 ? "" : "s"}
-                              </Badge>
-                            )}
-                          </Group>
-                          <Group gap="xs" wrap="nowrap">
-                            <Button
-                              size="xs"
-                              variant="light"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (md.id) handleStartEditing(md.id);
-                              }}
-                            >
-                              Edit
-                            </Button>
-                            <Tooltip label="Delete model definition">
-                              <ActionIcon
-                                color="red"
-                                variant="subtle"
-                                aria-label="Delete model definition"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (md.id) handleDeleteModelDefinition(md.id);
-                                }}
-                              >
-                                <IconTrash size={16} />
-                              </ActionIcon>
-                            </Tooltip>
-                          </Group>
-                        </Group>
-                      </Accordion.Control>
-                      <Accordion.Panel>
-                        {md.description && (
-                          <Text size="sm" c="dimmed" mb="sm">
-                            {md.description}
-                          </Text>
-                        )}
-                        {attachmentSlots.length === 0 ? (
-                          <Text c="dimmed" size="sm">
-                            No attachment slots defined for this model.
-                          </Text>
-                        ) : (
-                          <Table striped withTableBorder verticalSpacing="xs">
-                            <Table.Thead>
-                              <Table.Tr>
-                                <Table.Th>Attachment slot</Table.Th>
-                                <Table.Th>Wargear options</Table.Th>
-                              </Table.Tr>
-                            </Table.Thead>
-                            <Table.Tbody>
-                              {attachmentSlots.map((slot) => {
-                                const optionsForSlot = wargearOptions.filter((option) =>
-                                  option.attachmentSlotIds?.includes(slot.id ?? ""),
-                                );
-                                return (
-                                  <Table.Tr key={slot.id}>
-                                    <Table.Td>{slot.name}</Table.Td>
-                                    <Table.Td>
-                                      {optionsForSlot.length === 0 ? (
-                                        <Text c="dimmed" size="sm">
-                                          None
-                                        </Text>
-                                      ) : (
-                                        <Group gap={4}>
-                                          {optionsForSlot.map((option) => (
-                                            <Badge
-                                              key={option.id}
-                                              variant={option.isDefault ? "filled" : "light"}
-                                              size="sm"
-                                              title={option.isDefault ? "Default" : undefined}
-                                            >
-                                              {option.name}
-                                            </Badge>
-                                          ))}
-                                        </Group>
-                                      )}
-                                    </Table.Td>
-                                  </Table.Tr>
-                                );
-                              })}
-                            </Table.Tbody>
-                          </Table>
-                        )}
-                      </Accordion.Panel>
-                    </Accordion.Item>
+                    <div key={group.faction?.id ?? UNCATEGORISED_LABEL}>
+                      <Group gap="xs" mb={4}>
+                        <Checkbox
+                          aria-label={`Select all in ${group.faction?.name ?? UNCATEGORISED_LABEL}`}
+                          checked={
+                            groupModelDefinitionIds.length > 0 && groupSelectedCount === groupModelDefinitionIds.length
+                          }
+                          indeterminate={groupSelectedCount > 0 && groupSelectedCount < groupModelDefinitionIds.length}
+                          onChange={(e) =>
+                            toggleModelDefinitionGroupSelected(groupModelDefinitionIds, e.currentTarget.checked)
+                          }
+                        />
+                        <Text fw={500} size="sm" c="dimmed">
+                          {group.faction?.name ?? UNCATEGORISED_LABEL}
+                        </Text>
+                      </Group>
+                      <Accordion multiple defaultValue={group.items.map((md) => md.id ?? "")} variant="separated">
+                        {group.items.map((md) => {
+                          const attachmentSlots = md.attachmentSlots ?? [];
+                          const wargearOptions = md.wargearOptions ?? [];
+                          return (
+                            <Accordion.Item key={md.id} value={md.id ?? ""}>
+                              <Accordion.Control>
+                                <Group gap="xs" justify="space-between" pr="md">
+                                  <Group gap="xs">
+                                    <Checkbox
+                                      aria-label={`Select ${md.name}`}
+                                      checked={selectedModelDefinitionIds.has(md.id ?? "")}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) =>
+                                        toggleModelDefinitionSelected(md.id ?? "", e.currentTarget.checked)
+                                      }
+                                    />
+                                    <Text fw={500}>{md.name}</Text>
+                                    <Badge variant="outline" size="sm">
+                                      v{md.version}
+                                    </Badge>
+                                    {attachmentSlots.length > 0 && (
+                                      <Badge variant="light">
+                                        {attachmentSlots.length} slot{attachmentSlots.length === 1 ? "" : "s"}
+                                      </Badge>
+                                    )}
+                                  </Group>
+                                  <Group gap="xs" wrap="nowrap">
+                                    <Button
+                                      size="xs"
+                                      variant="light"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (md.id) handleStartEditing(md.id);
+                                      }}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Tooltip label="Delete model definition">
+                                      <ActionIcon
+                                        color="red"
+                                        variant="subtle"
+                                        aria-label="Delete model definition"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (md.id) handleDeleteModelDefinition(md.id);
+                                        }}
+                                      >
+                                        <IconTrash size={16} />
+                                      </ActionIcon>
+                                    </Tooltip>
+                                  </Group>
+                                </Group>
+                              </Accordion.Control>
+                              <Accordion.Panel>
+                                {md.description && (
+                                  <Text size="sm" c="dimmed" mb="sm">
+                                    {md.description}
+                                  </Text>
+                                )}
+                                {attachmentSlots.length === 0 ? (
+                                  <Text c="dimmed" size="sm">
+                                    No attachment slots defined for this model.
+                                  </Text>
+                                ) : (
+                                  <Table striped withTableBorder verticalSpacing="xs">
+                                    <Table.Thead>
+                                      <Table.Tr>
+                                        <Table.Th>Attachment slot</Table.Th>
+                                        <Table.Th>Wargear options</Table.Th>
+                                      </Table.Tr>
+                                    </Table.Thead>
+                                    <Table.Tbody>
+                                      {attachmentSlots.map((slot) => {
+                                        const optionsForSlot = wargearOptions.filter((option) =>
+                                          option.attachmentSlotIds?.includes(slot.id ?? ""),
+                                        );
+                                        return (
+                                          <Table.Tr key={slot.id}>
+                                            <Table.Td>{slot.name}</Table.Td>
+                                            <Table.Td>
+                                              {optionsForSlot.length === 0 ? (
+                                                <Text c="dimmed" size="sm">
+                                                  None
+                                                </Text>
+                                              ) : (
+                                                <Group gap={4}>
+                                                  {optionsForSlot.map((option) => (
+                                                    <Badge
+                                                      key={option.id}
+                                                      variant={option.isDefault ? "filled" : "light"}
+                                                      size="sm"
+                                                      title={option.isDefault ? "Default" : undefined}
+                                                    >
+                                                      {option.name}
+                                                    </Badge>
+                                                  ))}
+                                                </Group>
+                                              )}
+                                            </Table.Td>
+                                          </Table.Tr>
+                                        );
+                                      })}
+                                    </Table.Tbody>
+                                  </Table>
+                                )}
+                              </Accordion.Panel>
+                            </Accordion.Item>
+                          );
+                        })}
+                      </Accordion>
+                    </div>
                   );
                 })}
-              </Accordion>
+              </Stack>
             )}
           </div>
         </Stack>
@@ -491,12 +757,7 @@ export default function ModelDefinitionsAdminPage() {
       <Modal opened={createOpened} onClose={closeCreate} title="Create new model definition">
         <form onSubmit={handleCreateNew}>
           <Stack>
-            <TextInput
-              label="Name"
-              value={newName}
-              onChange={(e) => setNewName(e.currentTarget.value)}
-              required
-            />
+            <TextInput label="Name" value={newName} onChange={(e) => setNewName(e.currentTarget.value)} required />
             <Group justify="flex-end">
               <Button type="submit">Create draft</Button>
             </Group>

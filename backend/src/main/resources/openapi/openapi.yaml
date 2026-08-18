@@ -367,6 +367,30 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ModelDefinition'
+  /api/v1/admin/factions:
+    get:
+      tags: [ "ModelDefinitionAdmin" ]
+      summary: >-
+        List all factions (admin only). Used by admin tooling (e.g. to group model definitions
+        by faction) - factions carry no army-building rules, purely catalogue organisation.
+      operationId: getFactions
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: A list of all factions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Faction'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/admin/model-definitions/drafts:
     get:
       tags: [ "ModelDefinitionAdmin" ]
