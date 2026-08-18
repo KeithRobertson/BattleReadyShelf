@@ -1048,6 +1048,18 @@ components:
           type: string
           format: uuid
           readOnly: true
+        externalId:
+          type: string
+          readOnly: true
+          description: >-
+            Stable identifier from an imported reference dataset (e.g. battlereadyshelf-data),
+            used to match this definition across re-imports. Null for definitions created directly
+            in the admin UI rather than via import.
+        factionId:
+          type: string
+          format: uuid
+          readOnly: true
+          description: The faction this model belongs to, if any.
         name:
           type: string
         description:
@@ -1073,6 +1085,26 @@ components:
           items:
             $ref: '#/components/schemas/WargearOption'
       required: [ name ]
+    Faction:
+      type: object
+      description: >-
+        Categorises model definitions for catalogue organisation/filtering only - it carries no
+        army-building rules (legality, availability, inclusion/exclusion, points, etc.).
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        externalId:
+          type: string
+          description: Stable identifier used to match this faction across imports.
+        name:
+          type: string
+        parentFactionId:
+          type: string
+          format: uuid
+          description: Null if this faction has no parent.
+      required: [ externalId, name ]
     AttachmentSlot:
       type: object
       properties:
@@ -1080,6 +1112,10 @@ components:
           type: string
           format: uuid
           readOnly: true
+        externalId:
+          type: string
+          readOnly: true
+          description: Stable identifier from an imported reference dataset, if this slot was created/matched via import.
         name:
           type: string
       required: [ name ]
@@ -1090,6 +1126,10 @@ components:
           type: string
           format: uuid
           readOnly: true
+        externalId:
+          type: string
+          readOnly: true
+          description: Stable identifier from an imported reference dataset, if this option was created/matched via import.
         name:
           type: string
         isDefault:
@@ -1117,6 +1157,15 @@ components:
           format: uuid
           readOnly: true
           description: Null if this draft has never been published (a brand-new model definition).
+        externalId:
+          type: string
+          readOnly: true
+          description: Stable identifier from an imported reference dataset, if this draft was created/updated via import.
+        factionId:
+          type: string
+          format: uuid
+          readOnly: true
+          description: The faction this model belongs to, if set via import.
         name:
           type: string
         description:
@@ -1158,6 +1207,10 @@ components:
           format: uuid
           readOnly: true
           description: Null if this slot is new and has never been published.
+        externalId:
+          type: string
+          readOnly: true
+          description: Stable identifier from an imported reference dataset, if this slot was created/matched via import.
         name:
           type: string
       required: [ name ]
@@ -1173,6 +1226,10 @@ components:
           format: uuid
           readOnly: true
           description: Null if this option is new and has never been published.
+        externalId:
+          type: string
+          readOnly: true
+          description: Stable identifier from an imported reference dataset, if this option was created/matched via import.
         name:
           type: string
         isDefault:
@@ -1281,14 +1338,45 @@ components:
           type: string
           format: date-time
           readOnly: true
+        factions:
+          type: array
+          description: >-
+            The complete set of factions referenced by 'modelDefinitions' in this document.
+            Factions are upserted by 'externalId' on import (created if new, updated in place if
+            already known) - they carry no army-building rules, purely catalogue organisation.
+          items:
+            $ref: '#/components/schemas/FactionExportItem'
         modelDefinitions:
           type: array
           items:
             $ref: '#/components/schemas/ModelDefinitionExportItem'
-      required: [ schemaVersion, modelDefinitions ]
+      required: [ schemaVersion, factions, modelDefinitions ]
+    FactionExportItem:
+      type: object
+      properties:
+        externalId:
+          type: string
+          description: Stable identifier used to match this faction across imports.
+        name:
+          type: string
+        parentFactionExternalId:
+          type: string
+          description: The externalId of the parent faction (from this same 'factions' list), if any.
+      required: [ externalId, name ]
     ModelDefinitionExportItem:
       type: object
       properties:
+        externalId:
+          type: string
+          description: >-
+            Optional stable identifier used to match this model definition across imports (e.g.
+            from the battlereadyshelf-data reference dataset repository), instead of matching by
+            name. Null for hand-authored definitions with no external source.
+        factionExternalId:
+          type: string
+          description: >-
+            The externalId of the faction (from this document's 'factions' list) this model
+            belongs to. Optional - null if this model is not categorised under any faction.
         name:
           type: string
         description:
@@ -1298,6 +1386,13 @@ components:
           items:
             type: object
             properties:
+              externalId:
+                type: string
+                description: >-
+                  Optional stable identifier for this slot, used to prefer matching it across
+                  imports by id rather than by name. Slot-to-option relationships within this
+                  item are still keyed by 'name' (see 'attachmentSlotNames' below), so slot names
+                  must be unique within a single model definition.
               name:
                 type: string
             required: [ name ]
@@ -1306,6 +1401,9 @@ components:
           items:
             type: object
             properties:
+              externalId:
+                type: string
+                description: Optional stable identifier used to prefer matching this option across imports by id.
               name:
                 type: string
               isDefault:

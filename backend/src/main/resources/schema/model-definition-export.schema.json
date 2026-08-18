@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/keithrobertson/battlereadyshelf/schema/model-definition-export.schema.json",
+  "title": "BattleReadyShelf Model Definition Export",
+  "description": "The authoritative contract for the JSON document accepted by POST /api/v1/admin/model-definitions/import (and produced by GET /api/v1/admin/model-definitions/export). This is the canonical source of truth for this contract - other repositories producing an import document (e.g. battlereadyshelf-data / battlereadyshelf-dataset) must conform to it. It mirrors the 'ModelDefinitionExport' schema in backend/src/main/resources/openapi/openapi.yaml; if the two ever disagree, the OpenAPI spec wins and this file should be updated to match.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "description": "The version of this export document's schema. Must equal the backend's currently supported version (see CURRENT_EXPORT_SCHEMA_VERSION in ModelDefinitionDraftService) or the import is rejected.",
+      "const": 2
+    },
+    "exportedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Set by the backend on export; ignored if present on import."
+    },
+    "factions": {
+      "type": "array",
+      "description": "Factions referenced by 'modelDefinitions' below. Upserted by 'externalId' directly (no draft/publish workflow - factions carry no army-building rules, purely catalogue organisation/filtering).",
+      "items": { "$ref": "#/$defs/factionExportItem" }
+    },
+    "modelDefinitions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/modelDefinitionExportItem" }
+    }
+  },
+  "required": ["schemaVersion", "factions", "modelDefinitions"],
+  "$defs": {
+    "factionExportItem": {
+      "type": "object",
+      "properties": {
+        "externalId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable identifier used to match this faction across imports."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parentFactionExternalId": {
+          "type": ["string", "null"],
+          "description": "The externalId of the parent faction (from this same 'factions' list), if any. Null/absent for a top-level faction."
+        }
+      },
+      "required": ["externalId", "name"]
+    },
+    "modelDefinitionExportItem": {
+      "type": "object",
+      "properties": {
+        "externalId": {
+          "type": ["string", "null"],
+          "description": "Optional stable identifier used to match this model definition across imports instead of by name. Null for hand-authored definitions with no external source."
+        },
+        "factionExternalId": {
+          "type": ["string", "null"],
+          "description": "The externalId of the faction (from this document's 'factions' list) this model belongs to. Null if uncategorised."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": ["string", "null"]
+        },
+        "attachmentSlots": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/attachmentSlotExportItem" }
+        },
+        "wargearOptions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/wargearOptionExportItem" }
+        }
+      },
+      "required": ["name", "attachmentSlots", "wargearOptions"]
+    },
+    "attachmentSlotExportItem": {
+      "type": "object",
+      "properties": {
+        "externalId": {
+          "type": ["string", "null"],
+          "description": "Optional stable identifier for this slot, used to prefer matching it across imports by id rather than by name."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Must be unique among attachmentSlots within the same modelDefinitionExportItem - wargearOptions reference slots by this name, and the backend enforces uniqueness per model definition."
+        }
+      },
+      "required": ["name"]
+    },
+    "wargearOptionExportItem": {
+      "type": "object",
+      "properties": {
+        "externalId": {
+          "type": ["string", "null"],
+          "description": "Optional stable identifier used to prefer matching this option across imports by id."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "isDefault": {
+          "type": "boolean",
+          "description": "Whether this option is part of the model's default loadout."
+        },
+        "attachmentSlotNames": {
+          "type": "array",
+          "description": "The name(s) of the attachment slot(s), from this same modelDefinitionExportItem's 'attachmentSlots', this option fills.",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["name", "isDefault", "attachmentSlotNames"]
+    }
+  }
+}

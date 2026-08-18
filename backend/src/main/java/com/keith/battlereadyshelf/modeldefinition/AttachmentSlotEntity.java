@@ -32,6 +32,9 @@ public class AttachmentSlotEntity {
     @Column(name = "model_definition_id", nullable = false)
     private UUID modelDefinitionId;
 
+    @Column(name = "external_id")
+    private String externalId;
+
     @Column(nullable = false)
     private String name;
 }

@@ -36,6 +36,9 @@ public class AttachmentSlotDraftEntity {
     @Column(name = "published_attachment_slot_id")
     private UUID publishedAttachmentSlotId;
 
+    @Column(name = "external_id")
+    private String externalId;
+
     @Column(nullable = false)
     private String name;
 }

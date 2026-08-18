@@ -42,6 +42,9 @@ public class WargearOptionDraftEntity {
     @Column(name = "published_wargear_option_id")
     private UUID publishedWargearOptionId;
 
+    @Column(name = "external_id")
+    private String externalId;
+
     @Column(nullable = false)
     private String name;
 

@@ -24,6 +24,12 @@ public class ModelDefinitionEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "external_id", unique = true)
+    private String externalId;
+
+    @Column(name = "faction_id")
+    private UUID factionId;
+
     @Column(nullable = false, unique = true)
     private String name;
 

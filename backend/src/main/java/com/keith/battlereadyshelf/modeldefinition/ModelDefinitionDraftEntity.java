@@ -39,6 +39,12 @@ public class ModelDefinitionDraftEntity {
     @Column(name = "published_model_definition_id")
     private UUID publishedModelDefinitionId;
 
+    @Column(name = "external_id")
+    private String externalId;
+
+    @Column(name = "faction_id")
+    private UUID factionId;
+
     @Column(nullable = false)
     private String name;
 

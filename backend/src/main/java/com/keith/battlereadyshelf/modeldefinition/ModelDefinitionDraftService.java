@@ -3,6 +3,7 @@ package com.keith.battlereadyshelf.modeldefinition;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.NotFoundException;
+import com.keith.battlereadyshelf.generated.model.FactionExportItem;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionDraft;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionExport;
@@ -41,11 +42,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ModelDefinitionDraftService {
     /** The current version of the {@link ModelDefinitionExport} document schema. */
-    private static final int CURRENT_EXPORT_SCHEMA_VERSION = 1;
+    private static final int CURRENT_EXPORT_SCHEMA_VERSION = 2;
 
     private final ModelDefinitionRepository modelDefinitionRepository;
     private final AttachmentSlotRepository attachmentSlotRepository;
     private final WargearOptionRepository wargearOptionRepository;
+    private final FactionRepository factionRepository;
     private final ModelDefinitionDraftRepository modelDefinitionDraftRepository;
     private final AttachmentSlotDraftRepository attachmentSlotDraftRepository;
     private final WargearOptionDraftRepository wargearOptionDraftRepository;
@@ -197,6 +199,8 @@ public class ModelDefinitionDraftService {
 
         published.setName(draft.getName());
         published.setDescription(draft.getDescription());
+        published.setExternalId(draft.getExternalId());
+        published.setFactionId(draft.getFactionId());
         published.setVersion(published.getVersion() + 1);
         published = modelDefinitionRepository.save(published);
         var modelDefinitionId = published.getId();
@@ -222,6 +226,7 @@ public class ModelDefinitionDraftService {
             if (publishedSlotId != null && existingPublishedSlots.containsKey(publishedSlotId)) {
                 publishedSlot = existingPublishedSlots.get(publishedSlotId);
                 publishedSlot.setName(draftSlot.getName());
+                publishedSlot.setExternalId(draftSlot.getExternalId());
                 publishedSlot = attachmentSlotRepository.save(publishedSlot);
             } else {
                 publishedSlot =
@@ -229,6 +234,7 @@ public class ModelDefinitionDraftService {
                                 AttachmentSlotEntity.builder()
                                         .modelDefinitionId(modelDefinitionId)
                                         .name(draftSlot.getName())
+                                        .externalId(draftSlot.getExternalId())
                                         .build());
             }
             publishedSlotByDraftSlotId.put(draftSlot.getId(), publishedSlot);
@@ -259,6 +265,7 @@ public class ModelDefinitionDraftService {
             }
             publishedOption.setName(draftOption.getName());
             publishedOption.setDefault(draftOption.isDefault());
+            publishedOption.setExternalId(draftOption.getExternalId());
             publishedOption.setAttachmentSlots(
                     draftOption.getAttachmentSlots().stream()
                             .map(slot -> publishedSlotByDraftSlotId.get(slot.getId()))
@@ -303,6 +310,21 @@ public class ModelDefinitionDraftService {
     }
 
     public ModelDefinitionExport exportModelDefinitions() {
+        var factions = factionRepository.findAll();
+        Map<UUID, String> factionExternalIdById =
+                factions.stream().collect(Collectors.toMap(FactionEntity::getId, FactionEntity::getExternalId));
+
+        var factionItems =
+                factions.stream()
+                        .map(
+                                f ->
+                                        new FactionExportItem(f.getExternalId(), f.getName())
+                                                .parentFactionExternalId(
+                                                        f.getParentFactionId() != null
+                                                                ? factionExternalIdById.get(f.getParentFactionId())
+                                                                : null))
+                        .toList();
+
         var modelDefinitions = modelDefinitionRepository.findAll();
         var modelDefinitionIds = modelDefinitions.stream().map(ModelDefinitionEntity::getId).toList();
 
@@ -327,39 +349,48 @@ public class ModelDefinitionDraftService {
                                     var options = optionsByModelDefinitionId.getOrDefault(md.getId(), List.of());
 
                                     return new ModelDefinitionExportItem(
-                                            md.getName(),
-                                            slots.stream()
-                                                    .map(
-                                                            s ->
-                                                                    new ModelDefinitionExportItemAttachmentSlotsInner(
-                                                                            s.getName()))
-                                                    .toList(),
-                                            options.stream()
-                                                    .map(
-                                                            o ->
-                                                                    new ModelDefinitionExportItemWargearOptionsInner(
-                                                                            o.getName(),
-                                                                            o.isDefault(),
-                                                                            o.getAttachmentSlots().stream()
-                                                                                    .map(
-                                                                                            s ->
-                                                                                                    slotNameById.get(
-                                                                                                            s.getId()))
-                                                                                    .toList()))
-                                                    .toList())
-                                            .description(md.getDescription());
+                                                    md.getName(),
+                                                    slots.stream()
+                                                            .map(
+                                                                    s ->
+                                                                            new ModelDefinitionExportItemAttachmentSlotsInner(
+                                                                                            s.getName())
+                                                                                    .externalId(s.getExternalId()))
+                                                            .toList(),
+                                                    options.stream()
+                                                            .map(
+                                                                    o ->
+                                                                            new ModelDefinitionExportItemWargearOptionsInner(
+                                                                                            o.getName(),
+                                                                                            o.isDefault(),
+                                                                                            o.getAttachmentSlots().stream()
+                                                                                                    .map(
+                                                                                                            s ->
+                                                                                                                    slotNameById.get(
+                                                                                                                            s.getId()))
+                                                                                                    .toList())
+                                                                                    .externalId(o.getExternalId()))
+                                                            .toList())
+                                            .description(md.getDescription())
+                                            .externalId(md.getExternalId())
+                                            .factionExternalId(
+                                                    md.getFactionId() != null
+                                                            ? factionExternalIdById.get(md.getFactionId())
+                                                            : null);
                                 })
                         .toList();
 
-        return new ModelDefinitionExport(CURRENT_EXPORT_SCHEMA_VERSION, items)
+        return new ModelDefinitionExport(CURRENT_EXPORT_SCHEMA_VERSION, factionItems, items)
                 .exportedAt(OffsetDateTime.now(ZoneOffset.UTC));
     }
 
     /**
-     * Imports a versioned export document as drafts: an item is matched by name to an existing
-     * published model definition (seeding the draft from its current state, same as {@link
-     * #startDraft}, then overlaying the imported fields) where possible, otherwise a brand-new
-     * draft is created. Nothing is published automatically.
+     * Imports a versioned export document as drafts: an item is matched first by 'externalId'
+     * (when present) then by name to an existing published model definition (seeding the draft
+     * from its current state, same as {@link #startDraft}, then overlaying the imported fields)
+     * where possible, otherwise a brand-new draft is created. Referenced factions are upserted by
+     * 'externalId' directly onto the published faction table (factions have no draft/publish
+     * workflow of their own). Nothing is published automatically.
      */
     @Transactional
     public List<ModelDefinitionDraft> importModelDefinitions(
@@ -369,19 +400,96 @@ public class ModelDefinitionDraftService {
                     "Unsupported model definition export schemaVersion: " + export.getSchemaVersion());
         }
 
+        var factionByExternalId = upsertFactions(export.getFactions());
+
+        var existingByExternalId =
+                modelDefinitionRepository.findAll().stream()
+                        .filter(md -> md.getExternalId() != null)
+                        .collect(Collectors.toMap(ModelDefinitionEntity::getExternalId, md -> md, (a, b) -> a));
         var existingByName =
                 modelDefinitionRepository.findAll().stream()
-                        .collect(Collectors.toMap(ModelDefinitionEntity::getName, md -> md));
+                        .collect(Collectors.toMap(ModelDefinitionEntity::getName, md -> md, (a, b) -> a));
 
         return export.getModelDefinitions().stream()
-                .map(item -> importItem(currentUser, item, existingByName.get(item.getName())))
+                .map(
+                        item -> {
+                            var existing =
+                                    item.getExternalId() != null
+                                            ? existingByExternalId.get(item.getExternalId())
+                                            : null;
+                            if (existing == null) {
+                                existing = existingByName.get(item.getName());
+                            }
+
+                            FactionEntity faction = null;
+                            if (item.getFactionExternalId() != null) {
+                                faction = factionByExternalId.get(item.getFactionExternalId());
+                                if (faction == null) {
+                                    throw new BadRequestException(
+                                            "Model definition '"
+                                                    + item.getName()
+                                                    + "' references unknown faction externalId '"
+                                                    + item.getFactionExternalId()
+                                                    + "'");
+                                }
+                            }
+
+                            return importItem(currentUser, item, existing, faction);
+                        })
                 .toList();
+    }
+
+    /**
+     * Upserts factions (matched by 'externalId') directly onto the published table - factions
+     * are simple reference/categorisation data with no draft/publish workflow. Parent links are
+     * resolved in a second pass so ordering within the import document does not matter.
+     */
+    private Map<String, FactionEntity> upsertFactions(List<FactionExportItem> factionItems) {
+        if (factionItems == null || factionItems.isEmpty()) {
+            return Map.of();
+        }
+
+        var existingByExternalId =
+                factionRepository.findAll().stream()
+                        .collect(Collectors.toMap(FactionEntity::getExternalId, f -> f, (a, b) -> a));
+
+        Map<String, FactionEntity> byExternalId = new HashMap<>();
+        for (var item : factionItems) {
+            var existing = existingByExternalId.get(item.getExternalId());
+            var faction =
+                    existing != null
+                            ? existing
+                            : FactionEntity.builder().externalId(item.getExternalId()).build();
+            faction.setName(item.getName());
+            byExternalId.put(item.getExternalId(), factionRepository.save(faction));
+        }
+
+        for (var item : factionItems) {
+            if (item.getParentFactionExternalId() == null) {
+                continue;
+            }
+            var parent = byExternalId.get(item.getParentFactionExternalId());
+            if (parent == null) {
+                throw new BadRequestException(
+                        "Faction '"
+                                + item.getExternalId()
+                                + "' references unknown parent faction externalId '"
+                                + item.getParentFactionExternalId()
+                                + "'");
+            }
+            var faction = byExternalId.get(item.getExternalId());
+            faction.setParentFactionId(parent.getId());
+            byExternalId.put(item.getExternalId(), factionRepository.save(faction));
+        }
+
+        return byExternalId;
     }
 
     private ModelDefinitionDraft importItem(
             CurrentAuthenticatedUser currentUser,
             ModelDefinitionExportItem item,
-            ModelDefinitionEntity existingPublished) {
+            ModelDefinitionEntity existingPublished,
+            FactionEntity faction) {
         var draftId =
                 existingPublished != null
                         ? startOrGetDraftEntity(currentUser, existingPublished.getId()).getId()
@@ -398,6 +506,8 @@ public class ModelDefinitionDraftService {
         var draftEntity = requireDraft(draftId);
         draftEntity.setName(item.getName());
         draftEntity.setDescription(item.getDescription());
+        draftEntity.setExternalId(item.getExternalId());
+        draftEntity.setFactionId(faction != null ? faction.getId() : null);
         draftEntity.setUpdatedBy(currentUser.id());
         modelDefinitionDraftRepository.save(draftEntity);
 
@@ -426,6 +536,7 @@ public class ModelDefinitionDraftService {
                                     .modelDefinitionDraftId(draftId)
                                     .publishedAttachmentSlotId(
                                             previous != null ? previous.getPublishedAttachmentSlotId() : null)
+                                    .externalId(slotItem.getExternalId())
                                     .name(slotItem.getName())
                                     .build());
             slotByName.put(slotItem.getName(), slot);
@@ -438,6 +549,7 @@ public class ModelDefinitionDraftService {
                             .modelDefinitionDraftId(draftId)
                             .publishedWargearOptionId(
                                     previous != null ? previous.getPublishedWargearOptionId() : null)
+                            .externalId(optionItem.getExternalId())
                             .name(optionItem.getName())
                             .isDefault(Boolean.TRUE.equals(optionItem.getIsDefault()))
                             .attachmentSlots(
