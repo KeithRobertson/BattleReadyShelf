@@ -1662,7 +1662,7 @@ components:
       required: [ id, email ]
     UserRole:
       type: string
-      enum: [ USER, ADMIN, SUPERADMIN ]
+      enum: [ GUEST, USER, ADMIN, SUPERADMIN ]
     ThemePreference:
       type: string
       description: >-

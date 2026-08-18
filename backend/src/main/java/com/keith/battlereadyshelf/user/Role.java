@@ -4,6 +4,7 @@ package com.keith.battlereadyshelf.user;
  * Roles available for {@link User RBAC}.
  *
  * <ul>
+ *   <li>{@link #GUEST} - can view the application
  *   <li>{@link #USER} - can use the application (create/manage their own collections, models,
  *       etc.)
  *   <li>{@link #ADMIN} - a {@link #USER} that can also access the admin screen and adjust other
@@ -13,6 +14,7 @@ package com.keith.battlereadyshelf.user;
  * </ul>
  */
 public enum Role {
+    GUEST,
     USER,
     ADMIN,
     SUPERADMIN

@@ -5,7 +5,7 @@ import { useAuth } from "../auth/useAuth";
 import type { UserDto, UserRole } from "../generated";
 import { bulkUpdateUserRoles, getUsers, updateUserRole } from "../generated";
 
-const ASSIGNABLE_ROLES: UserRole[] = ["USER", "ADMIN"];
+const ASSIGNABLE_ROLES: UserRole[] = ["GUEST", "USER", "ADMIN"];
 
 function isEditable(user: UserDto, currentUserId?: string): boolean {
   return user.role !== "SUPERADMIN" && user.id !== currentUserId;
