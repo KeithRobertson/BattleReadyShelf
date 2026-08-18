@@ -17,7 +17,15 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconAlertCircle, IconCircleCheck, IconDownload, IconPlus, IconTrash, IconUpload } from "@tabler/icons-react";
+import {
+  IconAlertCircle,
+  IconCircleCheck,
+  IconDownload,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+  IconUpload,
+} from "@tabler/icons-react";
 import { isAxiosError } from "axios";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -528,23 +536,31 @@ export default function ModelDefinitionsAdminPage() {
                                 <Table.Td>{draft.name}</Table.Td>
                                 <Table.Td>
                                   <Badge variant="light" color={draft.publishedModelDefinitionId ? "blue" : "grape"}>
-                                    {draft.publishedModelDefinitionId ? "Editing published" : "New"}
+                                    {draft.publishedModelDefinitionId ? "Edit" : "New"}
                                   </Badge>
                                 </Table.Td>
                                 <Table.Td>
                                   <Group gap="xs" justify="flex-end" wrap="nowrap">
-                                    <Button
-                                      size="xs"
-                                      color="green"
-                                      leftSection={<IconCircleCheck size={14} />}
-                                      loading={publishingDraftIds.has(draftId)}
-                                      onClick={() => handlePublishDraft(draftId)}
-                                    >
-                                      Publish
-                                    </Button>
-                                    <Button size="xs" variant="light" onClick={() => setEditingDraft(draft)}>
-                                      Resume editing
-                                    </Button>
+                                    <Tooltip label="Publish">
+                                      <ActionIcon
+                                        color="green"
+                                        variant="light"
+                                        aria-label="Publish draft"
+                                        loading={publishingDraftIds.has(draftId)}
+                                        onClick={() => handlePublishDraft(draftId)}
+                                      >
+                                        <IconCircleCheck size={16} />
+                                      </ActionIcon>
+                                    </Tooltip>
+                                    <Tooltip label="Resume editing">
+                                      <ActionIcon
+                                        variant="light"
+                                        aria-label="Resume editing"
+                                        onClick={() => setEditingDraft(draft)}
+                                      >
+                                        <IconPencil size={16} />
+                                      </ActionIcon>
+                                    </Tooltip>
                                     <Tooltip label="Discard draft">
                                       <ActionIcon
                                         color="red"
