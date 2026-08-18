@@ -3,8 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <title>Redirecting…</title>
-  <script>
-    window.location.replace("/");
+  <script type="text/javascript">
+    // SPA redirect for GitHub Pages on a custom domain (root path)
+    (function() {
+      var redirect = sessionStorage.getItem("redirect");
+      if (redirect) {
+        sessionStorage.removeItem("redirect");
+        history.replaceState(null, null, redirect);
+      } else {
+        sessionStorage.setItem("redirect", location.pathname + location.search + location.hash);
+        location.replace("/");
+      }
+    })();
   </script>
 </head>
 <body></body>
