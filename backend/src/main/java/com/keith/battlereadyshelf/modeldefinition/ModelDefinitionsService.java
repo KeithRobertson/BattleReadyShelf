@@ -4,6 +4,7 @@ import com.keith.battlereadyshelf.collectionmodel.CollectionModelRepository;
 import com.keith.battlereadyshelf.error.ConflictException;
 import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.AttachmentSlot;
+import com.keith.battlereadyshelf.generated.model.Faction;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.WargearOption;
 
@@ -25,6 +26,7 @@ public class ModelDefinitionsService {
     private final WargearOptionRepository wargearOptionRepository;
     private final ModelDefinitionMapper modelDefinitionMapper;
     private final CollectionModelRepository collectionModelRepository;
+    private final FactionRepository factionRepository;
 
     /**
      * Deletes a published model definition and all its attachment slots/wargear options, any open
@@ -45,6 +47,10 @@ public class ModelDefinitionsService {
                             + " collection model(s). Remove or reassign them first.");
         }
         modelDefinitionRepository.deleteById(modelDefinitionId);
+    }
+
+    public List<Faction> getAllFactions() {
+        return factionRepository.findAll().stream().map(modelDefinitionMapper::toDto).toList();
     }
 
     public List<ModelDefinition> getAllModelDefinitions() {

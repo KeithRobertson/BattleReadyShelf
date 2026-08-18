@@ -28,6 +28,7 @@ class ModelDefinitionsServiceTest {
     @Mock private AttachmentSlotRepository attachmentSlotRepository;
     @Mock private WargearOptionRepository wargearOptionRepository;
     @Mock private CollectionModelRepository collectionModelRepository;
+    @Mock private FactionRepository factionRepository;
 
     private ModelDefinitionsService modelDefinitionsService;
 
@@ -39,7 +40,8 @@ class ModelDefinitionsServiceTest {
                         attachmentSlotRepository,
                         wargearOptionRepository,
                         new ModelDefinitionMapperImpl(),
-                        collectionModelRepository);
+                        collectionModelRepository,
+                        factionRepository);
     }
 
     @Test

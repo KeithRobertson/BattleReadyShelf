@@ -1,6 +1,7 @@
 package com.keith.battlereadyshelf.modeldefinition;
 
 import com.keith.battlereadyshelf.generated.api.ModelDefinitionsApi;
+import com.keith.battlereadyshelf.generated.model.Faction;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 
 import lombok.RequiredArgsConstructor;
@@ -18,5 +19,10 @@ public class ModelDefinitionsController implements ModelDefinitionsApi {
     @Override
     public ResponseEntity<List<ModelDefinition>> getModelDefinitions() {
         return ResponseEntity.ok(modelDefinitionsService.getAllModelDefinitions());
+    }
+
+    @Override
+    public ResponseEntity<List<Faction>> getFactionsList() {
+        return ResponseEntity.ok(modelDefinitionsService.getAllFactions());
     }
 }

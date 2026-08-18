@@ -367,6 +367,22 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ModelDefinition'
+  /api/v1/factions:
+    get:
+      tags: [ "ModelDefinitions" ]
+      summary: >-
+        List all factions. Used to group model types for browsing/selection - factions carry
+        no army-building rules, purely catalogue organisation.
+      operationId: getFactionsList
+      responses:
+        '200':
+          description: A list of all factions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Faction'
   /api/v1/admin/factions:
     get:
       tags: [ "ModelDefinitionAdmin" ]

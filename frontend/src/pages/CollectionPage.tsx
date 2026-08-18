@@ -41,7 +41,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import ModelCard from "../components/ModelCard";
-import type { ArmyCollection, CollectionModel, CollectionModelStatus, ModelDefinition } from "../generated";
+import type { ArmyCollection, CollectionModel, CollectionModelStatus, Faction, ModelDefinition } from "../generated";
 import {
   bulkCreateCollectionModels,
   bulkDeleteCollectionModels,
@@ -51,6 +51,7 @@ import {
   deleteCollectionModelImage,
   getArmyCollection,
   getCollectionModels,
+  getFactionsList,
   getModelDefinitions,
   reorderModelDefinitionGroups,
   updateArmyCollection,
@@ -153,6 +154,7 @@ export default function CollectionPage() {
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const [armyCollection, setArmyCollection] = useState<ArmyCollection | null>(null);
   const [modelDefinitions, setModelDefinitions] = useState<ModelDefinition[]>([]);
+  const [factions, setFactions] = useState<Faction[]>([]);
   const [models, setModels] = useState<CollectionModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [collectionNotFound, setCollectionNotFound] = useState(false);
@@ -160,6 +162,7 @@ export default function CollectionPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [count, setCount] = useState<number | string>(1);
+  const [factionFilter, setFactionFilter] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadingModelId, setUploadingModelId] = useState<string | null>(null);
@@ -223,6 +226,40 @@ export default function CollectionPage() {
       .map((group) => ({ ...group, models: sortModels(group.models, sortOrder) }));
   }, [models, sortOrder, statusFilter, armyCollection?.modelDefinitionOrder]);
 
+  const factionFilterOptions = useMemo(
+    () =>
+      [...factions]
+        .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""))
+        .map((f) => ({ value: f.id ?? "", label: f.name ?? "" })),
+    [factions],
+  );
+
+  const modelDefinitionSelectData = useMemo(() => {
+    const factionNameById = new Map(factions.map((f) => [f.id ?? "", f.name ?? ""]));
+    const filteredModelDefinitions =
+      factionFilter.length === 0
+        ? modelDefinitions
+        : modelDefinitions.filter((md) => md.factionId && factionFilter.includes(md.factionId));
+    const byFactionName = new Map<string, { value: string; label: string }[]>();
+    for (const md of filteredModelDefinitions) {
+      const factionName = (md.factionId && factionNameById.get(md.factionId)) || "Uncategorised";
+      const items = byFactionName.get(factionName) ?? [];
+      items.push({ value: md.id ?? "", label: md.name ?? "" });
+      byFactionName.set(factionName, items);
+    }
+    return [...byFactionName.entries()]
+      .sort(([a], [b]) => (a === "Uncategorised" ? 1 : b === "Uncategorised" ? -1 : a.localeCompare(b)))
+      .map(([group, items]) => ({ group, items: items.sort((a, b) => a.label.localeCompare(b.label)) }));
+  }, [modelDefinitions, factions, factionFilter]);
+
+  // Keep the selected model type valid when the faction filter narrows the available options
+  // (e.g. reselect the first still-visible option, or clear it if none remain).
+  useEffect(() => {
+    const availableIds = new Set(modelDefinitionSelectData.flatMap((g) => g.items.map((i) => i.value)));
+    if (modelDefinitionId && availableIds.has(modelDefinitionId)) return;
+    setModelDefinitionId(modelDefinitionSelectData[0]?.items[0]?.value ?? null);
+  }, [modelDefinitionSelectData, modelDefinitionId]);
+
   const groupDragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [draggingGroupKey, setDraggingGroupKey] = useState<string | null>(null);
 
@@ -254,7 +291,6 @@ export default function CollectionPage() {
     });
   }
 
-
   useEffect(() => {
     if (!collectionId || !isAuthenticated) {
       setLoading(false);
@@ -266,12 +302,14 @@ export default function CollectionPage() {
     Promise.all([
       getArmyCollection({ path: { armyCollectionId: collectionId }, signal: ac.signal, throwOnError: true }),
       getModelDefinitions({ signal: ac.signal }),
+      getFactionsList({ signal: ac.signal }),
       getCollectionModels({ path: { armyCollectionId: collectionId }, signal: ac.signal, throwOnError: true }),
     ])
-      .then(([armyCollectionRes, modelDefinitionsRes, modelsRes]) => {
+      .then(([armyCollectionRes, modelDefinitionsRes, factionsRes, modelsRes]) => {
         if (ac.signal.aborted) return;
         setArmyCollection(armyCollectionRes.data ?? null);
         setModelDefinitions(modelDefinitionsRes.data ?? []);
+        setFactions(factionsRes.data ?? []);
         setModels(modelsRes.data ?? []);
         if ((modelDefinitionsRes.data?.length ?? 0) > 0) {
           setModelDefinitionId(modelDefinitionsRes.data?.[0]?.id ?? null);
@@ -420,9 +458,8 @@ export default function CollectionPage() {
     setError(null);
     setUpdatingDescriptionModelId(modelId);
     try {
-      const updated = (
-        await updateCollectionModel({ path: { collectionModelId: modelId }, body: { description } })
-      ).data;
+      const updated = (await updateCollectionModel({ path: { collectionModelId: modelId }, body: { description } }))
+        .data;
       if (updated) {
         setModels((s) => s.map((m) => (m.id === modelId ? updated : m)));
       }
@@ -464,9 +501,7 @@ export default function CollectionPage() {
     setError(null);
     setUpdatingWargearSlotKey(slotKey);
     try {
-      const otherSelections = (model.wargearSelections ?? []).filter(
-        (s) => s.attachmentSlotId !== attachmentSlotId,
-      );
+      const otherSelections = (model.wargearSelections ?? []).filter((s) => s.attachmentSlotId !== attachmentSlotId);
       const wargearSelections = [
         ...otherSelections,
         {
@@ -612,7 +647,12 @@ export default function CollectionPage() {
   }
 
   if (!isAuthLoading && isAuthenticated && !loading && collectionNotFound) {
-    return <NotFoundPage title="Collection not found" message="This collection doesn't exist or you don't have access to it." />;
+    return (
+      <NotFoundPage
+        title="Collection not found"
+        message="This collection doesn't exist or you don't have access to it."
+      />
+    );
   }
 
   return (
@@ -766,22 +806,26 @@ export default function CollectionPage() {
               <form onSubmit={handleAddModel}>
                 <Stack gap="xs">
                   <Group align="flex-end" wrap="wrap">
+                    <MultiSelect
+                      label="Filter by faction"
+                      placeholder={factionFilter.length === 0 ? "All factions" : undefined}
+                      data={factionFilterOptions}
+                      value={factionFilter}
+                      onChange={setFactionFilter}
+                      searchable
+                      clearable
+                      w={220}
+                    />
                     <Select
                       label="Model type"
-                      data={modelDefinitions.map((md) => ({ value: md.id ?? "", label: md.name ?? "" }))}
+                      data={modelDefinitionSelectData}
                       value={modelDefinitionId}
                       onChange={setModelDefinitionId}
+                      searchable
                       required
-                      w={180}
+                      w={220}
                     />
-                    <NumberInput
-                      label="Count"
-                      value={count}
-                      onChange={setCount}
-                      min={1}
-                      max={500}
-                      w={100}
-                    />
+                    <NumberInput label="Count" value={count} onChange={setCount} min={1} max={500} w={100} />
                     <TextInput
                       label="Name (optional)"
                       value={name}
@@ -938,55 +982,57 @@ export default function CollectionPage() {
                               {/* Hide panel content for every group while any drag is active so the whole list
                                   collapses to just headers - reordering shouldn't require moving expanded content. */}
                               {!draggingGroupKey && (
-                              <Accordion.Panel>
-                                <Stack gap="xs">
-                                  {isEditMode && (
-                                    <Checkbox
-                                      label="Select all in this group"
-                                      checked={selectedInGroup === group.models.length}
-                                      indeterminate={selectedInGroup > 0 && selectedInGroup < group.models.length}
-                                      onChange={(e) => toggleGroupSelected(group, e.currentTarget.checked)}
-                                    />
-                                  )}
-                                  <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-                                    {group.models.map((m) => (
-                                      <ModelCard
-                                        key={m.id}
-                                        model={m}
-                                        editMode={isEditMode}
-                                        onUploadImage={(file) => m.id && handleUploadImage(m.id, file)}
-                                        onDeleteImage={(imageId) => m.id && handleDeleteImage(m.id, imageId)}
-                                        onRename={(newName) => m.id && handleRenameModel(m.id, newName)}
-                                        onDeleteModel={() => m.id && requestDeleteModel(m.id)}
-                                        onUpdateFinishedOn={(finishedOn) => m.id && handleUpdateFinishedOn(m.id, finishedOn)}
-                                        onUpdateDescription={(description) =>
-                                          m.id && handleUpdateDescription(m.id, description)
-                                        }
-                                        onUpdateWargearSelection={(attachmentSlotId, wargearOptionId) =>
-                                          handleUpdateWargearSelection(m, attachmentSlotId, wargearOptionId)
-                                        }
-                                        onUpdateStatus={(status) =>
-                                          m.id && handleUpdateStatus(m.id, status as CollectionModelStatus)
-                                        }
-                                        isUploading={uploadingModelId === m.id}
-                                        deletingImageId={deletingImageId}
-                                        isRenaming={renamingModelId === m.id}
-                                        isDeleting={deletingModelId === m.id}
-                                        isUpdatingFinishedOn={updatingFinishedOnModelId === m.id}
-                                        isUpdatingDescription={updatingDescriptionModelId === m.id}
-                                        isUpdatingStatus={updatingStatusModelId === m.id}
-                                        updatingWargearSlotId={
-                                          updatingWargearSlotKey?.startsWith(`${m.id}:`)
-                                            ? updatingWargearSlotKey.slice(`${m.id}:`.length)
-                                            : null
-                                        }
-                                        selected={!!m.id && selectedModelIds.has(m.id)}
-                                        onToggleSelected={(isSelected) => m.id && toggleSelected(m.id, isSelected)}
+                                <Accordion.Panel>
+                                  <Stack gap="xs">
+                                    {isEditMode && (
+                                      <Checkbox
+                                        label="Select all in this group"
+                                        checked={selectedInGroup === group.models.length}
+                                        indeterminate={selectedInGroup > 0 && selectedInGroup < group.models.length}
+                                        onChange={(e) => toggleGroupSelected(group, e.currentTarget.checked)}
                                       />
-                                    ))}
-                                  </SimpleGrid>
-                                </Stack>
-                              </Accordion.Panel>
+                                    )}
+                                    <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+                                      {group.models.map((m) => (
+                                        <ModelCard
+                                          key={m.id}
+                                          model={m}
+                                          editMode={isEditMode}
+                                          onUploadImage={(file) => m.id && handleUploadImage(m.id, file)}
+                                          onDeleteImage={(imageId) => m.id && handleDeleteImage(m.id, imageId)}
+                                          onRename={(newName) => m.id && handleRenameModel(m.id, newName)}
+                                          onDeleteModel={() => m.id && requestDeleteModel(m.id)}
+                                          onUpdateFinishedOn={(finishedOn) =>
+                                            m.id && handleUpdateFinishedOn(m.id, finishedOn)
+                                          }
+                                          onUpdateDescription={(description) =>
+                                            m.id && handleUpdateDescription(m.id, description)
+                                          }
+                                          onUpdateWargearSelection={(attachmentSlotId, wargearOptionId) =>
+                                            handleUpdateWargearSelection(m, attachmentSlotId, wargearOptionId)
+                                          }
+                                          onUpdateStatus={(status) =>
+                                            m.id && handleUpdateStatus(m.id, status as CollectionModelStatus)
+                                          }
+                                          isUploading={uploadingModelId === m.id}
+                                          deletingImageId={deletingImageId}
+                                          isRenaming={renamingModelId === m.id}
+                                          isDeleting={deletingModelId === m.id}
+                                          isUpdatingFinishedOn={updatingFinishedOnModelId === m.id}
+                                          isUpdatingDescription={updatingDescriptionModelId === m.id}
+                                          isUpdatingStatus={updatingStatusModelId === m.id}
+                                          updatingWargearSlotId={
+                                            updatingWargearSlotKey?.startsWith(`${m.id}:`)
+                                              ? updatingWargearSlotKey.slice(`${m.id}:`.length)
+                                              : null
+                                          }
+                                          selected={!!m.id && selectedModelIds.has(m.id)}
+                                          onToggleSelected={(isSelected) => m.id && toggleSelected(m.id, isSelected)}
+                                        />
+                                      ))}
+                                    </SimpleGrid>
+                                  </Stack>
+                                </Accordion.Panel>
                               )}
                             </>
                           )}
