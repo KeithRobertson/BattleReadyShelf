@@ -815,6 +815,14 @@ export default function CollectionPage() {
                       searchable
                       clearable
                       w={220}
+                      hidePickedOptions
+                      styles={{
+                        pillsList: {
+                          display: "flex",
+                          flexWrap: "nowrap",
+                          overflow: "hidden",
+                        },
+                      }}
                     />
                     <Select
                       label="Model type"
