@@ -3,8 +3,7 @@ import { defineConfig } from "vite";
 
 // https://vite.dev/config/
 export default defineConfig({
-	// Base public path when served from GitHub Pages under a repo path
-	base: "/BattleReadyShelf/",
+	base: "/",
 	plugins: [react()],
 	build: {
 		target: "esnext",
