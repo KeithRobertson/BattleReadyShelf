@@ -10,6 +10,7 @@ import com.keith.battlereadyshelf.security.AuthenticatedUserProvider;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -29,6 +30,7 @@ public class ArmyCollectionsController implements ArmyCollectionsApi {
     }
 
     @Override
+    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<ArmyCollection> createArmyCollection(ArmyCollection armyCollection) {
         var currentUser = authenticatedUserProvider.getCurrentUser();
         var createdArmyCollection =
@@ -45,6 +47,7 @@ public class ArmyCollectionsController implements ArmyCollectionsApi {
     }
 
     @Override
+    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<ArmyCollection> updateArmyCollection(
             UUID armyCollectionId, UpdateArmyCollectionRequest updateArmyCollectionRequest) {
         var currentUser = authenticatedUserProvider.getCurrentUser();

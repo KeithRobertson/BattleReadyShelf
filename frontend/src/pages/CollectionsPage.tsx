@@ -46,7 +46,8 @@ function SortableCollectionCard({ collection }: { collection: ArmyCollection }) 
 }
 
 export default function CollectionsPage() {
-  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { user: currentUser, isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const isUser = currentUser?.role === "USER" || currentUser?.role === "ADMIN" || currentUser?.role === "SUPERADMIN";
   const [collections, setCollections] = useState<ArmyCollection[]>([]);
   const [loading, setLoading] = useState(true);
   const [opened, { open, close }] = useDisclosure(false);
@@ -123,7 +124,7 @@ export default function CollectionsPage() {
           <Text c="dimmed">Create and manage your miniature collections.</Text>
         </div>
         {isAuthenticated && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button leftSection={<IconPlus size={16} />} onClick={open} disabled={!isUser} >
             Create collection
           </Button>
         )}

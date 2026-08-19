@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 
@@ -37,6 +38,7 @@ public class JwtService {
                 .subject(user.getId().toString())
                 .claim("email", user.getEmail())
                 .claim("role", user.getRole().name())
+                .claim("roleUpdatedAt", user.getRoleUpdatedAt().toEpochMilli())
                 .issuedAt(issuedAt)
                 .expiration(expiration)
                 .signWith(signingKey)
@@ -54,7 +56,9 @@ public class JwtService {
             return new CurrentAuthenticatedUser(
                     UUID.fromString(claims.getSubject()),
                     claims.get("email", String.class),
-                    Role.valueOf(claims.get("role", String.class)));
+                    Role.valueOf(claims.get("role", String.class)),
+                    claims.getIssuedAt().toInstant(),
+                    Instant.ofEpochMilli(claims.get("roleUpdatedAt", Long.class)));
         } catch (JwtException | IllegalArgumentException ex) {
             throw new UnauthorizedException("Invalid or expired bearer token.", ex);
         }

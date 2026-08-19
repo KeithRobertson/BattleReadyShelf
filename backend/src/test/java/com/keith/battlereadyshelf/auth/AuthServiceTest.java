@@ -1,16 +1,13 @@
 package com.keith.battlereadyshelf.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.keith.battlereadyshelf.error.ForbiddenException;
 import com.keith.battlereadyshelf.generated.model.*;
 import com.keith.battlereadyshelf.security.JwtService;
-import com.keith.battlereadyshelf.user.Role;
 import com.keith.battlereadyshelf.user.User;
 import com.keith.battlereadyshelf.user.UserRepository;
 
@@ -41,28 +38,6 @@ class AuthServiceTest {
                         userRepository,
                         jwtService,
                         "superadmin@example.com");
-    }
-
-    @Test
-    void authenticateWithGoogle_rejectsGuestRoles() {
-        when(googleIdTokenVerificationService.verify("google-id-token"))
-                .thenReturn(new VerifiedGoogleUser("blocked@example.com", "Blocked User"));
-        var googleAuthRequest = new GoogleAuthRequest("google-id-token");
-        when(userRepository.findByEmail("blocked@example.com")).thenReturn(Optional.empty());
-        when(userRepository.save(any(User.class)))
-                .thenReturn(
-                        User.builder()
-                                .id(UUID.randomUUID())
-                                .email("blocked@example.com")
-                                .displayName("Blocked User")
-                                .role(Role.GUEST)
-                                .build());
-
-        assertThatThrownBy(() -> authService.authenticateWithGoogle(googleAuthRequest))
-                .isInstanceOf(ForbiddenException.class)
-                .hasMessage("Your account is pending approval.");
-
-        verify(jwtService, never()).generateToken(any());
     }
 
     @Test

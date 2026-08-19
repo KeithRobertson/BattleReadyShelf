@@ -10,6 +10,7 @@ import com.keith.battlereadyshelf.user.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.UUID;
 
 class JwtServiceTest {
@@ -29,6 +30,7 @@ class JwtServiceTest {
                         .email("allowed@example.com")
                         .displayName("Allowed User")
                         .role(Role.ADMIN)
+                        .roleUpdatedAt(Instant.parse("2026-08-18T18:45:00Z"))
                         .build();
 
         var token = jwtService.generateToken(user);

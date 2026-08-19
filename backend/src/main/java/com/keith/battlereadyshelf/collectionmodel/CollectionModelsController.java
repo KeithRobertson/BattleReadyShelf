@@ -10,6 +10,7 @@ import com.keith.battlereadyshelf.security.AuthenticatedUserProvider;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -17,6 +18,7 @@ import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('USER')")
 public class CollectionModelsController implements CollectionModelsApi {
     private final CollectionModelsService collectionModelsService;
     private final AuthenticatedUserProvider authenticatedUserProvider;

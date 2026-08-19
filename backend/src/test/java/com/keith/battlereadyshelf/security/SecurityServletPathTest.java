@@ -19,6 +19,7 @@ import com.keith.battlereadyshelf.error.ApiExceptionHandler;
 import com.keith.battlereadyshelf.generated.model.AuthResponse;
 import com.keith.battlereadyshelf.generated.model.UserDto;
 import com.keith.battlereadyshelf.user.UserController;
+import com.keith.battlereadyshelf.user.UserRepository;
 import com.keith.battlereadyshelf.user.UserService;
 
 import org.junit.jupiter.api.Test;
@@ -58,6 +59,8 @@ class SecurityServletPathTest {
     @MockitoBean private AuthenticatedUserProvider authenticatedUserProvider;
 
     @MockitoBean private JwtService jwtService;
+
+    @MockitoBean private UserRepository userRepository;
 
     @Test
     void postToServletPrefixedAuthEndpoint_isPermittedBySecurityMatcherWithoutServletPrefix()

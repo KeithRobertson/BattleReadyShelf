@@ -1,6 +1,5 @@
 package com.keith.battlereadyshelf.auth;
 
-import com.keith.battlereadyshelf.error.ForbiddenException;
 import com.keith.battlereadyshelf.generated.model.AuthResponse;
 import com.keith.battlereadyshelf.generated.model.GoogleAuthRequest;
 import com.keith.battlereadyshelf.generated.model.ThemePreference;
@@ -51,10 +50,6 @@ public class AuthService {
                                                                 verifiedGoogleUser.displayName())
                                                         .role(roleFor(verifiedGoogleUser.email()))
                                                         .build()));
-
-        if (user.getRole() == Role.GUEST) {
-            throw new ForbiddenException("Your account is pending approval.");
-        }
 
         return new AuthResponse(jwtService.generateToken(user), toUserDto(user));
     }

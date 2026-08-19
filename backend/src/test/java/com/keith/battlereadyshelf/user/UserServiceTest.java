@@ -19,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.List;
@@ -45,7 +46,8 @@ class UserServiceTest {
                         .themePreference(ThemePreference.AUTO)
                         .build();
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.save(any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         var result =
                 userService.updateThemePreference(
@@ -66,7 +68,8 @@ class UserServiceTest {
                         () ->
                                 userService.updateThemePreference(
                                         userId,
-                                        com.keith.battlereadyshelf.generated.model.ThemePreference.LIGHT))
+                                        com.keith.battlereadyshelf.generated.model.ThemePreference
+                                                .LIGHT))
                 .isInstanceOf(UnauthorizedException.class);
 
         verify(userRepository, never()).save(any(User.class));
@@ -76,7 +79,13 @@ class UserServiceTest {
     void updateUserRole_throwsNotFoundWhenTargetUserDoesNotExist() {
         var adminId = UUID.randomUUID();
         var targetId = UUID.randomUUID();
-        var actingAdmin = new CurrentAuthenticatedUser(adminId, "admin@example.com", Role.ADMIN);
+        var actingAdmin =
+                new CurrentAuthenticatedUser(
+                        adminId,
+                        "admin@example.com",
+                        Role.ADMIN,
+                        Instant.parse("2026-08-18T18:00:00Z"),
+                        Instant.parse("2026-08-18T17:00:00Z"));
         when(userRepository.findById(targetId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> userService.updateUserRole(actingAdmin, targetId, UserRole.ADMIN))
@@ -89,7 +98,13 @@ class UserServiceTest {
     void updateUserRole_throwsForbiddenWhenTargetIsSuperadmin() {
         var adminId = UUID.randomUUID();
         var targetId = UUID.randomUUID();
-        var actingAdmin = new CurrentAuthenticatedUser(adminId, "admin@example.com", Role.ADMIN);
+        var actingAdmin =
+                new CurrentAuthenticatedUser(
+                        adminId,
+                        "admin@example.com",
+                        Role.ADMIN,
+                        Instant.parse("2026-08-18T18:00:00Z"),
+                        Instant.parse("2026-08-18T17:00:00Z"));
         var superadmin =
                 User.builder()
                         .id(targetId)
@@ -109,13 +124,21 @@ class UserServiceTest {
     void updateUserRole_throwsForbiddenWhenAssigningSuperadminRole() {
         var adminId = UUID.randomUUID();
         var targetId = UUID.randomUUID();
-        var actingAdmin = new CurrentAuthenticatedUser(adminId, "admin@example.com", Role.ADMIN);
+        var actingAdmin =
+                new CurrentAuthenticatedUser(
+                        adminId,
+                        "admin@example.com",
+                        Role.ADMIN,
+                        Instant.parse("2026-08-18T18:00:00Z"),
+                        Instant.parse("2026-08-18T17:00:00Z"));
         var targetUser =
                 User.builder().id(targetId).email("user@example.com").role(Role.USER).build();
         when(userRepository.findById(targetId)).thenReturn(Optional.of(targetUser));
 
         assertThatThrownBy(
-                        () -> userService.updateUserRole(actingAdmin, targetId, UserRole.SUPERADMIN))
+                        () ->
+                                userService.updateUserRole(
+                                        actingAdmin, targetId, UserRole.SUPERADMIN))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessage("The superadmin role cannot be assigned.");
 
@@ -125,7 +148,13 @@ class UserServiceTest {
     @Test
     void updateUserRole_throwsForbiddenWhenChangingOwnRole() {
         var adminId = UUID.randomUUID();
-        var actingAdmin = new CurrentAuthenticatedUser(adminId, "admin@example.com", Role.ADMIN);
+        var actingAdmin =
+                new CurrentAuthenticatedUser(
+                        adminId,
+                        "admin@example.com",
+                        Role.ADMIN,
+                        Instant.parse("2026-08-18T18:00:00Z"),
+                        Instant.parse("2026-08-18T17:00:00Z"));
         var self = User.builder().id(adminId).email("admin@example.com").role(Role.ADMIN).build();
         when(userRepository.findById(adminId)).thenReturn(Optional.of(self));
 
@@ -140,11 +169,18 @@ class UserServiceTest {
     void updateUserRole_updatesRoleForOtherUser() {
         var adminId = UUID.randomUUID();
         var targetId = UUID.randomUUID();
-        var actingAdmin = new CurrentAuthenticatedUser(adminId, "admin@example.com", Role.ADMIN);
+        var actingAdmin =
+                new CurrentAuthenticatedUser(
+                        adminId,
+                        "admin@example.com",
+                        Role.ADMIN,
+                        Instant.parse("2026-08-18T18:00:00Z"),
+                        Instant.parse("2026-08-18T17:00:00Z"));
         var targetUser =
                 User.builder().id(targetId).email("user@example.com").role(Role.USER).build();
         when(userRepository.findById(targetId)).thenReturn(Optional.of(targetUser));
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.save(any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         var result = userService.updateUserRole(actingAdmin, targetId, UserRole.ADMIN);
 
@@ -155,12 +191,19 @@ class UserServiceTest {
     @Test
     void bulkUpdateUserRoles_throwsForbiddenWhenAssigningSuperadminRole() {
         var adminId = UUID.randomUUID();
-        var actingAdmin = new CurrentAuthenticatedUser(adminId, "admin@example.com", Role.ADMIN);
+        var actingAdmin =
+                new CurrentAuthenticatedUser(
+                        adminId,
+                        "admin@example.com",
+                        Role.ADMIN,
+                        Instant.parse("2026-08-18T18:00:00Z"),
+                        Instant.parse("2026-08-18T17:00:00Z"));
+        var targetUserIds = List.of(UUID.randomUUID());
 
         assertThatThrownBy(
                         () ->
                                 userService.bulkUpdateUserRoles(
-                                        actingAdmin, List.of(UUID.randomUUID()), UserRole.SUPERADMIN))
+                                        actingAdmin, targetUserIds, UserRole.SUPERADMIN))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessage("The superadmin role cannot be assigned.");
 
@@ -170,7 +213,13 @@ class UserServiceTest {
     @Test
     void bulkUpdateUserRoles_skipsSuperadminSelfAndUnknownUsers_updatesTheRest() {
         var adminId = UUID.randomUUID();
-        var actingAdmin = new CurrentAuthenticatedUser(adminId, "admin@example.com", Role.ADMIN);
+        var actingAdmin =
+                new CurrentAuthenticatedUser(
+                        adminId,
+                        "admin@example.com",
+                        Role.ADMIN,
+                        Instant.parse("2026-08-18T18:00:00Z"),
+                        Instant.parse("2026-08-18T17:00:00Z"));
 
         var eligibleUserId = UUID.randomUUID();
         var eligibleUser =
@@ -204,7 +253,7 @@ class UserServiceTest {
                         UserRole.ADMIN);
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).getId()).isEqualTo(eligibleUserId);
-        assertThat(result.get(0).getRole()).isEqualTo(UserRole.ADMIN);
+        assertThat(result.getFirst().getId()).isEqualTo(eligibleUserId);
+        assertThat(result.getFirst().getRole()).isEqualTo(UserRole.ADMIN);
     }
 }
