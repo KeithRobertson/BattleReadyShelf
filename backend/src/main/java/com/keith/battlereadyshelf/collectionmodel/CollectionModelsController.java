@@ -18,7 +18,6 @@ import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('USER')")
 public class CollectionModelsController implements CollectionModelsApi {
     private final CollectionModelsService collectionModelsService;
     private final AuthenticatedUserProvider authenticatedUserProvider;
@@ -32,6 +31,7 @@ public class CollectionModelsController implements CollectionModelsApi {
     }
 
     @Override
+    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<CollectionModel> createCollectionModel(
             UUID armyCollectionId, CollectionModel collectionModel) {
         var currentUser = authenticatedUserProvider.getCurrentUser();
@@ -42,6 +42,7 @@ public class CollectionModelsController implements CollectionModelsApi {
     }
 
     @Override
+    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<List<CollectionModel>> bulkCreateCollectionModels(
             UUID armyCollectionId, BulkCreateCollectionModelsRequest bulkCreateCollectionModelsRequest) {
         var currentUser = authenticatedUserProvider.getCurrentUser();
@@ -55,6 +56,7 @@ public class CollectionModelsController implements CollectionModelsApi {
     }
 
     @Override
+    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<CollectionModel> updateCollectionModel(
             UUID collectionModelId, UpdateCollectionModelRequest updateCollectionModelRequest) {
         var currentUser = authenticatedUserProvider.getCurrentUser();
@@ -71,6 +73,7 @@ public class CollectionModelsController implements CollectionModelsApi {
     }
 
     @Override
+    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<Void> deleteCollectionModel(UUID collectionModelId) {
         var currentUser = authenticatedUserProvider.getCurrentUser();
         collectionModelsService.deleteCollectionModel(currentUser.id(), collectionModelId);
@@ -78,6 +81,7 @@ public class CollectionModelsController implements CollectionModelsApi {
     }
 
     @Override
+    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<Void> bulkDeleteCollectionModels(
             UUID armyCollectionId, BulkDeleteCollectionModelsRequest bulkDeleteCollectionModelsRequest) {
         var currentUser = authenticatedUserProvider.getCurrentUser();

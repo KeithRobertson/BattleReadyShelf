@@ -15,6 +15,7 @@ import {
   SegmentedControl,
   SimpleGrid,
   Stack,
+  Switch,
   Text,
   Textarea,
   TextInput,
@@ -151,8 +152,10 @@ function SortableAccordionGroup({
 
 export default function CollectionPage() {
   const { collectionId } = useParams<{ collectionId: string }>();
-  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { user: currentUser, isLoading: isAuthLoading } = useAuth();
+  const isUser = currentUser?.role === "USER" || currentUser?.role === "ADMIN" || currentUser?.role === "SUPERADMIN";
   const [armyCollection, setArmyCollection] = useState<ArmyCollection | null>(null);
+  const isOwner = Boolean(isUser && currentUser?.id && armyCollection?.userId && currentUser.id === armyCollection.userId);
   const [modelDefinitions, setModelDefinitions] = useState<ModelDefinition[]>([]);
   const [factions, setFactions] = useState<Faction[]>([]);
   const [models, setModels] = useState<CollectionModel[]>([]);
@@ -185,6 +188,7 @@ export default function CollectionPage() {
   const [isEditingCollectionDescription, setIsEditingCollectionDescription] = useState(false);
   const [collectionDescriptionDraft, setCollectionDescriptionDraft] = useState("");
   const [savingCollectionDescription, setSavingCollectionDescription] = useState(false);
+  const [savingCollectionVisibility, setSavingCollectionVisibility] = useState(false);
   const [sortOrder, setSortOrder] = useState<SortOrder>("name-asc");
 
   const statusCounts = useMemo(() => {
@@ -292,7 +296,7 @@ export default function CollectionPage() {
   }
 
   useEffect(() => {
-    if (!collectionId || !isAuthenticated) {
+    if (!collectionId) {
       setLoading(false);
       return;
     }
@@ -327,7 +331,7 @@ export default function CollectionPage() {
         if (!ac.signal.aborted) setLoading(false);
       });
     return () => ac.abort();
-  }, [collectionId, isAuthenticated]);
+  }, [collectionId]);
 
   function startEditingCollectionName() {
     setCollectionNameDraft(armyCollection?.name ?? "");
@@ -375,6 +379,25 @@ export default function CollectionPage() {
       setError(String(e));
     } finally {
       setSavingCollectionDescription(false);
+    }
+  }
+
+  async function handleToggleVisibility(newIsPublic: boolean) {
+    if (!collectionId) return;
+    setError(null);
+    setSavingCollectionVisibility(true);
+    try {
+      const updated = (
+        await updateArmyCollection({
+          path: { armyCollectionId: collectionId },
+          body: { isPublic: newIsPublic },
+        })
+      ).data;
+      if (updated) setArmyCollection(updated);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSavingCollectionVisibility(false);
     }
   }
 
@@ -646,7 +669,7 @@ export default function CollectionPage() {
     }
   }
 
-  if (!isAuthLoading && isAuthenticated && !loading && collectionNotFound) {
+  if (!isAuthLoading && !loading && collectionNotFound) {
     return (
       <NotFoundPage
         title="Collection not found"
@@ -663,55 +686,84 @@ export default function CollectionPage() {
 
       {armyCollection && (
         <Stack gap={4}>
-          {isEditingCollectionName ? (
-            <Group gap={4} wrap="nowrap">
-              <TextInput
-                autoFocus
-                value={collectionNameDraft}
-                onChange={(e) => setCollectionNameDraft(e.currentTarget.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") commitEditingCollectionName();
-                  if (e.key === "Escape") setIsEditingCollectionName(false);
-                }}
-                disabled={savingCollectionName}
-                style={{ flex: 1, maxWidth: 400 }}
+          <Group justify="space-between" align="center" wrap="wrap">
+            {isOwner && isEditingCollectionName ? (
+              <Group gap={4} wrap="nowrap">
+                <TextInput
+                  autoFocus
+                  value={collectionNameDraft}
+                  onChange={(e) => setCollectionNameDraft(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitEditingCollectionName();
+                    if (e.key === "Escape") setIsEditingCollectionName(false);
+                  }}
+                  disabled={savingCollectionName}
+                  style={{ flex: 1, maxWidth: 400 }}
+                />
+                <ActionIcon
+                  variant="subtle"
+                  color="green"
+                  onClick={commitEditingCollectionName}
+                  disabled={savingCollectionName}
+                  loading={savingCollectionName}
+                  aria-label="Save collection name"
+                >
+                  <IconCheck size={16} />
+                </ActionIcon>
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  onClick={() => setIsEditingCollectionName(false)}
+                  disabled={savingCollectionName}
+                  aria-label="Cancel editing collection name"
+                >
+                  <IconX size={16} />
+                </ActionIcon>
+              </Group>
+            ) : (
+              <Group gap={4} wrap="nowrap">
+                <Title order={2}>{armyCollection.name}</Title>
+                {isOwner && (
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    onClick={startEditingCollectionName}
+                    aria-label="Rename collection"
+                    title="Rename collection"
+                  >
+                    <IconPencil size={16} />
+                  </ActionIcon>
+                )}
+              </Group>
+            )}
+
+            {isOwner ? (
+              <Switch
+                label={armyCollection.isPublic ? "Public" : "Private"}
+                checked={!!armyCollection.isPublic}
+                disabled={savingCollectionVisibility}
+                onChange={(e) => handleToggleVisibility(e.currentTarget.checked)}
+                size="sm"
               />
-              <ActionIcon
-                variant="subtle"
-                color="green"
-                onClick={commitEditingCollectionName}
-                disabled={savingCollectionName}
-                loading={savingCollectionName}
-                aria-label="Save collection name"
-              >
-                <IconCheck size={16} />
-              </ActionIcon>
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                onClick={() => setIsEditingCollectionName(false)}
-                disabled={savingCollectionName}
-                aria-label="Cancel editing collection name"
-              >
-                <IconX size={16} />
-              </ActionIcon>
-            </Group>
-          ) : (
-            <Group gap={4} wrap="nowrap">
-              <Title order={2}>{armyCollection.name}</Title>
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                onClick={startEditingCollectionName}
-                aria-label="Rename collection"
-                title="Rename collection"
-              >
-                <IconPencil size={16} />
-              </ActionIcon>
+            ) : (
+              <Badge variant="light" color={armyCollection.isPublic ? "blue" : "gray"} size="sm">
+                {armyCollection.isPublic ? "Public" : "Private"}
+              </Badge>
+            )}
+          </Group>
+
+          {armyCollection.userDisplayName && (
+            <Group gap={6} align="center">
+              <Text size="sm" c="dimmed">
+                Created by
+              </Text>
+              <Badge variant="outline" color="gray" size="sm">
+                {armyCollection.userDisplayName}
+              </Badge>
             </Group>
           )}
 
-          {isEditingCollectionDescription ? (
+          {isOwner && isEditingCollectionDescription ? (
             <Group gap={4} wrap="nowrap" align="flex-start">
               <Textarea
                 autoFocus
@@ -752,15 +804,17 @@ export default function CollectionPage() {
               <Text c="dimmed" fs={armyCollection.description ? undefined : "italic"}>
                 {armyCollection.description || "No description"}
               </Text>
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                onClick={startEditingCollectionDescription}
-                aria-label="Edit description"
-                title="Edit description"
-              >
-                <IconPencil size={16} />
-              </ActionIcon>
+              {isOwner && (
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  onClick={startEditingCollectionDescription}
+                  aria-label="Edit description"
+                  title="Edit description"
+                >
+                  <IconPencil size={16} />
+                </ActionIcon>
+              )}
             </Group>
           )}
         </Stack>
@@ -768,7 +822,7 @@ export default function CollectionPage() {
 
       <Title order={3}>Collection models</Title>
 
-      {isAuthenticated && (
+      {isOwner && (
         <SegmentedControl
           value={isEditMode ? "edit" : "view"}
           onChange={(value) => setIsEditMode(value === "edit")}
@@ -787,13 +841,7 @@ export default function CollectionPage() {
         </Alert>
       )}
 
-      {isAuthLoading ? (
-        <Loader />
-      ) : !isAuthenticated ? (
-        <Alert color="blue" icon={<IconAlertCircle size={16} />}>
-          Sign in with Google (top right) to view and manage this collection.
-        </Alert>
-      ) : loading ? (
+      {loading ? (
         <Loader />
       ) : (
         <>
@@ -802,7 +850,7 @@ export default function CollectionPage() {
               No model types are defined yet.
             </Alert>
           ) : (
-            isEditMode && (
+            isOwner && isEditMode && (
               <form onSubmit={handleAddModel}>
                 <Stack gap="xs">
                   <Group align="flex-end" wrap="wrap">

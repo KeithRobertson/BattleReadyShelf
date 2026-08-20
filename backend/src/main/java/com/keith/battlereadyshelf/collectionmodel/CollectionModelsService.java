@@ -37,7 +37,7 @@ public class CollectionModelsService {
     private final PresignedUrlService presignedUrlService;
 
     public List<CollectionModel> getCollectionModels(UUID userId, UUID armyCollectionId) {
-        requireOwnedArmyCollection(userId, armyCollectionId);
+        requireViewableArmyCollection(userId, armyCollectionId);
 
         return toDtosWithImages(
                 collectionModelRepository.findAllByArmyCollectionId(armyCollectionId));
@@ -157,7 +157,9 @@ public class CollectionModelsService {
                                                 .wargearOptionId(selection.getWargearOptionId())
                                                 .customLabel(
                                                         selection.getCustomLabel() != null
-                                                                        && !selection.getCustomLabel().isBlank()
+                                                                        && !selection
+                                                                                .getCustomLabel()
+                                                                                .isBlank()
                                                                 ? selection.getCustomLabel().trim()
                                                                 : null)
                                                 .build())
@@ -228,10 +230,10 @@ public class CollectionModelsService {
     }
 
     /**
-     * Maps a batch of collection model entities to fully-populated DTOs (model definition,
-     * images with presigned URLs, and wargear selections), fetching each of those associations
-     * with a single {@code IN} query across the whole batch rather than one query per entity, to
-     * avoid an N+1 query pattern when listing a whole army collection.
+     * Maps a batch of collection model entities to fully-populated DTOs (model definition, images
+     * with presigned URLs, and wargear selections), fetching each of those associations with a
+     * single {@code IN} query across the whole batch rather than one query per entity, to avoid an
+     * N+1 query pattern when listing a whole army collection.
      */
     private List<CollectionModel> toDtosWithImages(List<CollectionModelEntity> entities) {
         if (entities.isEmpty()) {
@@ -241,7 +243,8 @@ public class CollectionModelsService {
         var collectionModelIds = entities.stream().map(CollectionModelEntity::getId).toList();
 
         var imagesByCollectionModelId =
-                collectionModelImageRepository.findAllByCollectionModelIdIn(collectionModelIds)
+                collectionModelImageRepository
+                        .findAllByCollectionModelIdIn(collectionModelIds)
                         .stream()
                         .collect(
                                 Collectors.groupingBy(
@@ -253,7 +256,8 @@ public class CollectionModelsService {
                         .stream()
                         .collect(
                                 Collectors.groupingBy(
-                                        CollectionModelWargearSelectionEntity::getCollectionModelId));
+                                        CollectionModelWargearSelectionEntity
+                                                ::getCollectionModelId));
 
         var dtos = entities.stream().map(collectionModelMapper::toDto).toList();
         var enrichedModelDefinitions =
@@ -265,9 +269,7 @@ public class CollectionModelsService {
             var dto = dtos.get(i);
             dto.setModelDefinition(enrichedModelDefinitions.get(i));
             dto.setImages(
-                    imagesByCollectionModelId
-                            .getOrDefault(entity.getId(), List.of())
-                            .stream()
+                    imagesByCollectionModelId.getOrDefault(entity.getId(), List.of()).stream()
                             .map(this::toImageDtoWithUrls)
                             .toList());
             dto.setWargearSelections(
@@ -308,6 +310,21 @@ public class CollectionModelsService {
                                                 "Army collection not found: " + armyCollectionId));
 
         if (!armyCollection.getUserId().equals(userId)) {
+            throw new NotFoundException("Army collection not found: " + armyCollectionId);
+        }
+    }
+
+    private void requireViewableArmyCollection(UUID userId, UUID armyCollectionId) {
+        var armyCollection =
+                armyCollectionRepository
+                        .findById(armyCollectionId)
+                        .orElseThrow(
+                                () ->
+                                        new NotFoundException(
+                                                "Army collection not found: " + armyCollectionId));
+
+        if (!Boolean.TRUE.equals(armyCollection.getIsPublic())
+                && (!armyCollection.getUserId().equals(userId))) {
             throw new NotFoundException("Army collection not found: " + armyCollectionId);
         }
     }

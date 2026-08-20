@@ -30,6 +30,12 @@ public class ArmyCollectionsController implements ArmyCollectionsApi {
     }
 
     @Override
+    public ResponseEntity<List<ArmyCollection>> getPublicArmyCollections() {
+        var publicArmyCollections = armyCollectionsService.getAllPublicArmyCollections();
+        return ResponseEntity.ok(publicArmyCollections);
+    }
+
+    @Override
     @PreAuthorize("hasRole('USER')")
     public ResponseEntity<ArmyCollection> createArmyCollection(ArmyCollection armyCollection) {
         var currentUser = authenticatedUserProvider.getCurrentUser();
@@ -56,7 +62,8 @@ public class ArmyCollectionsController implements ArmyCollectionsApi {
                         currentUser.id(),
                         armyCollectionId,
                         updateArmyCollectionRequest.getName(),
-                        updateArmyCollectionRequest.getDescription());
+                        updateArmyCollectionRequest.getDescription(),
+                        updateArmyCollectionRequest.getIsPublic());
         return ResponseEntity.ok(updatedArmyCollection);
     }
 

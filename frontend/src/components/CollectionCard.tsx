@@ -1,6 +1,6 @@
-import { Card, Divider, Group, Stack, Text, UnstyledButton } from "@mantine/core";
+import { Badge, Card, Divider, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
-import { IconChevronRight, IconGripVertical, IconStack2 } from "@tabler/icons-react";
+import { IconChevronRight, IconGripVertical, IconStack2, IconUser } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import type { ArmyCollection, CollectionModelStatus } from "../generated";
 import {
@@ -12,10 +12,12 @@ import {
 export default function CollectionCard({
   collection,
   dragHandleProps,
+  showCreator = false,
 }: {
   collection: ArmyCollection;
   /** When provided, renders a drag handle carrying these dnd-kit listeners/attributes. */
   dragHandleProps?: { attributes: DraggableAttributes; listeners: DraggableSyntheticListeners };
+  showCreator?: boolean;
 }) {
   const navigate = useNavigate();
   const modelCount = collection.modelCount;
@@ -71,9 +73,24 @@ export default function CollectionCard({
         >
           <Group justify="space-between" wrap="nowrap" align="center">
             <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
-              <Text fw={600} size="lg">
-                {collection.name}
-              </Text>
+              <Group gap="xs" align="center" wrap="nowrap">
+                <Text fw={600} size="lg" truncate>
+                  {collection.name}
+                </Text>
+                {!showCreator && (
+                  <Badge variant="light" color={collection.isPublic ? "blue" : "gray"} size="sm">
+                    {collection.isPublic ? "Public" : "Private"}
+                  </Badge>
+                )}
+              </Group>
+              {showCreator && collection.userDisplayName && (
+                <Group gap={4} align="center" wrap="nowrap">
+                  <IconUser size={14} stroke={1.5} color="gray" />
+                  <Text size="xs" c="dimmed">
+                    by {collection.userDisplayName}
+                  </Text>
+                </Group>
+              )}
               <Text size="sm" c="dimmed" lineClamp={2}>
                 {collection.description || "No description"}
               </Text>

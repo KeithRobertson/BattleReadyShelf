@@ -5,6 +5,7 @@ import {
   Loader,
   Modal,
   Stack,
+  Switch,
   Text,
   Textarea,
   TextInput,
@@ -53,6 +54,7 @@ export default function CollectionsPage() {
   const [opened, { open, close }] = useDisclosure(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -81,13 +83,14 @@ export default function CollectionsPage() {
     e.preventDefault();
     setError(null);
     try {
-      const created = (await createArmyCollection({ body: { name, description } })).data;
+      const created = (await createArmyCollection({ body: { name, description, isPublic } })).data;
       if (!created) {
         throw new Error("Failed to create collection");
       }
       setCollections((s) => [...s, created]);
       setName("");
       setDescription("");
+      setIsPublic(false);
       close();
     } catch (e) {
       setError(String(e));
@@ -163,6 +166,12 @@ export default function CollectionsPage() {
           <Stack>
             <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
             <Textarea label="Description" value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
+            <Switch
+              label="Public collection"
+              description="Allow anyone to view this collection"
+              checked={isPublic}
+              onChange={(e) => setIsPublic(e.currentTarget.checked)}
+            />
             <Group justify="flex-end">
               <Button type="submit">Create</Button>
             </Group>

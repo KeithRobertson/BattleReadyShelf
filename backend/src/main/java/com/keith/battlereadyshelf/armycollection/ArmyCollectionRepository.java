@@ -7,4 +7,6 @@ import java.util.UUID;
 
 public interface ArmyCollectionRepository extends JpaRepository<ArmyCollectionEntity, UUID> {
     List<ArmyCollectionEntity> findAllByUserIdOrderByDisplayOrderAsc(UUID userId);
+
+    List<ArmyCollectionEntity> findAllByIsPublicTrueOrderByNameAsc();
 }

@@ -126,6 +126,86 @@ class CollectionModelsServiceTest {
     }
 
     @Test
+    void getCollectionModels_returnsModels_whenPublicAndRequestedByDifferentUser() {
+        var ownerId = UUID.randomUUID();
+        var viewerId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var poxwalkerId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(ownerId)
+                                        .name("Public Collection")
+                                        .isPublic(true)
+                                        .build()));
+        when(collectionModelRepository.findAllByArmyCollectionId(armyCollectionId))
+                .thenReturn(
+                        List.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .modelDefinition(
+                                                ModelDefinitionEntity.builder()
+                                                        .id(poxwalkerId)
+                                                        .name("Poxwalker")
+                                                        .build())
+                                        .name("Public Poxwalker")
+                                        .build()));
+
+        var collectionModels =
+                collectionModelsService.getCollectionModels(viewerId, armyCollectionId);
+
+        assertThat(collectionModels)
+                .containsExactly(
+                        new CollectionModel(poxwalkerId)
+                                .id(collectionModelId)
+                                .modelDefinition(new ModelDefinition("Poxwalker").id(poxwalkerId).version(1))
+                                .name("Public Poxwalker")
+                                .images(List.of())
+                                .status(CollectionModelStatus.BOXED)
+                                .wargearSelections(List.of()));
+    }
+
+    @Test
+    void getCollectionModels_returnsModels_whenPublicAndRequestedByAnonymousUser() {
+        var ownerId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var poxwalkerId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(ownerId)
+                                        .name("Public Collection")
+                                        .isPublic(true)
+                                        .build()));
+        when(collectionModelRepository.findAllByArmyCollectionId(armyCollectionId))
+                .thenReturn(
+                        List.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .modelDefinition(
+                                                ModelDefinitionEntity.builder()
+                                                        .id(poxwalkerId)
+                                                        .name("Poxwalker")
+                                                        .build())
+                                        .name("Public Poxwalker")
+                                        .build()));
+
+        var collectionModels =
+                collectionModelsService.getCollectionModels(null, armyCollectionId);
+
+        assertThat(collectionModels).hasSize(1);
+        assertThat(collectionModels.get(0).getName()).isEqualTo("Public Poxwalker");
+    }
+
+    @Test
     void getCollectionModels_throwsNotFound_whenArmyCollectionNotOwnedByUser() {
         var userId = UUID.randomUUID();
         var otherUserId = UUID.randomUUID();

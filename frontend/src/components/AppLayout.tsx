@@ -9,7 +9,9 @@ import {
   IconStack2,
   IconSwords,
   IconTags,
+  IconUser,
   IconUsers,
+  IconWorld,
 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -24,11 +26,6 @@ function initialsFor(displayName?: string, email?: string): string {
   return source.slice(0, 2).toUpperCase();
 }
 
-const navItems = [
-  { label: "Collections", to: "/", icon: IconStack2 },
-  { label: "Army Builder", to: "/army-builder", icon: IconSwords },
-];
-
 const adminNavItems = [
   { label: "Manage Users", to: "/admin/users", icon: IconUsers },
   { label: "Manage Model Definitions", to: "/admin/model-definitions", icon: IconTags },
@@ -41,6 +38,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [navOpened, { toggle: toggleNav }] = useDisclosure();
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
   const isAdminRoute = location.pathname.startsWith("/admin");
+  const isCollectionsRoute = location.pathname === "/" || location.pathname.startsWith("/collections");
 
   return (
     <AppShell
@@ -104,17 +102,37 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       </AppShell.Header>
 
       <AppShell.Navbar p="md">
-        {navItems.map((item) => (
+        <NavLink
+          label="Collections"
+          leftSection={<IconStack2 size={18} stroke={1.5} />}
+          defaultOpened={isCollectionsRoute}
+          childrenOffset={28}
+        >
           <NavLink
-            key={item.to}
             component={Link}
-            to={item.to}
-            label={item.label}
-            leftSection={<item.icon size={18} stroke={1.5} />}
-            active={location.pathname === item.to}
+            to="/"
+            label="Personal"
+            leftSection={<IconUser size={18} stroke={1.5} />}
+            active={location.pathname === "/" || location.pathname === "/collections"}
             onClick={toggleNav}
           />
-        ))}
+          <NavLink
+            component={Link}
+            to="/collections/public"
+            label="Public"
+            leftSection={<IconWorld size={18} stroke={1.5} />}
+            active={location.pathname === "/collections/public"}
+            onClick={toggleNav}
+          />
+        </NavLink>
+        <NavLink
+          component={Link}
+          to="/army-builder"
+          label="Army Builder"
+          leftSection={<IconSwords size={18} stroke={1.5} />}
+          active={location.pathname === "/army-builder"}
+          onClick={toggleNav}
+        />
         {isAdmin && (
           <NavLink
             label="Administration"
