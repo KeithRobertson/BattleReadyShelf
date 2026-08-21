@@ -45,16 +45,33 @@ export default function AppLayout() {
 
   const savedNavOpened = localStorage.getItem("navOpened") !== "false";
   const initialNavOpenedState = isMobile ? false : savedNavOpened;
-  const [navOpened, { toggle: toggleNav }] = useDisclosure(initialNavOpenedState);
+  const [navOpened, { toggle: toggleNav }] = useDisclosure(() => {
+    let initial = false;
 
+    if (typeof window !== "undefined" && window.innerWidth >= 768) {
+      initial = localStorage.getItem("navOpened") !== "false";
+    }
+
+    return initial;
+  });
   useEffect(() => {
     if (!isMobile) {
       localStorage.setItem("navOpened", navOpened.toString());
     }
   }, [navOpened, isMobile]);
 
-  const initialAsideState = localStorage.getItem("asideOpened") === "true";
-  const [asideOpened, { toggle: toggleAsideOpened }] = useDisclosure(initialAsideState);
+
+  const savedAsideOpened = localStorage.getItem("asideOpened") !== "false";
+  const initialAsideState = isMobile ? false : savedAsideOpened;
+  const [asideOpened, { toggle: toggleAsideOpened }] = useDisclosure(() => {
+    let initial = false;
+
+    if (typeof window !== "undefined" && window.innerWidth >= 768) {
+      initial = localStorage.getItem("asideOpened") !== "false";
+    }
+
+    return initial;
+  });
 
   useEffect(() => {
     localStorage.setItem("asideOpened", asideOpened.toString());
