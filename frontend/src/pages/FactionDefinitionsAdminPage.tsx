@@ -153,7 +153,7 @@ export default function FactionDefinitionsAdminPage() {
                                         <Table.Tr>
                                             <Table.Th>Name</Table.Th>
                                             <Table.Th>External Id</Table.Th>
-                                            <Table.Th>Parent Faction Id</Table.Th>
+                                            <Table.Th>Parent Faction</Table.Th>
                                             <Table.Th/>
                                         </Table.Tr>
                                     </Table.Thead>
