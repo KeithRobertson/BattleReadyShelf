@@ -9,6 +9,7 @@ import {
   IconStack2,
   IconSwords,
   IconTags,
+  IconTagsChevronUp,
   IconUser,
   IconUsers,
   IconWorld,
@@ -29,6 +30,7 @@ function initialsFor(displayName?: string, email?: string): string {
 const adminNavItems = [
   { label: "Manage Users", to: "/admin/users", icon: IconUsers },
   { label: "Manage Model Definitions", to: "/admin/model-definitions", icon: IconTags },
+  { label: "Manage Faction Definitions", to: "/admin/faction-definitions", icon: IconTagsChevronUp },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {

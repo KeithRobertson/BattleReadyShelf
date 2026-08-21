@@ -410,7 +410,7 @@ paths:
                   $ref: '#/components/schemas/Faction'
   /api/v1/admin/factions:
     get:
-      tags: [ "ModelDefinitionAdmin" ]
+      tags: [ "FactionDefinitionAdmin" ]
       summary: >-
         List all factions (admin only). Used by admin tooling (e.g. to group model definitions
         by faction) - factions carry no army-building rules, purely catalogue organisation.
@@ -432,6 +432,62 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+    post:
+      tags: [ "FactionDefinitionAdmin" ]
+      summary: Create a new faction (admin only)
+      operationId: createFaction
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Faction'
+      responses:
+        '201':
+          description: The created faction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Faction'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: The faction already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/factions/{factionId}:
+    delete:
+      tags: [ "FactionDefinitionAdmin" ]
+      summary: Delete a faction (admin only)
+      operationId: deleteFaction
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: factionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The faction was deleted
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Faction not found
   /api/v1/admin/model-definitions/drafts:
     get:
       tags: [ "ModelDefinitionAdmin" ]

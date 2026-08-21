@@ -1,4 +1,4 @@
-package com.keith.battlereadyshelf.modeldefinition;
+package com.keith.battlereadyshelf.factiondefinition;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

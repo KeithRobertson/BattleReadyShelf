@@ -40,11 +40,6 @@ public class ModelDefinitionAdminController implements ModelDefinitionAdminApi {
     }
 
     @Override
-    public ResponseEntity<List<Faction>> getFactions() {
-        return ResponseEntity.ok(modelDefinitionDraftService.getAllFactions());
-    }
-
-    @Override
     public ResponseEntity<ModelDefinitionDraft> getModelDefinitionDraft(UUID draftId) {
         return ResponseEntity.ok(modelDefinitionDraftService.getDraft(draftId));
     }

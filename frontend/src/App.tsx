@@ -4,6 +4,7 @@ import ArmyBuilderPage from "./pages/ArmyBuilderPage";
 import CollectionPage from "./pages/CollectionPage";
 import CollectionsPage from "./pages/CollectionsPage";
 import ModelDefinitionsAdminPage from "./pages/ModelDefinitionsAdminPage";
+import FactionDefinitionsAdminPage from "./pages/FactionDefinitionsAdminPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import PublicCollectionsPage from "./pages/PublicCollectionsPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -21,6 +22,7 @@ function App() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/admin/users" element={<UsersAdminPage />} />
         <Route path="/admin/model-definitions" element={<ModelDefinitionsAdminPage />} />
+        <Route path="/admin/faction-definitions" element={<FactionDefinitionsAdminPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </AppLayout>

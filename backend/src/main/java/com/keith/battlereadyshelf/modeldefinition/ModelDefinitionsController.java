@@ -1,5 +1,6 @@
 package com.keith.battlereadyshelf.modeldefinition;
 
+import com.keith.battlereadyshelf.factiondefinition.FactionDefinitionService;
 import com.keith.battlereadyshelf.generated.api.ModelDefinitionsApi;
 import com.keith.battlereadyshelf.generated.model.Faction;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
@@ -15,6 +16,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ModelDefinitionsController implements ModelDefinitionsApi {
     private final ModelDefinitionsService modelDefinitionsService;
+    private final FactionDefinitionService factionDefinitionService;
 
     @Override
     public ResponseEntity<List<ModelDefinition>> getModelDefinitions() {
@@ -23,6 +25,6 @@ public class ModelDefinitionsController implements ModelDefinitionsApi {
 
     @Override
     public ResponseEntity<List<Faction>> getFactionsList() {
-        return ResponseEntity.ok(modelDefinitionsService.getAllFactions());
+        return ResponseEntity.ok(factionDefinitionService.getAllFactions());
     }
 }

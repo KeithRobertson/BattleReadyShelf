@@ -2,9 +2,9 @@ package com.keith.battlereadyshelf.modeldefinition;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.keith.battlereadyshelf.collectionmodel.CollectionModelRepository;
 import com.keith.battlereadyshelf.error.ConflictException;
@@ -28,7 +28,6 @@ class ModelDefinitionsServiceTest {
     @Mock private AttachmentSlotRepository attachmentSlotRepository;
     @Mock private WargearOptionRepository wargearOptionRepository;
     @Mock private CollectionModelRepository collectionModelRepository;
-    @Mock private FactionRepository factionRepository;
 
     private ModelDefinitionsService modelDefinitionsService;
 
@@ -40,8 +39,7 @@ class ModelDefinitionsServiceTest {
                         attachmentSlotRepository,
                         wargearOptionRepository,
                         new ModelDefinitionMapperImpl(),
-                        collectionModelRepository,
-                        factionRepository);
+                        collectionModelRepository);
     }
 
     @Test

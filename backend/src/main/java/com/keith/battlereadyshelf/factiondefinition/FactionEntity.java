@@ -1,5 +1,6 @@
-package com.keith.battlereadyshelf.modeldefinition;
+package com.keith.battlereadyshelf.factiondefinition;
 
+import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
