@@ -43,7 +43,11 @@ export default function UsersAdminPage() {
   }, [isAdmin]);
 
   const editableUserIds = useMemo(
-    () => users.filter((u) => isEditable(u, currentUser?.id)).map((u) => u.id).filter((id): id is string => !!id),
+    () =>
+      users
+        .filter((u) => isEditable(u, currentUser?.id))
+        .map((u) => u.id)
+        .filter((id): id is string => !!id),
     [users, currentUser?.id],
   );
   const allEditableSelected = editableUserIds.length > 0 && editableUserIds.every((id) => selectedIds.has(id));
@@ -83,9 +87,7 @@ export default function UsersAdminPage() {
     setError(null);
     setBulkSaving(true);
     try {
-      const updated = (
-        await bulkUpdateUserRoles({ body: { userIds: [...selectedIds], role: bulkRole } })
-      ).data;
+      const updated = (await bulkUpdateUserRoles({ body: { userIds: [...selectedIds], role: bulkRole } })).data;
       if (updated) {
         const updatedById = new Map(updated.map((u) => [u.id, u]));
         setUsers((s) => s.map((u) => (u.id ? (updatedById.get(u.id) ?? u) : u)));

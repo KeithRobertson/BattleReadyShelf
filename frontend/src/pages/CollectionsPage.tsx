@@ -1,21 +1,9 @@
-import {
-  Alert,
-  Button,
-  Group,
-  Loader,
-  Modal,
-  Stack,
-  Switch,
-  Text,
-  Textarea,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { closestCenter, DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Alert, Button, Group, Loader, Modal, Stack, Switch, Text, Textarea, TextInput, Title } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { IconAlertCircle, IconPlus } from "@tabler/icons-react";
 import type React from "react";
 import { useEffect, useState } from "react";
@@ -38,10 +26,7 @@ function SortableCollectionCard({ collection }: { collection: ArmyCollection }) 
         opacity: isDragging ? 0.6 : 1,
       }}
     >
-      <CollectionCard
-        collection={collection}
-        dragHandleProps={{ attributes, listeners }}
-      />
+      <CollectionCard collection={collection} dragHandleProps={{ attributes, listeners }} />
     </div>
   );
 }
@@ -127,7 +112,7 @@ export default function CollectionsPage() {
           <Text c="dimmed">Create and manage your miniature collections.</Text>
         </div>
         {isAuthenticated && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open} disabled={!isUser} >
+          <Button leftSection={<IconPlus size={16} />} onClick={open} disabled={!isUser}>
             Create collection
           </Button>
         )}

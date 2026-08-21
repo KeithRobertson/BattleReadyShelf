@@ -1,3 +1,7 @@
+import type { DragEndEvent, DraggableAttributes, DraggableSyntheticListeners, DragStartEvent } from "@dnd-kit/core";
+import { closestCenter, DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   Accordion,
   ActionIcon,
@@ -11,8 +15,8 @@ import {
   Modal,
   MultiSelect,
   NumberInput,
-  Select,
   SegmentedControl,
+  Select,
   SimpleGrid,
   Stack,
   Switch,
@@ -22,10 +26,6 @@ import {
   Title,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { DndContext, DragOverlay, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
-import type { DragEndEvent, DragStartEvent, DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import {
   IconAlertCircle,
   IconArrowLeft,
@@ -155,7 +155,9 @@ export default function CollectionPage() {
   const { user: currentUser, isLoading: isAuthLoading } = useAuth();
   const isUser = currentUser?.role === "USER" || currentUser?.role === "ADMIN" || currentUser?.role === "SUPERADMIN";
   const [armyCollection, setArmyCollection] = useState<ArmyCollection | null>(null);
-  const isOwner = Boolean(isUser && currentUser?.id && armyCollection?.userId && currentUser.id === armyCollection.userId);
+  const isOwner = Boolean(
+    isUser && currentUser?.id && armyCollection?.userId && currentUser.id === armyCollection.userId,
+  );
   const [modelDefinitions, setModelDefinitions] = useState<ModelDefinition[]>([]);
   const [factions, setFactions] = useState<Faction[]>([]);
   const [models, setModels] = useState<CollectionModel[]>([]);
@@ -850,7 +852,8 @@ export default function CollectionPage() {
               No model types are defined yet.
             </Alert>
           ) : (
-            isOwner && isEditMode && (
+            isOwner &&
+            isEditMode && (
               <form onSubmit={handleAddModel}>
                 <Stack gap="xs">
                   <Group align="flex-end" wrap="wrap">

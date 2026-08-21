@@ -284,9 +284,7 @@ export default function ModelDefinitionDraftEditor({
                     placeholder="Option name"
                     onChange={(e) => {
                       const value = e.currentTarget.value;
-                      setOptions((o) =>
-                        o.map((opt) => (opt.id === option.id ? { ...opt, name: value } : opt)),
-                      );
+                      setOptions((o) => o.map((opt) => (opt.id === option.id ? { ...opt, name: value } : opt)));
                     }}
                   />
                   <MultiSelect
@@ -296,9 +294,7 @@ export default function ModelDefinitionDraftEditor({
                     value={option.attachmentSlotIds}
                     onChange={(value) => {
                       setOptions((o) =>
-                        o.map((opt) =>
-                          opt.id === option.id ? { ...opt, attachmentSlotIds: value } : opt,
-                        ),
+                        o.map((opt) => (opt.id === option.id ? { ...opt, attachmentSlotIds: value } : opt)),
                       );
                     }}
                   />
@@ -307,9 +303,7 @@ export default function ModelDefinitionDraftEditor({
                     checked={option.isDefault}
                     onChange={(e) => {
                       const checked = e.currentTarget.checked;
-                      setOptions((o) =>
-                        o.map((opt) => (opt.id === option.id ? { ...opt, isDefault: checked } : opt)),
-                      );
+                      setOptions((o) => o.map((opt) => (opt.id === option.id ? { ...opt, isDefault: checked } : opt)));
                     }}
                   />
                   <ActionIcon color="red" variant="subtle" onClick={() => removeOption(option.id)}>

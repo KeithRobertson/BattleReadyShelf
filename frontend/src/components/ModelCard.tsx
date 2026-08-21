@@ -212,13 +212,7 @@ export default function ModelCard({
             }}
           />
           {editMode && (
-            <ActionIcon
-              variant="subtle"
-              color="red"
-              title="Delete model"
-              onClick={onDeleteModel}
-              disabled={isDeleting}
-            >
+            <ActionIcon variant="subtle" color="red" title="Delete model" onClick={onDeleteModel} disabled={isDeleting}>
               {isDeleting ? <Loader size={16} /> : <IconTrash size={16} stroke={1.5} />}
             </ActionIcon>
           )}
@@ -289,11 +283,7 @@ export default function ModelCard({
                   cursor: editMode && !isUploading ? "pointer" : "default",
                 }}
               >
-                {isUploading ? (
-                  <Loader size={20} />
-                ) : (
-                  <IconPhoto size={20} color="var(--mantine-color-gray-5)" />
-                )}
+                {isUploading ? <Loader size={20} /> : <IconPhoto size={20} color="var(--mantine-color-gray-5)" />}
               </Group>
             )}
             {editMode && (
@@ -404,7 +394,12 @@ export default function ModelCard({
                   disabled={isUpdatingFinishedOn}
                   style={{ flex: 1, maxWidth: 160 }}
                 />
-                <ActionIcon size="sm" variant="subtle" onClick={commitEditingFinishedOn} disabled={isUpdatingFinishedOn}>
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  onClick={commitEditingFinishedOn}
+                  disabled={isUpdatingFinishedOn}
+                >
                   {isUpdatingFinishedOn ? <Loader size={12} /> : <IconCheck size={14} />}
                 </ActionIcon>
                 <ActionIcon
@@ -445,9 +440,7 @@ export default function ModelCard({
                       ...slotOptions.map((option) => ({ value: option.id ?? "", label: option.name ?? "" })),
                       { value: CUSTOM_WARGEAR_VALUE, label: "Custom..." },
                     ];
-                    const selectValue = isCustom
-                      ? CUSTOM_WARGEAR_VALUE
-                      : (currentSelection?.wargearOptionId ?? null);
+                    const selectValue = isCustom ? CUSTOM_WARGEAR_VALUE : (currentSelection?.wargearOptionId ?? null);
 
                     function commitCustomLabel() {
                       const label = (customLabelDraftsBySlot[slotId] ?? "").trim();

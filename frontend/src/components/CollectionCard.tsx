@@ -1,5 +1,5 @@
-import { Badge, Card, Divider, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
+import { Badge, Card, Divider, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import { IconChevronRight, IconGripVertical, IconStack2, IconUser } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import type { ArmyCollection, CollectionModelStatus } from "../generated";
