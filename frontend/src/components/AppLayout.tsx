@@ -1,5 +1,4 @@
 import { ActionIcon, AppShell, Avatar, Burger, Group, Menu, NavLink, Text, Title, UnstyledButton } from "@mantine/core";
-import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { GoogleLogin } from "@react-oauth/google";
 import {
   IconChevronDown,
@@ -17,9 +16,10 @@ import {
   IconWorld,
 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
+import { useResponsivePersistentDisclosure } from "../hooks/useResponsivePersistentDisclosure.ts";
 
 function initialsFor(displayName?: string, email?: string): string {
   const source = displayName?.trim() || email || "?";
@@ -38,44 +38,13 @@ const adminNavItems = [
 
 export default function AppLayout() {
   const { user, isAuthenticated, isLoading, loginWithGoogleIdToken, logout } = useAuth();
-  const isMobile = useMediaQuery("(max-width: 48em)");
   const [asideContent, setAsideContent] = useState<ReactNode>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const savedNavOpened = localStorage.getItem("navOpened") !== "false";
-  const initialNavOpenedState = isMobile ? false : savedNavOpened;
-  const [navOpened, { toggle: toggleNav }] = useDisclosure(() => {
-    let initial = false;
+  const { opened: navOpened, toggle: toggleNav } = useResponsivePersistentDisclosure("navOpened");
 
-    if (typeof window !== "undefined" && window.innerWidth >= 768) {
-      initial = localStorage.getItem("navOpened") !== "false";
-    }
-
-    return initial;
-  });
-  useEffect(() => {
-    if (!isMobile) {
-      localStorage.setItem("navOpened", navOpened.toString());
-    }
-  }, [navOpened, isMobile]);
-
-
-  const savedAsideOpened = localStorage.getItem("asideOpened") !== "false";
-  const initialAsideState = isMobile ? false : savedAsideOpened;
-  const [asideOpened, { toggle: toggleAsideOpened }] = useDisclosure(() => {
-    let initial = false;
-
-    if (typeof window !== "undefined" && window.innerWidth >= 768) {
-      initial = localStorage.getItem("asideOpened") !== "false";
-    }
-
-    return initial;
-  });
-
-  useEffect(() => {
-    localStorage.setItem("asideOpened", asideOpened.toString());
-  }, [asideOpened]);
+  const { opened: asideOpened, toggle: toggleAside } = useResponsivePersistentDisclosure("asideOpened");
 
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
   const isAdminRoute = location.pathname.startsWith("/admin");
@@ -145,7 +114,7 @@ export default function AppLayout() {
                 />
               </div>
             )}
-            <ActionIcon variant="subtle" size="lg" onClick={toggleAsideOpened}>
+            <ActionIcon variant="subtle" size="lg" onClick={toggleAside}>
               {asideOpened ? (
                 <IconLayoutSidebarRightCollapseFilled size={20} />
               ) : (
