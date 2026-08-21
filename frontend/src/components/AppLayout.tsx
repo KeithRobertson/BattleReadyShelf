@@ -1,8 +1,10 @@
-import { AppShell, Avatar, Burger, Group, Menu, NavLink, Text, Title, UnstyledButton } from "@mantine/core";
+import { ActionIcon, AppShell, Avatar, Burger, Group, Menu, NavLink, Text, Title, UnstyledButton } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { GoogleLogin } from "@react-oauth/google";
 import {
   IconChevronDown,
+  IconLayoutSidebarRightCollapseFilled,
+  IconLayoutSidebarRightExpandFilled,
   IconLogout,
   IconSettings,
   IconShieldLock,
@@ -37,7 +39,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, isLoading, loginWithGoogleIdToken, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [navOpened, { toggle: toggleNav }] = useDisclosure();
+  const [navOpened, { toggle: toggleNav }] = useDisclosure(true);
+  const [asideOpened, { toggle: toggleAsideOpened }] = useDisclosure();
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
   const isAdminRoute = location.pathname.startsWith("/admin");
   const isCollectionsRoute = location.pathname === "/" || location.pathname.startsWith("/collections");
@@ -45,61 +48,75 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <AppShell
       header={{ height: 60 }}
-      navbar={{ width: 220, breakpoint: "sm", collapsed: { mobile: !navOpened } }}
+      navbar={{ width: 220, breakpoint: "sm", collapsed: { mobile: !navOpened, desktop: !navOpened } }}
       padding="md"
+      aside={{
+        width: 220,
+        breakpoint: "sm",
+        collapsed: { mobile: !asideOpened, desktop: !asideOpened },
+      }}
     >
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group>
-            <Burger opened={navOpened} onClick={toggleNav} hiddenFrom="sm" size="sm" />
+            <Burger opened={navOpened} onClick={toggleNav} size="sm" />
             <Link to="/" style={{ textDecoration: "none", color: "inherit" }}>
               <Title order={3}>BattleReadyShelf</Title>
             </Link>
           </Group>
-          {isLoading ? null : isAuthenticated ? (
-            <Menu shadow="md" width={200} position="bottom-end">
-              <Menu.Target>
-                <UnstyledButton>
-                  <Group gap={7}>
-                    <Avatar radius="xl" size={32}>
-                      {initialsFor(user?.displayName, user?.email)}
-                    </Avatar>
-                    <IconChevronDown size={14} stroke={1.5} />
-                  </Group>
-                </UnstyledButton>
-              </Menu.Target>
-              <Menu.Dropdown>
-                <Menu.Label>
-                  <Text size="sm" truncate>
-                    {user?.displayName || user?.email}
-                  </Text>
-                </Menu.Label>
-                <Menu.Item leftSection={<IconSettings size={16} />} onClick={() => navigate("/settings")}>
-                  Settings
-                </Menu.Item>
-                <Menu.Item leftSection={<IconLogout size={16} />} onClick={logout}>
-                  Log out
-                </Menu.Item>
-              </Menu.Dropdown>
-            </Menu>
-          ) : (
-            <div style={{ colorScheme: "light" }}>
-              <GoogleLogin
-                onSuccess={(credentialResponse) => {
-                  if (credentialResponse.credential) {
-                    loginWithGoogleIdToken(credentialResponse.credential).catch((err) => {
-                      console.error("Google login failed", err);
-                    });
-                  }
-                }}
-                onError={() => console.error("Google login failed")}
-                size="medium"
-                theme="filled_blue"
-                useOneTap
-                auto_select
-              />
-            </div>
-          )}
+          <Group>
+            {isLoading ? null : isAuthenticated ? (
+              <Menu shadow="md" width={200} position="bottom-end">
+                <Menu.Target>
+                  <UnstyledButton>
+                    <Group gap={7}>
+                      <Avatar radius="xl" size={32}>
+                        {initialsFor(user?.displayName, user?.email)}
+                      </Avatar>
+                      <IconChevronDown size={14} stroke={1.5} />
+                    </Group>
+                  </UnstyledButton>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Label>
+                    <Text size="sm" truncate>
+                      {user?.displayName || user?.email}
+                    </Text>
+                  </Menu.Label>
+                  <Menu.Item leftSection={<IconSettings size={16} />} onClick={() => navigate("/settings")}>
+                    Settings
+                  </Menu.Item>
+                  <Menu.Item leftSection={<IconLogout size={16} />} onClick={logout}>
+                    Log out
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            ) : (
+              <div style={{ colorScheme: "light" }}>
+                <GoogleLogin
+                  onSuccess={(credentialResponse) => {
+                    if (credentialResponse.credential) {
+                      loginWithGoogleIdToken(credentialResponse.credential).catch((err) => {
+                        console.error("Google login failed", err);
+                      });
+                    }
+                  }}
+                  onError={() => console.error("Google login failed")}
+                  size="medium"
+                  theme="filled_blue"
+                  useOneTap
+                  auto_select
+                />
+              </div>
+            )}
+            <ActionIcon variant="subtle" size="lg" onClick={toggleAsideOpened}>
+              {asideOpened ? (
+                <IconLayoutSidebarRightCollapseFilled size={20} />
+              ) : (
+                <IconLayoutSidebarRightExpandFilled size={20} />
+              )}
+            </ActionIcon>
+          </Group>
         </Group>
       </AppShell.Header>
 
@@ -158,6 +175,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       </AppShell.Navbar>
 
       <AppShell.Main>{children}</AppShell.Main>
+      <AppShell.Aside p="md"></AppShell.Aside>
     </AppShell>
   );
 }
