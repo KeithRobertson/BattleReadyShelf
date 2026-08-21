@@ -1,5 +1,5 @@
 import { ActionIcon, AppShell, Avatar, Burger, Group, Menu, NavLink, Text, Title, UnstyledButton } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { GoogleLogin } from "@react-oauth/google";
 import {
   IconChevronDown,
@@ -38,16 +38,20 @@ const adminNavItems = [
 
 export default function AppLayout() {
   const { user, isAuthenticated, isLoading, loginWithGoogleIdToken, logout } = useAuth();
+  const isMobile = useMediaQuery("(max-width: 48em)");
   const [asideContent, setAsideContent] = useState<ReactNode>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const initialNavOpenedState = localStorage.getItem("navOpened") !== "false";
+  const savedNavOpened = localStorage.getItem("navOpened") !== "false";
+  const initialNavOpenedState = isMobile ? false : savedNavOpened;
   const [navOpened, { toggle: toggleNav }] = useDisclosure(initialNavOpenedState);
 
   useEffect(() => {
-    localStorage.setItem("navOpened", navOpened.toString());
-  }, [navOpened]);
+    if (!isMobile) {
+      localStorage.setItem("navOpened", navOpened.toString());
+    }
+  }, [navOpened, isMobile]);
 
   const initialAsideState = localStorage.getItem("asideOpened") === "true";
   const [asideOpened, { toggle: toggleAsideOpened }] = useDisclosure(initialAsideState);
@@ -66,7 +70,7 @@ export default function AppLayout() {
       navbar={{ width: 220, breakpoint: "sm", collapsed: { mobile: !navOpened, desktop: !navOpened } }}
       padding="md"
       aside={{
-        width: 220,
+        width: { base: 260, sm: 300, lg: 340 },
         breakpoint: "sm",
         collapsed: { mobile: !asideOpened, desktop: !asideOpened },
       }}
@@ -188,7 +192,9 @@ export default function AppLayout() {
       <AppShell.Main>
         <Outlet context={{ setAsideContent }} />
       </AppShell.Main>
-      <AppShell.Aside p="md">{asideContent}</AppShell.Aside>
+      <AppShell.Aside p="lg" style={{ borderLeft: "1px solid var(--mantine-color-gray-3)" }}>
+        {asideContent}
+      </AppShell.Aside>
     </AppShell>
   );
 }

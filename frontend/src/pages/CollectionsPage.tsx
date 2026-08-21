@@ -10,8 +10,10 @@ import { type ReactNode, useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import CollectionCard from "../components/CollectionCard";
-import type { ArmyCollection } from "../generated";
+import { CollectionStatsPanel } from "../components/CollectionStatsPanel";
+import type { ArmyCollection, CollectionModelStatus } from "../generated";
 import { createArmyCollection, getArmyCollections, reorderArmyCollections } from "../generated";
+import { COLLECTION_MODEL_STATUSES } from "../utils/collectionModelStatus";
 
 /** Wraps a single CollectionCard so it can be reordered via drag-and-drop. */
 function SortableCollectionCard({ collection }: { collection: ArmyCollection }) {
@@ -67,11 +69,22 @@ export default function CollectionsPage() {
   }, [isAuthenticated]);
 
   useEffect(() => {
+    const totalModels = collections.reduce((sum, c) => sum + (c.modelCount ?? 0), 0);
+
+    const totalCountsByStatus = COLLECTION_MODEL_STATUSES.reduce(
+      (acc, status) => {
+        acc[status] = collections.reduce((sum, c) => sum + (c.modelCountsByStatus?.[status] ?? 0), 0);
+        return acc;
+      },
+      {} as Record<CollectionModelStatus, number>,
+    );
+
     setAsideContent(
       <Stack>
-        <Title order={4}>Collections</Title>
-        <Text>Create and manage your miniature collections.</Text>
-        <Text>You currently have {collections.length} collections.</Text>
+        <Title order={4}>All Collections</Title>
+        <Text c="dimmed">Totals across all your collections.</Text>
+
+        <CollectionStatsPanel totalCount={totalModels} countsByStatus={totalCountsByStatus} />
       </Stack>,
     );
     return () => setAsideContent(null);
