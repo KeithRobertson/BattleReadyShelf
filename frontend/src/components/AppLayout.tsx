@@ -17,7 +17,8 @@ import {
   IconWorld,
 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 
 function initialsFor(displayName?: string, email?: string): string {
@@ -35,12 +36,26 @@ const adminNavItems = [
   { label: "Manage Faction Definitions", to: "/admin/faction-definitions", icon: IconTagsChevronUp },
 ];
 
-export default function AppLayout({ children }: { children: ReactNode }) {
+export default function AppLayout() {
   const { user, isAuthenticated, isLoading, loginWithGoogleIdToken, logout } = useAuth();
+  const [asideContent, setAsideContent] = useState<ReactNode>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const [navOpened, { toggle: toggleNav }] = useDisclosure(true);
-  const [asideOpened, { toggle: toggleAsideOpened }] = useDisclosure();
+
+  const initialNavOpenedState = localStorage.getItem("navOpened") !== "false";
+  const [navOpened, { toggle: toggleNav }] = useDisclosure(initialNavOpenedState);
+
+  useEffect(() => {
+    localStorage.setItem("navOpened", navOpened.toString());
+  }, [navOpened]);
+
+  const initialAsideState = localStorage.getItem("asideOpened") === "true";
+  const [asideOpened, { toggle: toggleAsideOpened }] = useDisclosure(initialAsideState);
+
+  useEffect(() => {
+    localStorage.setItem("asideOpened", asideOpened.toString());
+  }, [asideOpened]);
+
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
   const isAdminRoute = location.pathname.startsWith("/admin");
   const isCollectionsRoute = location.pathname === "/" || location.pathname.startsWith("/collections");
@@ -133,7 +148,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             label="Personal"
             leftSection={<IconUser size={18} stroke={1.5} />}
             active={location.pathname === "/" || location.pathname === "/collections"}
-            onClick={toggleNav}
           />
           <NavLink
             component={Link}
@@ -141,7 +155,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             label="Public"
             leftSection={<IconWorld size={18} stroke={1.5} />}
             active={location.pathname === "/collections/public"}
-            onClick={toggleNav}
           />
         </NavLink>
         <NavLink
@@ -150,7 +163,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           label="Army Builder"
           leftSection={<IconSwords size={18} stroke={1.5} />}
           active={location.pathname === "/army-builder"}
-          onClick={toggleNav}
         />
         {isAdmin && (
           <NavLink
@@ -167,15 +179,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 label={item.label}
                 leftSection={<item.icon size={18} stroke={1.5} />}
                 active={location.pathname === item.to}
-                onClick={toggleNav}
               />
             ))}
           </NavLink>
         )}
       </AppShell.Navbar>
 
-      <AppShell.Main>{children}</AppShell.Main>
-      <AppShell.Aside p="md"></AppShell.Aside>
+      <AppShell.Main>
+        <Outlet context={{ setAsideContent }} />
+      </AppShell.Main>
+      <AppShell.Aside p="md">{asideContent}</AppShell.Aside>
     </AppShell>
   );
 }

@@ -12,8 +12,8 @@ import UsersAdminPage from "./pages/UsersAdminPage";
 
 function App() {
   return (
-    <AppLayout>
-      <Routes>
+    <Routes>
+      <Route element={<AppLayout />}>
         <Route path="/" element={<CollectionsPage />} />
         <Route path="/collections" element={<CollectionsPage />} />
         <Route path="/collections/public" element={<PublicCollectionsPage />} />
@@ -24,8 +24,8 @@ function App() {
         <Route path="/admin/model-definitions" element={<ModelDefinitionsAdminPage />} />
         <Route path="/admin/faction-definitions" element={<FactionDefinitionsAdminPage />} />
         <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-    </AppLayout>
+      </Route>
+    </Routes>
   );
 }
 

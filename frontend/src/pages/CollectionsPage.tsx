@@ -6,7 +6,8 @@ import { Alert, Button, Group, Loader, Modal, Stack, Switch, Text, Textarea, Tex
 import { useDisclosure } from "@mantine/hooks";
 import { IconAlertCircle, IconPlus } from "@tabler/icons-react";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
+import { useOutletContext } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import CollectionCard from "../components/CollectionCard";
 import type { ArmyCollection } from "../generated";
@@ -33,6 +34,7 @@ function SortableCollectionCard({ collection }: { collection: ArmyCollection }) 
 
 export default function CollectionsPage() {
   const { user: currentUser, isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { setAsideContent } = useOutletContext<{ setAsideContent: (c: ReactNode) => void }>();
   const isUser = currentUser?.role === "USER" || currentUser?.role === "ADMIN" || currentUser?.role === "SUPERADMIN";
   const [collections, setCollections] = useState<ArmyCollection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +65,17 @@ export default function CollectionsPage() {
       });
     return () => ac.abort();
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    setAsideContent(
+      <Stack>
+        <Title order={4}>Collections</Title>
+        <Text>Create and manage your miniature collections.</Text>
+        <Text>You currently have {collections.length} collections.</Text>
+      </Stack>,
+    );
+    return () => setAsideContent(null);
+  }, [collections, setAsideContent]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
