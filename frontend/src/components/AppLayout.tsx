@@ -1,4 +1,17 @@
-import { ActionIcon, AppShell, Avatar, Burger, Group, Menu, NavLink, Text, Title, UnstyledButton } from "@mantine/core";
+import {
+  ActionIcon,
+  AppShell,
+  Avatar,
+  Burger,
+  Group,
+  Menu,
+  NavLink,
+  Skeleton,
+  Stack,
+  Text,
+  Title,
+  UnstyledButton,
+} from "@mantine/core";
 import { GoogleLogin } from "@react-oauth/google";
 import {
   IconChevronDown,
@@ -16,7 +29,7 @@ import {
   IconWorld,
 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { useResponsivePersistentDisclosure } from "../hooks/useResponsivePersistentDisclosure.ts";
@@ -51,6 +64,14 @@ export default function AppLayout() {
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
   const isAdminRoute = location.pathname.startsWith("/admin");
   const isCollectionsRoute = location.pathname === "/" || location.pathname.startsWith("/collections");
+
+  const PageSkeleton = () => (
+    <Stack p="md" gap="lg">
+      <Skeleton height={32} width="40%" radius="md" />
+      <Skeleton height={20} width="60%" radius="md" />
+      <Skeleton height={400} radius="md" />
+    </Stack>
+  );
 
   return (
     <AppShell
@@ -182,7 +203,9 @@ export default function AppLayout() {
       </AppShell.Navbar>
 
       <AppShell.Main>
-        <Outlet context={{ setAsideContent }} />
+        <Suspense fallback={<PageSkeleton />}>
+          <Outlet context={{ setAsideContent }} />
+        </Suspense>
       </AppShell.Main>
       <AppShell.Aside p="lg" style={{ borderLeft: "1px solid var(--mantine-color-gray-3)" }}>
         {asideContent}
