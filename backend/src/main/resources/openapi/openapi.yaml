@@ -1238,8 +1238,9 @@ components:
         parentFactionId:
           type: string
           format: uuid
+          nullable: true
           description: Null if this faction has no parent.
-      required: [ externalId, name ]
+      required: [id, externalId, name ]
     AttachmentSlot:
       type: object
       properties:

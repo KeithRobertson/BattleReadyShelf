@@ -29,7 +29,7 @@ export default function FactionDefinitionsAdminPage() {
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [newName, setNewName] = useState("");
   const [newExternalId, setNewExternalId] = useState("");
-  const [newParentFactionId, setNewParentFactionId] = useState("");
+  const [newParentFactionId, setNewParentFactionId] = useState<string | null>(null);
   const [deletingFactionId, setDeletingFactionId] = useState("");
 
   const loadAll = useCallback(
@@ -79,7 +79,8 @@ export default function FactionDefinitionsAdminPage() {
       ).data;
       setNewName("");
       setNewExternalId("");
-      setNewParentFactionId("");
+      setNewParentFactionId(null);
+      if (!newFaction) throw new Error("Failed to create faction");
       setFactions((prev) => [...prev, newFaction]);
       closeCreate();
     } catch (e) {
@@ -93,7 +94,7 @@ export default function FactionDefinitionsAdminPage() {
       await deleteFaction({ path: { factionId } });
       setFactions((prev) => prev.filter((f) => f.id !== factionId));
     } finally {
-      setDeletingFactionId(null);
+      setDeletingFactionId("");
     }
   }
 
@@ -158,7 +159,11 @@ export default function FactionDefinitionsAdminPage() {
                             <ActionIcon
                               color="red"
                               variant="light"
-                              onClick={() => handleDeleteFaction(faction.id)}
+                              onClick={() => {
+                                if (faction.id) {
+                                  handleDeleteFaction(faction.id);
+                                }
+                              }}
                               loading={deletingFactionId === faction.id}
                               title="Delete faction"
                             >
@@ -189,9 +194,11 @@ export default function FactionDefinitionsAdminPage() {
             <Select
               label="Parent Faction"
               placeholder="None"
-              data={[{ value: null, label: "None" }, ...factions.map((f) => ({ value: f.id, label: f.name }))]}
+              data={[{ value: "", label: "None" }, ...factions.map((f) => ({ value: f.id, label: f.name }))]}
               value={newParentFactionId}
-              onChange={setNewParentFactionId}
+              onChange={(updatedParentFactionId) => {
+                setNewParentFactionId(updatedParentFactionId !== "" ? updatedParentFactionId : null);
+              }}
             />
             <Group justify="flex-end">
               <Button type="submit">Create</Button>
