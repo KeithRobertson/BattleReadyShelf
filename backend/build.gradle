@@ -99,7 +99,8 @@ openApiGenerate {
             "generateBuilders": "true",
             "generateConstructorWithAllArgs": "true",
             "defaultToEmptyContainer": "true",
-            "useTags": "true"
+            "useTags": "true",
+            "openApiNullable": "false"
 
 
     ])
