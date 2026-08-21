@@ -6,6 +6,7 @@ import {
   Group,
   Modal,
   MultiSelect,
+  Select,
   Stack,
   Table,
   Text,
@@ -15,7 +16,7 @@ import {
 } from "@mantine/core";
 import { IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
-import type { ModelDefinition, ModelDefinitionDraft, UpsertModelDefinitionDraftRequest } from "../generated";
+import type { Faction, ModelDefinition, ModelDefinitionDraft, UpsertModelDefinitionDraftRequest } from "../generated";
 import { discardModelDefinitionDraft, publishModelDefinitionDraft, updateModelDefinitionDraft } from "../generated";
 
 interface EditableSlot {
@@ -36,12 +37,14 @@ function newId(): string {
 
 function toRequest(
   name: string,
+  faction: string | undefined,
   description: string,
   slots: EditableSlot[],
   options: EditableOption[],
 ): UpsertModelDefinitionDraftRequest {
   return {
     name,
+    faction_id: faction,
     description: description || undefined,
     attachmentSlots: slots.map((s) => ({ id: s.id, name: s.name })),
     wargearOptions: options.map((o) => ({
@@ -55,6 +58,7 @@ function toRequest(
 
 interface ModelDefinitionDraftEditorProps {
   draft: ModelDefinitionDraft;
+  factions: Faction[];
   onClose: () => void;
   onSaved: (draft: ModelDefinitionDraft) => void;
   onPublished: (modelDefinition: ModelDefinition) => void;
@@ -63,12 +67,14 @@ interface ModelDefinitionDraftEditorProps {
 
 export default function ModelDefinitionDraftEditor({
   draft,
+  factions,
   onClose,
   onSaved,
   onPublished,
   onDiscarded,
 }: ModelDefinitionDraftEditorProps) {
   const [name, setName] = useState(draft.name);
+  const [faction, setFaction] = useState(draft.factionId);
   const [description, setDescription] = useState(draft.description ?? "");
   const [slots, setSlots] = useState<EditableSlot[]>(
     draft.attachmentSlots.map((s) => ({ id: s.id ?? newId(), name: s.name })),
@@ -137,7 +143,7 @@ export default function ModelDefinitionDraftEditor({
       const updated = (
         await updateModelDefinitionDraft({
           path: { draftId: draft.id ?? "" },
-          body: toRequest(name, description, slots, options),
+          body: toRequest(name, faction, description, slots, options),
         })
       ).data;
       if (!updated) throw new Error("Failed to save draft");
@@ -212,6 +218,17 @@ export default function ModelDefinitionDraftEditor({
           value={name}
           onChange={(e) => {
             setName(e.currentTarget.value);
+          }}
+          required
+        />
+        <Select
+          label="Faction"
+          data={factions.map((f) => ({ value: f.id, label: f.name }))}
+          value={faction}
+          onChange={(faction) => {
+            if (faction) {
+              setFaction(faction);
+            }
           }}
           required
         />

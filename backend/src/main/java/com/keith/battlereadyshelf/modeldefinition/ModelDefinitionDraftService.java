@@ -162,6 +162,7 @@ public class ModelDefinitionDraftService {
             CurrentAuthenticatedUser currentUser, UUID draftId, UpsertModelDefinitionDraftRequest request) {
         var draft = requireDraft(draftId);
         draft.setName(request.getName());
+        draft.setFactionId(request.getFactionId());
         draft.setDescription(request.getDescription());
         draft.setUpdatedBy(currentUser.id());
         modelDefinitionDraftRepository.save(draft);

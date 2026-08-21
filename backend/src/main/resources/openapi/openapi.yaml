@@ -1388,6 +1388,10 @@ components:
       properties:
         name:
           type: string
+        faction_id:
+          type: string
+          format: uuid
+          description: The faction this model belongs to
         description:
           type: string
         attachmentSlots:

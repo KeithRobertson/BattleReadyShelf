@@ -761,6 +761,7 @@ export default function ModelDefinitionsAdminPage() {
       {editingDraft && (
         <ModelDefinitionDraftEditor
           draft={editingDraft}
+          factions={factions}
           onClose={() => setEditingDraft(null)}
           onSaved={handleDraftSaved}
           onPublished={handlePublished}
