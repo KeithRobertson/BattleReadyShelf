@@ -7,23 +7,21 @@ export function useResponsivePersistentDisclosure(key: string) {
 
   const toggle = () => setOpened((v) => !v);
 
-  // Resolve initial state once breakpoint is known
   useEffect(() => {
     const saved = localStorage.getItem(key) === "true";
 
     if (isMobile) {
-      setOpened(false); // mobile always closed
+      setOpened(false);
     } else {
-      setOpened(saved); // desktop uses saved value
+      setOpened(saved);
     }
   }, [isMobile, key]);
 
-  // Persist only on desktop
   useEffect(() => {
     if (!isMobile && opened !== undefined) {
       localStorage.setItem(key, opened.toString());
     }
   }, [opened, isMobile, key]);
 
-  return { opened, toggle };
+  return { opened, toggle, isMobile };
 }

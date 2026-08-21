@@ -41,11 +41,13 @@ export default function AppLayout() {
   const [asideContent, setAsideContent] = useState<ReactNode>(null);
   const navigate = useNavigate();
   const location = useLocation();
-
-  const { opened: navOpened, toggle: toggleNav } = useResponsivePersistentDisclosure("navOpened");
-
+  const handleNavClick = () => {
+    if (isMobile) {
+      toggleNav();
+    }
+  };
+  const { opened: navOpened, toggle: toggleNav, isMobile } = useResponsivePersistentDisclosure("navOpened");
   const { opened: asideOpened, toggle: toggleAside } = useResponsivePersistentDisclosure("asideOpened");
-
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
   const isAdminRoute = location.pathname.startsWith("/admin");
   const isCollectionsRoute = location.pathname === "/" || location.pathname.startsWith("/collections");
@@ -138,6 +140,7 @@ export default function AppLayout() {
             label="Personal"
             leftSection={<IconUser size={18} stroke={1.5} />}
             active={location.pathname === "/" || location.pathname === "/collections"}
+            onClick={handleNavClick}
           />
           <NavLink
             component={Link}
@@ -145,6 +148,7 @@ export default function AppLayout() {
             label="Public"
             leftSection={<IconWorld size={18} stroke={1.5} />}
             active={location.pathname === "/collections/public"}
+            onClick={handleNavClick}
           />
         </NavLink>
         <NavLink
@@ -153,6 +157,7 @@ export default function AppLayout() {
           label="Army Builder"
           leftSection={<IconSwords size={18} stroke={1.5} />}
           active={location.pathname === "/army-builder"}
+          onClick={handleNavClick}
         />
         {isAdmin && (
           <NavLink
@@ -169,6 +174,7 @@ export default function AppLayout() {
                 label={item.label}
                 leftSection={<item.icon size={18} stroke={1.5} />}
                 active={location.pathname === item.to}
+                onClick={handleNavClick}
               />
             ))}
           </NavLink>
