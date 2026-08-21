@@ -8,7 +8,7 @@ import { BrowserRouter } from "react-router-dom";
 import "./auth/apiClient";
 import { AuthProvider } from "./auth/AuthContext";
 import "./index.css";
-import App from "./App";
+import Router from "./Router";
 import { theme } from "./theme";
 
 const rootElement = document.getElementById("root");
@@ -21,7 +21,7 @@ if (rootElement) {
         <GoogleOAuthProvider clientId={googleClientId}>
           <BrowserRouter basename={import.meta.env.BASE_URL}>
             <AuthProvider>
-              <App />
+              <Router />
             </AuthProvider>
           </BrowserRouter>
         </GoogleOAuthProvider>

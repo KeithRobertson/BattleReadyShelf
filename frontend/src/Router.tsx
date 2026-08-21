@@ -10,7 +10,7 @@ import PublicCollectionsPage from "./pages/PublicCollectionsPage";
 import SettingsPage from "./pages/SettingsPage";
 import UsersAdminPage from "./pages/UsersAdminPage";
 
-function App() {
+const Router = () => {
   return (
     <Routes>
       <Route element={<AppLayout />}>
@@ -27,6 +27,6 @@ function App() {
       </Route>
     </Routes>
   );
-}
+};
 
-export default App;
+export default Router;
