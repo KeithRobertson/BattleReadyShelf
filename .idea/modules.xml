@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/battlereadyshelf.main.iml" filepath="$PROJECT_DIR$/.idea/modules/battlereadyshelf.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/battlereadyshelf.test.iml" filepath="$PROJECT_DIR$/.idea/modules/battlereadyshelf.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/frontend/frontend.iml" filepath="$PROJECT_DIR$/frontend/frontend.iml" />
     </modules>
   </component>
 </project>
