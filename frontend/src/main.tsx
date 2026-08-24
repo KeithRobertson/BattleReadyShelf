@@ -8,24 +8,30 @@ import { BrowserRouter } from "react-router-dom";
 import "@/auth/apiClient";
 import { AuthProvider } from "@/auth/AuthContext";
 import "@/index.css";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import Router from "@/Router";
 import { theme } from "@/theme";
 
 const rootElement = document.getElementById("root");
+const queryClient = new QueryClient();
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
 
 if (rootElement) {
   createRoot(rootElement).render(
     <StrictMode>
-      <MantineProvider theme={theme} defaultColorScheme="auto">
-        <GoogleOAuthProvider clientId={googleClientId}>
-          <BrowserRouter basename={import.meta.env.BASE_URL}>
-            <AuthProvider>
-              <Router />
-            </AuthProvider>
-          </BrowserRouter>
-        </GoogleOAuthProvider>
-      </MantineProvider>
+      <QueryClientProvider client={queryClient}>
+        {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
+        <MantineProvider theme={theme} defaultColorScheme="auto">
+          <GoogleOAuthProvider clientId={googleClientId}>
+            <BrowserRouter basename={import.meta.env.BASE_URL}>
+              <AuthProvider>
+                <Router />
+              </AuthProvider>
+            </BrowserRouter>
+          </GoogleOAuthProvider>
+        </MantineProvider>
+      </QueryClientProvider>
     </StrictMode>,
   );
 }
