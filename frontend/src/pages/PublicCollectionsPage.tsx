@@ -1,23 +1,10 @@
 import { Alert, Loader, Stack, Text, Title } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import CollectionCard from "@/components/collections/CollectionCard.tsx";
-import type { ArmyCollection } from "@/generated";
-import { getPublicArmyCollections } from "@/generated";
+import { usePublicCollections } from "@/hooks/collections/usePublicCollections.ts";
 
 export default function PublicCollectionsPage() {
-  const {
-    data: collections = [],
-    isLoading,
-    isError,
-    error,
-  } = useQuery<ArmyCollection[]>({
-    queryKey: ["publicCollections"],
-    queryFn: async () => {
-      const response = await getPublicArmyCollections();
-      return response.data ?? [];
-    },
-  });
+  const { collections, isLoading, isError, error } = usePublicCollections();
 
   return (
     <Stack gap="md">
