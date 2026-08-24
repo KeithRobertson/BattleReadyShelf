@@ -5,7 +5,7 @@ import {
   COLLECTION_MODEL_STATUS_COLORS,
   COLLECTION_MODEL_STATUS_LABELS,
   COLLECTION_MODEL_STATUSES,
-} from "@/utils/collectionModelStatus";
+} from "@/utils/collectionModelStatus.ts";
 
 export function CollectionStatsPanel({
   totalCount,

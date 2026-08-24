@@ -1,7 +1,7 @@
 import { Alert, Loader, Stack, Text, Title } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import CollectionCard from "@/components/CollectionCard";
+import CollectionCard from "@/components/collections/CollectionCard.tsx";
 import type { ArmyCollection } from "@/generated";
 import { getPublicArmyCollections } from "@/generated";
 

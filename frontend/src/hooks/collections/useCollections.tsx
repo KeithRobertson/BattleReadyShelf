@@ -5,7 +5,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { type ReactNode, useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
-import { CollectionStatsPanel } from "@/components/CollectionStatsPanel.tsx";
+import { CollectionStatsPanel } from "@/components/collections/CollectionStatsPanel.tsx";
 import type { ArmyCollection, CollectionModelStatus } from "@/generated";
 import { createArmyCollection, getArmyCollections, reorderArmyCollections } from "@/generated";
 import { COLLECTION_MODEL_STATUSES } from "@/utils/collectionModelStatus";

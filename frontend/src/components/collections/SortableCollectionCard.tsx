@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import CollectionCard from "@/components/CollectionCard.tsx";
+import CollectionCard from "@/components/collections/CollectionCard.tsx";
 import type { ArmyCollection } from "@/generated";
 
 export function SortableCollectionCard({ collection }: Readonly<{ collection: ArmyCollection }>) {

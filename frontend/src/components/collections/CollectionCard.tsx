@@ -2,9 +2,9 @@ import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/
 import { Badge, Card, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import { IconChevronRight, IconGripVertical, IconUser } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
-import { CollectionStatsPanel } from "@/components/CollectionStatsPanel";
+import { CollectionStatsPanel } from "@/components/collections/CollectionStatsPanel.tsx";
 import type { ArmyCollection, CollectionModelStatus } from "@/generated";
-import { COLLECTION_MODEL_STATUSES } from "@/utils/collectionModelStatus";
+import { COLLECTION_MODEL_STATUSES } from "@/utils/collectionModelStatus.ts";
 
 export default function CollectionCard({
   collection,
