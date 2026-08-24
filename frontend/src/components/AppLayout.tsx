@@ -4,6 +4,7 @@ import {
   Avatar,
   Burger,
   Group,
+  MantineProvider,
   Menu,
   NavLink,
   Skeleton,
@@ -31,30 +32,18 @@ import {
 import type { ReactNode } from "react";
 import { Suspense, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../auth/useAuth";
-import { useResponsivePersistentDisclosure } from "../hooks/useResponsivePersistentDisclosure.ts";
-
-function initialsFor(displayName?: string, email?: string): string {
-  const source = displayName?.trim() || email || "?";
-  const parts = source.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-  }
-  return source.slice(0, 2).toUpperCase();
-}
-
-const adminNavItems = [
-  { label: "Manage Users", to: "/admin/users", icon: IconUsers },
-  { label: "Manage Model Definitions", to: "/admin/model-definitions", icon: IconTags },
-  { label: "Manage Faction Definitions", to: "/admin/faction-definitions", icon: IconTagsChevronUp },
-];
+import { useAuth } from "@/auth/useAuth";
+import { useResponsivePersistentDisclosure } from "@/hooks/useResponsivePersistentDisclosure.ts";
+import initialsFor from "@/utils/user"
+import { adminNavItems } from "@/config/admin/navigation";
+import PageSkeleton from "@/components/PageSkeleton.tsx";
 
 export default function AppLayout() {
   const { user, isAuthenticated, isLoading, loginWithGoogleIdToken, logout } = useAuth();
   const [asideContent, setAsideContent] = useState<ReactNode>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const handleNavClick = () => {
+  const toggleNavOnMobile = () => {
     if (isMobile) {
       toggleNav();
     }
@@ -65,13 +54,9 @@ export default function AppLayout() {
   const isAdminRoute = location.pathname.startsWith("/admin");
   const isCollectionsRoute = location.pathname === "/" || location.pathname.startsWith("/collections");
 
-  const PageSkeleton = () => (
-    <Stack p="md" gap="lg">
-      <Skeleton height={32} width="40%" radius="md" />
-      <Skeleton height={20} width="60%" radius="md" />
-      <Skeleton height={400} radius="md" />
-    </Stack>
-  );
+  const AsideIcon = asideOpened
+      ? IconLayoutSidebarRightCollapseFilled
+      : IconLayoutSidebarRightExpandFilled;
 
   return (
     <AppShell
@@ -120,7 +105,7 @@ export default function AppLayout() {
                 </Menu.Dropdown>
               </Menu>
             ) : (
-              <div style={{ colorScheme: "light" }}>
+              <MantineProvider colorScheme="light">
                 <GoogleLogin
                   onSuccess={(credentialResponse) => {
                     if (credentialResponse.credential) {
@@ -135,14 +120,10 @@ export default function AppLayout() {
                   useOneTap
                   auto_select
                 />
-              </div>
+              </MantineProvider>
             )}
             <ActionIcon variant="subtle" size="lg" onClick={toggleAside}>
-              {asideOpened ? (
-                <IconLayoutSidebarRightCollapseFilled size={20} />
-              ) : (
-                <IconLayoutSidebarRightExpandFilled size={20} />
-              )}
+              <AsideIcon size={20} />
             </ActionIcon>
           </Group>
         </Group>
@@ -161,7 +142,7 @@ export default function AppLayout() {
             label="Personal"
             leftSection={<IconUser size={18} stroke={1.5} />}
             active={location.pathname === "/" || location.pathname === "/collections"}
-            onClick={handleNavClick}
+            onClick={toggleNavOnMobile}
           />
           <NavLink
             component={Link}
@@ -169,7 +150,7 @@ export default function AppLayout() {
             label="Public"
             leftSection={<IconWorld size={18} stroke={1.5} />}
             active={location.pathname === "/collections/public"}
-            onClick={handleNavClick}
+            onClick={toggleNavOnMobile}
           />
         </NavLink>
         <NavLink
@@ -178,7 +159,7 @@ export default function AppLayout() {
           label="Army Builder"
           leftSection={<IconSwords size={18} stroke={1.5} />}
           active={location.pathname === "/army-builder"}
-          onClick={handleNavClick}
+          onClick={toggleNavOnMobile}
         />
         {isAdmin && (
           <NavLink
@@ -195,7 +176,7 @@ export default function AppLayout() {
                 label={item.label}
                 leftSection={<item.icon size={18} stroke={1.5} />}
                 active={location.pathname === item.to}
-                onClick={handleNavClick}
+                onClick={toggleNavOnMobile}
               />
             ))}
           </NavLink>
@@ -207,7 +188,12 @@ export default function AppLayout() {
           <Outlet context={{ setAsideContent }} />
         </Suspense>
       </AppShell.Main>
-      <AppShell.Aside p="lg" style={{ borderLeft: "1px solid var(--mantine-color-gray-3)" }}>
+      <AppShell.Aside
+        p="lg"
+        style={(theme) => ({
+          borderLeft: `1px solid ${theme.colors.gray[3]}`,
+        })}
+      >
         {asideContent}
       </AppShell.Aside>
     </AppShell>
