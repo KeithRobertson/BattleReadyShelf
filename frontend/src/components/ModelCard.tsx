@@ -17,7 +17,7 @@ import {
 import { DateInput } from "@mantine/dates";
 import { IconCalendar, IconCheck, IconPencil, IconPhoto, IconTrash, IconUpload, IconX } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
-import type { CollectionModel } from "@/generated";
+import type { CollectionModel, CollectionModelStatus } from "@/generated";
 import {
   COLLECTION_MODEL_STATUS_BACKGROUNDS,
   COLLECTION_MODEL_STATUS_COLORS,
@@ -33,23 +33,21 @@ type ModelCardProps = {
   editMode: boolean;
   onUploadImage: (file: File) => void;
   onDeleteImage: (imageId: string) => void;
-  onRename: (newName: string) => void;
+  isUploading: boolean;
+  deletingImageId: string | null;
+
+  onRename: (newName: string) => Promise<void> | void;
   onDeleteModel: () => void;
-  onUpdateFinishedOn: (finishedOn: string | null) => void;
-  onUpdateDescription: (description: string) => void;
+  onUpdateFinishedOn: (finishedOn: string | null) => Promise<void> | void;
+  onUpdateDescription: (description: string) => Promise<void> | void;
   onUpdateWargearSelection: (
     attachmentSlotId: string,
     update: { wargearOptionId?: string | null; customLabel?: string | null },
-  ) => void;
-  onUpdateStatus: (status: string) => void;
-  isUploading: boolean;
-  deletingImageId: string | null;
-  isRenaming: boolean;
+  ) => Promise<void> | void;
+  onUpdateStatus: (status: CollectionModelStatus) => Promise<void> | void;
+
   isDeleting: boolean;
-  isUpdatingFinishedOn: boolean;
-  isUpdatingDescription: boolean;
-  isUpdatingStatus: boolean;
-  updatingWargearSlotId: string | null;
+
   selected: boolean;
   onToggleSelected: (selected: boolean) => void;
 };
@@ -67,15 +65,10 @@ export default function ModelCard({
   onUpdateStatus,
   isUploading,
   deletingImageId,
-  isRenaming,
   isDeleting,
-  isUpdatingFinishedOn,
-  isUpdatingDescription,
-  isUpdatingStatus,
-  updatingWargearSlotId,
   selected,
   onToggleSelected,
-}: ModelCardProps) {
+}: Readonly<ModelCardProps>) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const images = model.images ?? [];
   const visibleImages = images.slice(0, MAX_VISIBLE_THUMBNAILS);
@@ -97,6 +90,11 @@ export default function ModelCard({
   const [customLabelDraftsBySlot, setCustomLabelDraftsBySlot] = useState<Record<string, string>>({});
   const attachmentSlots = model.modelDefinition?.attachmentSlots ?? [];
   const wargearOptions = model.modelDefinition?.wargearOptions ?? [];
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [isUpdatingFinishedOn, setIsUpdatingFinishedOn] = useState(false);
+  const [isUpdatingDescription, setIsUpdatingDescription] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [updatingWargearSlotId, setUpdatingWargearSlotId] = useState<string | null>(null);
 
   // Collapse any open inline editors when the page is switched back to view mode.
   useEffect(() => {
@@ -115,10 +113,13 @@ export default function ModelCard({
     setIsEditingName(true);
   }
 
-  function commitEditingName() {
+  async function commitEditingName() {
     setIsEditingName(false);
+
     if (nameDraft.trim() !== (displayName ?? "")) {
-      onRename(nameDraft.trim());
+      setIsRenaming(true);
+      await onRename(nameDraft.trim());
+      setIsRenaming(false);
     }
   }
 
@@ -127,10 +128,13 @@ export default function ModelCard({
     setIsEditingFinishedOn(true);
   }
 
-  function commitEditingFinishedOn() {
+  async function commitEditingFinishedOn() {
     setIsEditingFinishedOn(false);
+
     if (finishedOnDraft !== (model.finishedOn ?? null)) {
-      onUpdateFinishedOn(finishedOnDraft);
+      setIsUpdatingFinishedOn(true);
+      await onUpdateFinishedOn(finishedOnDraft);
+      setIsUpdatingFinishedOn(false);
     }
   }
 
@@ -139,11 +143,29 @@ export default function ModelCard({
     setIsEditingDescription(true);
   }
 
-  function commitEditingDescription() {
+  async function commitEditingDescription() {
     setIsEditingDescription(false);
+
     if (descriptionDraft.trim() !== (description ?? "")) {
-      onUpdateDescription(descriptionDraft.trim());
+      setIsUpdatingDescription(true);
+      await onUpdateDescription(descriptionDraft.trim());
+      setIsUpdatingDescription(false);
     }
+  }
+
+  async function commitStatus(status: CollectionModelStatus) {
+    setIsUpdatingStatus(true);
+    await onUpdateStatus(status);
+    setIsUpdatingStatus(false);
+  }
+
+  async function commitWargear(
+    slotId: string,
+    update: { wargearOptionId?: string | null; customLabel?: string | null },
+  ) {
+    setUpdatingWargearSlotId(slotId);
+    await onUpdateWargearSelection(slotId, update);
+    setUpdatingWargearSlotId(null);
   }
 
   return (
@@ -306,7 +328,7 @@ export default function ModelCard({
                 size="xs"
                 data={COLLECTION_MODEL_STATUS_OPTIONS}
                 value={model.status ?? null}
-                onChange={(value) => value && onUpdateStatus(value)}
+                onChange={(value) => value && commitStatus(value as CollectionModelStatus)}
                 allowDeselect={false}
                 disabled={isUpdatingStatus}
                 rightSection={isUpdatingStatus ? <Loader size={12} /> : undefined}
@@ -444,7 +466,7 @@ export default function ModelCard({
 
                     function commitCustomLabel() {
                       const label = (customLabelDraftsBySlot[slotId] ?? "").trim();
-                      onUpdateWargearSelection(slotId, {
+                      commitWargear(slotId, {
                         wargearOptionId: null,
                         customLabel: label.length > 0 ? label : null,
                       });
@@ -470,7 +492,7 @@ export default function ModelCard({
                               return;
                             }
                             setCustomWargearModeBySlot((m) => ({ ...m, [slotId]: false }));
-                            onUpdateWargearSelection(slotId, { wargearOptionId: value, customLabel: null });
+                            commitWargear(slotId, { wargearOptionId: value, customLabel: null });
                           }}
                           disabled={isUpdatingThisSlot}
                           rightSection={isUpdatingThisSlot ? <Loader size={12} /> : undefined}

@@ -1,6 +1,5 @@
-import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
-import { closestCenter, DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import {closestCenter, DndContext, DragOverlay} from "@dnd-kit/core";
+import {SortableContext, verticalListSortingStrategy} from "@dnd-kit/sortable";
 import {
   Accordion,
   ActionIcon,
@@ -24,7 +23,6 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
 import {
   IconAlertCircle,
   IconArrowLeft,
@@ -35,563 +33,70 @@ import {
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
-import { isAxiosError } from "axios";
-import type React from "react";
-import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { useAuth } from "@/auth/useAuth";
+import {useState} from "react";
+import {Link, useParams} from "react-router-dom";
+import {useAuth} from "@/auth/useAuth";
 import ModelCard from "@/components/ModelCard";
-import type { ArmyCollection, CollectionModel, CollectionModelStatus, Faction, ModelDefinition } from "@/generated";
-import {
-  bulkCreateCollectionModels,
-  bulkDeleteCollectionModels,
-  createCollectionModel,
-  createCollectionModelImageUploadUrl,
-  deleteCollectionModel,
-  deleteCollectionModelImage,
-  getArmyCollection,
-  getCollectionModels,
-  getFactionsList,
-  getModelDefinitions,
-  reorderModelDefinitionGroups,
-  updateArmyCollection,
-  updateCollectionModel,
-} from "@/generated";
+import type {CollectionModelStatus} from "@/generated";
 import SortableAccordionGroup from "@/hooks/collections/models/SortableAccordionGroup.tsx";
-import { useModelSort } from "@/hooks/collections/useModelSort.ts";
+import useCollection from "@/hooks/collections/useCollection.ts";
+import useCollectionEditing from "@/hooks/collections/useCollectionEditing.ts";
+import useCollectionMetadata from "@/hooks/collections/useCollectionMetadata";
+import useCollectionModels from "@/hooks/collections/useCollectionModels.ts";
+import useDeleteConfirmation from "@/hooks/collections/useDeleteConfirmation.ts";
+import useGroupDrag from "@/hooks/collections/useGroupDrag.ts";
+import useGroupedModels from "@/hooks/collections/useGroupedModels.ts";
+import useModelImages from "@/hooks/collections/useModelImages.ts";
+import useModelSelection from "@/hooks/collections/useModelSelection.ts";
+import {useModelSort} from "@/hooks/collections/useModelSort.ts";
 import NotFoundPage from "@/pages//NotFoundPage";
-import type { ModelGroup } from "@/types/ModelGroup.ts";
-import type { SortOrder } from "@/types/ModelSort.ts";
+import type {SortOrder} from "@/types/ModelSort.ts";
 import {
   COLLECTION_MODEL_STATUS_COLORS,
   COLLECTION_MODEL_STATUS_LABELS,
   COLLECTION_MODEL_STATUS_OPTIONS,
-  COLLECTION_MODEL_STATUSES,
 } from "@/utils/collectionModelStatus";
-import { createImageVariants } from "@/utils/imageVariants";
 
 export default function CollectionPage() {
-  const { sortOrder, setSortOrder, sortOptions, sortModels } = useModelSort();
-  const { collectionId } = useParams<{ collectionId: string }>();
-  const { user: currentUser, isLoading: isAuthLoading } = useAuth();
-  const isUser = currentUser?.role === "USER" || currentUser?.role === "ADMIN" || currentUser?.role === "SUPERADMIN";
-  const [armyCollection, setArmyCollection] = useState<ArmyCollection | null>(null);
-  const isOwner = Boolean(
-    isUser && currentUser?.id && armyCollection?.userId && currentUser.id === armyCollection.userId,
-  );
-  const [modelDefinitions, setModelDefinitions] = useState<ModelDefinition[]>([]);
-  const [factions, setFactions] = useState<Faction[]>([]);
-  const [models, setModels] = useState<CollectionModel[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [collectionNotFound, setCollectionNotFound] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [modelDefinitionId, setModelDefinitionId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [count, setCount] = useState<number | string>(1);
   const [factionFilter, setFactionFilter] = useState<string[]>([]);
-  const [adding, setAdding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [uploadingModelId, setUploadingModelId] = useState<string | null>(null);
-  const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
-  const [renamingModelId, setRenamingModelId] = useState<string | null>(null);
-  const [updatingFinishedOnModelId, setUpdatingFinishedOnModelId] = useState<string | null>(null);
-  const [updatingDescriptionModelId, setUpdatingDescriptionModelId] = useState<string | null>(null);
-  const [updatingWargearSlotKey, setUpdatingWargearSlotKey] = useState<string | null>(null);
-  const [updatingStatusModelId, setUpdatingStatusModelId] = useState<string | null>(null);
-  const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
-  const [bulkDeleting, setBulkDeleting] = useState(false);
-  const [selectedModelIds, setSelectedModelIds] = useState<Set<string>>(new Set());
   const [isEditMode, setIsEditMode] = useState(false);
+
+  const { collectionId } = useParams<{ collectionId: string }>();
+  const collection = useCollection(collectionId);
+  const collectionMetaData = useCollectionMetadata(collectionId);
+  const collectionModels = useCollectionModels(collectionId);
+  const modelSort = useModelSort();
   const [statusFilter, setStatusFilter] = useState<CollectionModelStatus[]>([]);
-  const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
-  const [pendingDelete, setPendingDelete] = useState<{ mode: "single" | "bulk"; modelId?: string } | null>(null);
-  const [isEditingCollectionName, setIsEditingCollectionName] = useState(false);
-  const [collectionNameDraft, setCollectionNameDraft] = useState("");
-  const [savingCollectionName, setSavingCollectionName] = useState(false);
-  const [isEditingCollectionDescription, setIsEditingCollectionDescription] = useState(false);
-  const [collectionDescriptionDraft, setCollectionDescriptionDraft] = useState("");
-  const [savingCollectionDescription, setSavingCollectionDescription] = useState(false);
-  const [savingCollectionVisibility, setSavingCollectionVisibility] = useState(false);
-
-  const statusCounts = useMemo(() => {
-    const counts = new Map<CollectionModelStatus, number>();
-    for (const m of models) {
-      if (m.status) {
-        counts.set(m.status, (counts.get(m.status) ?? 0) + 1);
-      }
-    }
-    return COLLECTION_MODEL_STATUSES.map((status) => ({ status, count: counts.get(status) ?? 0 })).filter(
-      (entry) => entry.count > 0,
-    );
-  }, [models]);
-
-  const groupedModels = useMemo<ModelGroup[]>(() => {
-    const filteredModels =
-      statusFilter.length === 0 ? models : models.filter((m) => m.status && statusFilter.includes(m.status));
-    const groups = new Map<string, ModelGroup>();
-    for (const m of filteredModels) {
-      const key = m.modelDefinitionId ?? "unknown";
-      const label = m.modelDefinition?.name ?? "Unknown type";
-      const existing = groups.get(key);
-      if (existing) {
-        existing.models.push(m);
-      } else {
-        groups.set(key, { key, label, models: [m] });
-      }
-    }
-    const orderIndex = new Map((armyCollection?.modelDefinitionOrder ?? []).map((id, i) => [id, i]));
-    return [...groups.values()]
-      .sort((a, b) => {
-        const aIndex = orderIndex.get(a.key);
-        const bIndex = orderIndex.get(b.key);
-        if (aIndex !== undefined && bIndex !== undefined) return aIndex - bIndex;
-        if (aIndex !== undefined) return -1;
-        if (bIndex !== undefined) return 1;
-        return a.label.localeCompare(b.label);
-      })
-      .map((group) => ({ ...group, models: sortModels(group.models, sortOrder) }));
-  }, [models, sortOrder, sortModels, statusFilter, armyCollection?.modelDefinitionOrder]);
-
-  const factionFilterOptions = useMemo(
-    () =>
-      [...factions]
-        .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""))
-        .map((f) => ({ value: f.id ?? "", label: f.name ?? "" })),
-    [factions],
+  const groupedModels = useGroupedModels(
+    collectionModels.models,
+    collection.collection ?? null,
+    modelSort.sortOrder,
+    statusFilter,
+    modelSort.sortModels,
   );
+  const selection = useModelSelection();
+  const deletion = useDeleteConfirmation();
+  const drag = useGroupDrag(
+    collectionId,
+    groupedModels.groupedModels,
+    collection.collection ?? null,
+    collection.setCollection,
+    setError,
+  );
+  const editing = useCollectionEditing(collectionId, collection.collection ?? null, collection.setCollection, setError);
+  const modelImages = useModelImages(collectionModels.setModels, setError);
+  const { isLoading: isAuthLoading } = useAuth();
 
-  const modelDefinitionSelectData = useMemo(() => {
-    const factionNameById = new Map(factions.map((f) => [f.id ?? "", f.name ?? ""]));
-    const filteredModelDefinitions =
-      factionFilter.length === 0
-        ? modelDefinitions
-        : modelDefinitions.filter((md) => md.factionId && factionFilter.includes(md.factionId));
-    const byFactionName = new Map<string, { value: string; label: string }[]>();
-    for (const md of filteredModelDefinitions) {
-      const factionName = (md.factionId && factionNameById.get(md.factionId)) || "Uncategorised";
-      const items = byFactionName.get(factionName) ?? [];
-      items.push({ value: md.id ?? "", label: md.name ?? "" });
-      byFactionName.set(factionName, items);
-    }
-    return [...byFactionName.entries()]
-      .sort(([a], [b]) => (a === "Uncategorised" ? 1 : b === "Uncategorised" ? -1 : a.localeCompare(b)))
-      .map(([group, items]) => ({ group, items: items.sort((a, b) => a.label.localeCompare(b.label)) }));
-  }, [modelDefinitions, factions, factionFilter]);
+  const loading = isAuthLoading || collection.loading || collectionMetaData.loading || collectionModels.loading;
 
-  // Keep the selected model type valid when the faction filter narrows the available options
-  // (e.g. reselect the first still-visible option, or clear it if none remain).
-  useEffect(() => {
-    const availableIds = new Set(modelDefinitionSelectData.flatMap((g) => g.items.map((i) => i.value)));
-    if (modelDefinitionId && availableIds.has(modelDefinitionId)) return;
-    setModelDefinitionId(modelDefinitionSelectData[0]?.items[0]?.value ?? null);
-  }, [modelDefinitionSelectData, modelDefinitionId]);
+  const fatalError = collection.error || collectionMetaData.error || collectionModels.error;
 
-  const groupDragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-  const [draggingGroupKey, setDraggingGroupKey] = useState<string | null>(null);
-
-  function handleGroupDragStart(event: DragStartEvent) {
-    setDraggingGroupKey(String(event.active.id));
-  }
-
-  function handleGroupDragEnd(event: DragEndEvent) {
-    setDraggingGroupKey(null);
-    const { active, over } = event;
-    if (!over || active.id === over.id || !collectionId) return;
-    const oldIndex = groupedModels.findIndex((g) => g.key === active.id);
-    const newIndex = groupedModels.findIndex((g) => g.key === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    const reorderedIds = arrayMove(groupedModels, oldIndex, newIndex)
-      .map((g) => g.key)
-      .filter((key) => key !== "unknown");
-    const previousOrder = armyCollection?.modelDefinitionOrder ?? [];
-    setArmyCollection((prev) => (prev ? { ...prev, modelDefinitionOrder: reorderedIds } : prev));
-
-    reorderModelDefinitionGroups({
-      path: { armyCollectionId: collectionId },
-      body: { modelDefinitionIds: reorderedIds },
-      throwOnError: true,
-    }).catch((e) => {
-      setArmyCollection((prev) => (prev ? { ...prev, modelDefinitionOrder: previousOrder } : prev));
-      setError(String(e));
-    });
-  }
-
-  useEffect(() => {
-    if (!collectionId) {
-      setLoading(false);
-      return;
-    }
-    const ac = new AbortController();
-    setLoading(true);
-    setCollectionNotFound(false);
-    Promise.all([
-      getArmyCollection({ path: { armyCollectionId: collectionId }, signal: ac.signal, throwOnError: true }),
-      getModelDefinitions({ signal: ac.signal }),
-      getFactionsList({ signal: ac.signal }),
-      getCollectionModels({ path: { armyCollectionId: collectionId }, signal: ac.signal, throwOnError: true }),
-    ])
-      .then(([armyCollectionRes, modelDefinitionsRes, factionsRes, modelsRes]) => {
-        if (ac.signal.aborted) return;
-        setArmyCollection(armyCollectionRes.data ?? null);
-        setModelDefinitions(modelDefinitionsRes.data ?? []);
-        setFactions(factionsRes.data ?? []);
-        setModels(modelsRes.data ?? []);
-        if ((modelDefinitionsRes.data?.length ?? 0) > 0) {
-          setModelDefinitionId(modelDefinitionsRes.data?.[0]?.id ?? null);
-        }
-      })
-      .catch((e) => {
-        if (ac.signal.aborted) return;
-        if (isAxiosError(e) && e.response?.status === 404) {
-          setCollectionNotFound(true);
-        } else {
-          setError(String(e));
-        }
-      })
-      .finally(() => {
-        if (!ac.signal.aborted) setLoading(false);
-      });
-    return () => ac.abort();
-  }, [collectionId]);
-
-  function startEditingCollectionName() {
-    setCollectionNameDraft(armyCollection?.name ?? "");
-    setIsEditingCollectionName(true);
-  }
-
-  async function commitEditingCollectionName() {
-    setIsEditingCollectionName(false);
-    const newName = collectionNameDraft.trim();
-    if (!collectionId || !newName || newName === armyCollection?.name) return;
-    setError(null);
-    setSavingCollectionName(true);
-    try {
-      const updated = (
-        await updateArmyCollection({ path: { armyCollectionId: collectionId }, body: { name: newName } })
-      ).data;
-      if (updated) setArmyCollection(updated);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setSavingCollectionName(false);
-    }
-  }
-
-  function startEditingCollectionDescription() {
-    setCollectionDescriptionDraft(armyCollection?.description ?? "");
-    setIsEditingCollectionDescription(true);
-  }
-
-  async function commitEditingCollectionDescription() {
-    setIsEditingCollectionDescription(false);
-    const newDescription = collectionDescriptionDraft.trim();
-    if (!collectionId || newDescription === (armyCollection?.description ?? "")) return;
-    setError(null);
-    setSavingCollectionDescription(true);
-    try {
-      const updated = (
-        await updateArmyCollection({
-          path: { armyCollectionId: collectionId },
-          body: { description: newDescription },
-        })
-      ).data;
-      if (updated) setArmyCollection(updated);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setSavingCollectionDescription(false);
-    }
-  }
-
-  async function handleToggleVisibility(newIsPublic: boolean) {
-    if (!collectionId) return;
-    setError(null);
-    setSavingCollectionVisibility(true);
-    try {
-      const updated = (
-        await updateArmyCollection({
-          path: { armyCollectionId: collectionId },
-          body: { isPublic: newIsPublic },
-        })
-      ).data;
-      if (updated) setArmyCollection(updated);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setSavingCollectionVisibility(false);
-    }
-  }
-
-  async function handleAddModel(e: React.FormEvent) {
-    e.preventDefault();
-    if (!collectionId || !modelDefinitionId) return;
-    setError(null);
-    setAdding(true);
-    try {
-      const requestedCount = typeof count === "number" ? count : Number.parseInt(count, 10) || 1;
-      if (requestedCount > 1) {
-        const created = (
-          await bulkCreateCollectionModels({
-            path: { armyCollectionId: collectionId },
-            body: { modelDefinitionId, count: requestedCount },
-          })
-        ).data;
-        if (!created) {
-          throw new Error("Failed to add models");
-        }
-        setModels((s) => [...created, ...s]);
-      } else {
-        const created = (
-          await createCollectionModel({
-            path: { armyCollectionId: collectionId },
-            body: { modelDefinitionId, name: name || undefined, description: description || undefined },
-          })
-        ).data;
-        if (!created) {
-          throw new Error("Failed to add model");
-        }
-        setModels((s) => [created, ...s]);
-      }
-      setName("");
-      setDescription("");
-      setCount(1);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setAdding(false);
-    }
-  }
-
-  async function handleRenameModel(modelId: string, newName: string) {
-    setError(null);
-    setRenamingModelId(modelId);
-    try {
-      const updated = (await updateCollectionModel({ path: { collectionModelId: modelId }, body: { name: newName } }))
-        .data;
-      if (updated) {
-        setModels((s) => s.map((m) => (m.id === modelId ? updated : m)));
-      }
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setRenamingModelId(null);
-    }
-  }
-
-  async function handleUpdateFinishedOn(modelId: string, finishedOn: string | null) {
-    setError(null);
-    setUpdatingFinishedOnModelId(modelId);
-    try {
-      const updated = (
-        await updateCollectionModel({
-          path: { collectionModelId: modelId },
-          body: { finishedOn: finishedOn ?? undefined },
-        })
-      ).data;
-      if (updated) {
-        setModels((s) => s.map((m) => (m.id === modelId ? updated : m)));
-      }
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setUpdatingFinishedOnModelId(null);
-    }
-  }
-
-  async function handleUpdateDescription(modelId: string, description: string) {
-    setError(null);
-    setUpdatingDescriptionModelId(modelId);
-    try {
-      const updated = (await updateCollectionModel({ path: { collectionModelId: modelId }, body: { description } }))
-        .data;
-      if (updated) {
-        setModels((s) => s.map((m) => (m.id === modelId ? updated : m)));
-      }
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setUpdatingDescriptionModelId(null);
-    }
-  }
-
-  async function handleUpdateStatus(modelId: string, status: CollectionModelStatus) {
-    setError(null);
-    setUpdatingStatusModelId(modelId);
-    try {
-      const updated = (await updateCollectionModel({ path: { collectionModelId: modelId }, body: { status } })).data;
-      if (updated) {
-        setModels((s) => s.map((m) => (m.id === modelId ? updated : m)));
-      }
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setUpdatingStatusModelId(null);
-    }
-  }
-
-  /**
-   * Assigns (or clears) the wargear filling one of a model's attachment slots, either to a
-   * recognised wargear option (wargearOptionId) or a free-text custom label for homebrew/converted
-   * loadouts (customLabel), leaving its other slot assignments untouched.
-   */
-  async function handleUpdateWargearSelection(
-    model: CollectionModel,
-    attachmentSlotId: string,
-    update: { wargearOptionId?: string | null; customLabel?: string | null },
-  ) {
-    if (!model.id) return;
-    const modelId = model.id;
-    const slotKey = `${modelId}:${attachmentSlotId}`;
-    setError(null);
-    setUpdatingWargearSlotKey(slotKey);
-    try {
-      const otherSelections = (model.wargearSelections ?? []).filter((s) => s.attachmentSlotId !== attachmentSlotId);
-      const wargearSelections = [
-        ...otherSelections,
-        {
-          attachmentSlotId,
-          wargearOptionId: update.wargearOptionId ?? undefined,
-          customLabel: update.customLabel ?? undefined,
-        },
-      ];
-      const updated = (
-        await updateCollectionModel({ path: { collectionModelId: modelId }, body: { wargearSelections } })
-      ).data;
-      if (updated) {
-        setModels((s) => s.map((m) => (m.id === modelId ? updated : m)));
-      }
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setUpdatingWargearSlotKey(null);
-    }
-  }
-
-  async function handleUploadImage(modelId: string, file: File) {
-    setError(null);
-    setUploadingModelId(modelId);
-    try {
-      const variants = await createImageVariants(file);
-      const created = (
-        await createCollectionModelImageUploadUrl({
-          path: { collectionModelId: modelId },
-          body: {
-            large: { contentType: variants.large.type, contentLengthBytes: variants.large.size },
-            thumbnail: { contentType: variants.thumbnail.type, contentLengthBytes: variants.thumbnail.size },
-          },
-        })
-      ).data;
-      if (!created) {
-        throw new Error("Failed to request upload URL");
-      }
-      const uploads = [
-        { url: created.uploadUrls.large, body: variants.large, contentType: variants.large.type },
-        { url: created.uploadUrls.thumbnail, body: variants.thumbnail, contentType: variants.thumbnail.type },
-      ];
-      const responses = await Promise.all(
-        uploads.map(({ url, body, contentType }) =>
-          fetch(url, {
-            method: "PUT",
-            headers: { "Content-Type": contentType },
-            body,
-          }),
-        ),
-      );
-      const failed = responses.find((r) => !r.ok);
-      if (failed) {
-        throw new Error(`Upload to storage failed: ${failed.status}`);
-      }
-      setModels((s) => s.map((m) => (m.id === modelId ? { ...m, images: [...(m.images ?? []), created.image] } : m)));
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setUploadingModelId(null);
-    }
-  }
-
-  async function handleDeleteImage(modelId: string, imageId: string) {
-    setError(null);
-    setDeletingImageId(imageId);
-    try {
-      await deleteCollectionModelImage({ path: { collectionModelId: modelId, imageId } });
-      setModels((s) =>
-        s.map((m) => (m.id === modelId ? { ...m, images: (m.images ?? []).filter((img) => img.id !== imageId) } : m)),
-      );
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setDeletingImageId(null);
-    }
-  }
-
-  function toggleSelected(modelId: string, isSelected: boolean) {
-    setSelectedModelIds((s) => {
-      const next = new Set(s);
-      if (isSelected) next.add(modelId);
-      else next.delete(modelId);
-      return next;
-    });
-  }
-
-  function toggleGroupSelected(group: ModelGroup, isSelected: boolean) {
-    setSelectedModelIds((s) => {
-      const next = new Set(s);
-      for (const m of group.models) {
-        if (!m.id) continue;
-        if (isSelected) next.add(m.id);
-        else next.delete(m.id);
-      }
-      return next;
-    });
-  }
-
-  function requestDeleteModel(modelId: string) {
-    setPendingDelete({ mode: "single", modelId });
-    openConfirm();
-  }
-
-  function requestBulkDelete() {
-    if (selectedModelIds.size === 0) return;
-    setPendingDelete({ mode: "bulk" });
-    openConfirm();
-  }
-
-  async function handleConfirmDelete() {
-    if (!pendingDelete || !collectionId) return;
-    setError(null);
-    try {
-      if (pendingDelete.mode === "single" && pendingDelete.modelId) {
-        const modelId = pendingDelete.modelId;
-        setDeletingModelId(modelId);
-        await deleteCollectionModel({ path: { collectionModelId: modelId } });
-        setModels((s) => s.filter((m) => m.id !== modelId));
-        setSelectedModelIds((s) => {
-          const next = new Set(s);
-          next.delete(modelId);
-          return next;
-        });
-      } else {
-        setBulkDeleting(true);
-        const idsToDelete = [...selectedModelIds];
-        await bulkDeleteCollectionModels({
-          path: { armyCollectionId: collectionId },
-          body: { collectionModelIds: idsToDelete },
-        });
-        setModels((s) => s.filter((m) => !m.id || !selectedModelIds.has(m.id)));
-        setSelectedModelIds(new Set());
-      }
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setDeletingModelId(null);
-      setBulkDeleting(false);
-      setPendingDelete(null);
-      closeConfirm();
-    }
-  }
-
-  if (!isAuthLoading && !loading && collectionNotFound) {
+  if (!loading && fatalError) {
     return (
       <NotFoundPage
         title="Collection not found"
@@ -606,28 +111,28 @@ export default function CollectionPage() {
         <IconArrowLeft size={14} /> Back to collections
       </Anchor>
 
-      {armyCollection && (
+      {collection.collection && (
         <Stack gap={4}>
           <Group justify="space-between" align="center" wrap="wrap">
-            {isOwner && isEditingCollectionName ? (
+            {collection.isOwner && editing.isEditingName ? (
               <Group gap={4} wrap="nowrap">
                 <TextInput
                   autoFocus
-                  value={collectionNameDraft}
-                  onChange={(e) => setCollectionNameDraft(e.currentTarget.value)}
+                  value={editing.nameDraft}
+                  onChange={(e) => editing.setNameDraft(e.currentTarget.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") commitEditingCollectionName();
-                    if (e.key === "Escape") setIsEditingCollectionName(false);
+                    if (e.key === "Enter") editing.commitEditingName();
+                    if (e.key === "Escape") editing.cancelEditingName();
                   }}
-                  disabled={savingCollectionName}
+                  disabled={editing.savingName}
                   style={{ flex: 1, maxWidth: 400 }}
                 />
                 <ActionIcon
                   variant="subtle"
                   color="green"
-                  onClick={commitEditingCollectionName}
-                  disabled={savingCollectionName}
-                  loading={savingCollectionName}
+                  onClick={editing.commitEditingName}
+                  disabled={editing.savingName}
+                  loading={editing.savingName}
                   aria-label="Save collection name"
                 >
                   <IconCheck size={16} />
@@ -635,8 +140,8 @@ export default function CollectionPage() {
                 <ActionIcon
                   variant="subtle"
                   color="gray"
-                  onClick={() => setIsEditingCollectionName(false)}
-                  disabled={savingCollectionName}
+                  onClick={editing.cancelEditingName}
+                  disabled={editing.savingName}
                   aria-label="Cancel editing collection name"
                 >
                   <IconX size={16} />
@@ -644,12 +149,12 @@ export default function CollectionPage() {
               </Group>
             ) : (
               <Group gap={4} wrap="nowrap">
-                <Title order={2}>{armyCollection.name}</Title>
-                {isOwner && (
+                <Title order={2}>{collection.collection?.name}</Title>
+                {collection.isOwner && (
                   <ActionIcon
                     variant="subtle"
                     color="gray"
-                    onClick={startEditingCollectionName}
+                    onClick={editing.startEditingName}
                     aria-label="Rename collection"
                     title="Rename collection"
                   >
@@ -659,54 +164,54 @@ export default function CollectionPage() {
               </Group>
             )}
 
-            {isOwner ? (
+            {collection.isOwner ? (
               <Switch
-                label={armyCollection.isPublic ? "Public" : "Private"}
-                checked={!!armyCollection.isPublic}
-                disabled={savingCollectionVisibility}
-                onChange={(e) => handleToggleVisibility(e.currentTarget.checked)}
+                label={collection.collection.isPublic ? "Public" : "Private"}
+                checked={!!collection.collection.isPublic}
+                disabled={editing.savingVisibility}
+                onChange={(e) => editing.toggleVisibility(e.currentTarget.checked)}
                 size="sm"
               />
             ) : (
-              <Badge variant="light" color={armyCollection.isPublic ? "blue" : "gray"} size="sm">
-                {armyCollection.isPublic ? "Public" : "Private"}
+              <Badge variant="light" color={collection.collection.isPublic ? "blue" : "gray"} size="sm">
+                {collection.collection.isPublic ? "Public" : "Private"}
               </Badge>
             )}
           </Group>
 
-          {armyCollection.userDisplayName && (
+          {collection.collection.userDisplayName && (
             <Group gap={6} align="center">
               <Text size="sm" c="dimmed">
                 Created by
               </Text>
               <Badge variant="outline" color="gray" size="sm">
-                {armyCollection.userDisplayName}
+                {collection.collection.userDisplayName}
               </Badge>
             </Group>
           )}
 
-          {isOwner && isEditingCollectionDescription ? (
+          {collection.isOwner && editing.isEditingDescription ? (
             <Group gap={4} wrap="nowrap" align="flex-start">
               <Textarea
                 autoFocus
                 autosize
                 minRows={2}
                 maxRows={4}
-                value={collectionDescriptionDraft}
-                onChange={(e) => setCollectionDescriptionDraft(e.currentTarget.value)}
+                value={editing.descriptionDraft}
+                onChange={(e) => editing.setDescriptionDraft(e.currentTarget.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Escape") setIsEditingCollectionDescription(false);
+                  if (e.key === "Escape") editing.cancelEditingDescription();
                 }}
-                disabled={savingCollectionDescription}
+                disabled={editing.savingDescription}
                 placeholder="Description"
                 style={{ flex: 1, maxWidth: 500 }}
               />
               <ActionIcon
                 variant="subtle"
                 color="green"
-                onClick={commitEditingCollectionDescription}
-                disabled={savingCollectionDescription}
-                loading={savingCollectionDescription}
+                onClick={editing.commitEditingDescription}
+                disabled={editing.savingDescription}
+                loading={editing.savingDescription}
                 aria-label="Save collection description"
               >
                 <IconCheck size={16} />
@@ -714,8 +219,8 @@ export default function CollectionPage() {
               <ActionIcon
                 variant="subtle"
                 color="gray"
-                onClick={() => setIsEditingCollectionDescription(false)}
-                disabled={savingCollectionDescription}
+                onClick={editing.cancelEditingDescription}
+                disabled={editing.savingDescription}
                 aria-label="Cancel editing collection description"
               >
                 <IconX size={16} />
@@ -723,14 +228,14 @@ export default function CollectionPage() {
             </Group>
           ) : (
             <Group gap={4} wrap="nowrap">
-              <Text c="dimmed" fs={armyCollection.description ? undefined : "italic"}>
-                {armyCollection.description || "No description"}
+              <Text c="dimmed" fs={collection.collection.description ? undefined : "italic"}>
+                {collection.collection.description || "No description"}
               </Text>
-              {isOwner && (
+              {collection.isOwner && (
                 <ActionIcon
                   variant="subtle"
                   color="gray"
-                  onClick={startEditingCollectionDescription}
+                  onClick={editing.startEditingDescription}
                   aria-label="Edit description"
                   title="Edit description"
                 >
@@ -744,7 +249,7 @@ export default function CollectionPage() {
 
       <Title order={3}>Collection models</Title>
 
-      {isOwner && (
+      {collection.isOwner && (
         <SegmentedControl
           value={isEditMode ? "edit" : "view"}
           onChange={(value) => setIsEditMode(value === "edit")}
@@ -767,20 +272,32 @@ export default function CollectionPage() {
         <Loader />
       ) : (
         <>
-          {modelDefinitions.length === 0 ? (
+          {collectionMetaData.modelDefinitions.length === 0 ? (
             <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
               No model types are defined yet.
             </Alert>
           ) : (
-            isOwner &&
+            collection.isOwner &&
             isEditMode && (
-              <form onSubmit={handleAddModel}>
+              <form onSubmit={(e: React.SubmitEvent) => {
+                e.preventDefault();
+
+                if (!collectionId || !modelDefinitionId) return;
+
+                const requestedCount = typeof count === "number" ? count : Number.parseInt(count, 10) || 1;
+
+                collectionModels.addModel(modelDefinitionId, name || undefined, description || undefined, requestedCount);
+
+                setName("");
+                setDescription("");
+                setCount(1);
+              }}>
                 <Stack gap="xs">
                   <Group align="flex-end" wrap="wrap">
                     <MultiSelect
                       label="Filter by faction"
                       placeholder={factionFilter.length === 0 ? "All factions" : undefined}
-                      data={factionFilterOptions}
+                      data={collectionMetaData.factionFilterOptions}
                       value={factionFilter}
                       onChange={setFactionFilter}
                       searchable
@@ -797,7 +314,7 @@ export default function CollectionPage() {
                     />
                     <Select
                       label="Model type"
-                      data={modelDefinitionSelectData}
+                      data={collectionMetaData.modelDefinitionSelectData}
                       value={modelDefinitionId}
                       onChange={setModelDefinitionId}
                       searchable
@@ -819,7 +336,7 @@ export default function CollectionPage() {
                       disabled={Number(count) > 1}
                       w={240}
                     />
-                    <Button type="submit" leftSection={<IconPlus size={16} />} loading={adding}>
+                    <Button type="submit" leftSection={<IconPlus size={16} />} loading={collectionModels.loading}>
                       {Number(count) > 1 ? `Add ${count} models` : "Add model"}
                     </Button>
                   </Group>
@@ -833,7 +350,7 @@ export default function CollectionPage() {
             )
           )}
 
-          {models.length === 0 ? (
+          {collectionModels.models.length === 0 ? (
             <Text c="dimmed">No models added to this collection yet.</Text>
           ) : (
             <>
@@ -841,18 +358,18 @@ export default function CollectionPage() {
                 <Group gap="xs" wrap="wrap">
                   <Text size="sm" c="dimmed">
                     {isEditMode
-                      ? selectedModelIds.size > 0
-                        ? `${selectedModelIds.size} selected`
+                      ? selection.selectedModelIds.size > 0
+                        ? `${selection.selectedModelIds.size} selected`
                         : "Select models to bulk delete"
                       : (() => {
-                          const shownCount = groupedModels.reduce((sum, g) => sum + g.models.length, 0);
+                          const shownCount = groupedModels.groupedModels.reduce((sum, g) => sum + g.models.length, 0);
                           return statusFilter.length > 0
-                            ? `${shownCount} of ${models.length} model${models.length === 1 ? "" : "s"}`
+                            ? `${shownCount} of ${collectionModels.models.length} model${collectionModels.models.length === 1 ? "" : "s"}`
                             : `${shownCount} model${shownCount === 1 ? "" : "s"}`;
                         })()}
                   </Text>
                   {!isEditMode &&
-                    statusCounts.map(({ status, count }) => {
+                    groupedModels.statusCounts.map(({ status, count }) => {
                       const isActive = statusFilter.includes(status);
                       return (
                         <Badge
@@ -895,9 +412,9 @@ export default function CollectionPage() {
                   />
                   <Select
                     label="Sort by"
-                    data={sortOptions}
-                    value={sortOrder}
-                    onChange={(value) => value && setSortOrder(value as SortOrder)}
+                    data={modelSort.sortOptions}
+                    value={modelSort.sortOrder}
+                    onChange={(value) => value && modelSort.setSortOrder(value as SortOrder)}
                     w={220}
                     size="xs"
                     allowDeselect={false}
@@ -908,8 +425,8 @@ export default function CollectionPage() {
                       variant="light"
                       size="xs"
                       leftSection={<IconTrash size={14} />}
-                      onClick={requestBulkDelete}
-                      disabled={selectedModelIds.size === 0}
+                      onClick={() => deletion.requestBulkDelete(selection.selectedModelIds)}
+                      disabled={selection.selectedModelIds.size === 0}
                     >
                       Delete selected
                     </Button>
@@ -917,16 +434,25 @@ export default function CollectionPage() {
                 </Group>
               </Group>
               <DndContext
-                sensors={groupDragSensors}
+                sensors={drag.sensors}
                 collisionDetection={closestCenter}
-                onDragStart={handleGroupDragStart}
-                onDragEnd={handleGroupDragEnd}
-                onDragCancel={() => setDraggingGroupKey(null)}
+                onDragStart={drag.handleGroupDragStart}
+                onDragEnd={drag.handleGroupDragEnd}
+                onDragCancel={() => drag.setDraggingGroupKey(null)}
               >
-                <SortableContext items={groupedModels.map((g) => g.key)} strategy={verticalListSortingStrategy}>
-                  <Accordion multiple defaultValue={groupedModels.map((g) => g.key)} variant="separated">
-                    {groupedModels.map((group) => {
-                      const selectedInGroup = group.models.filter((m) => m.id && selectedModelIds.has(m.id)).length;
+                <SortableContext
+                  items={groupedModels.groupedModels.map((group) => group.key)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <Accordion
+                    multiple
+                    defaultValue={groupedModels.groupedModels.map((group) => group.key)}
+                    variant="separated"
+                  >
+                    {groupedModels.groupedModels.map((group) => {
+                      const selectedInGroup = group.models.filter(
+                        (model) => model.id && selection.selectedModelIds.has(model.id),
+                      ).length;
                       return (
                         <SortableAccordionGroup key={group.key} group={group}>
                           {({ attributes, listeners }) => (
@@ -960,7 +486,7 @@ export default function CollectionPage() {
                               </Accordion.Control>
                               {/* Hide panel content for every group while any drag is active so the whole list
                                   collapses to just headers - reordering shouldn't require moving expanded content. */}
-                              {!draggingGroupKey && (
+                              {!drag.draggingGroupKey && (
                                 <Accordion.Panel>
                                   <Stack gap="xs">
                                     {isEditMode && (
@@ -968,45 +494,49 @@ export default function CollectionPage() {
                                         label="Select all in this group"
                                         checked={selectedInGroup === group.models.length}
                                         indeterminate={selectedInGroup > 0 && selectedInGroup < group.models.length}
-                                        onChange={(e) => toggleGroupSelected(group, e.currentTarget.checked)}
+                                        onChange={(e) => selection.toggleGroupSelected(group, e.currentTarget.checked)}
                                       />
                                     )}
                                     <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-                                      {group.models.map((m) => (
+                                      {group.models.map((model) => (
                                         <ModelCard
-                                          key={m.id}
-                                          model={m}
+                                          key={model.id}
+                                          model={model}
                                           editMode={isEditMode}
-                                          onUploadImage={(file) => m.id && handleUploadImage(m.id, file)}
-                                          onDeleteImage={(imageId) => m.id && handleDeleteImage(m.id, imageId)}
-                                          onRename={(newName) => m.id && handleRenameModel(m.id, newName)}
-                                          onDeleteModel={() => m.id && requestDeleteModel(m.id)}
-                                          onUpdateFinishedOn={(finishedOn) =>
-                                            m.id && handleUpdateFinishedOn(m.id, finishedOn)
+                                          onUploadImage={(file) => model.id && modelImages.uploadImage(model.id, file)}
+                                          onDeleteImage={(imageId) =>
+                                            model.id && modelImages.deleteImage(model.id, imageId)
                                           }
-                                          onUpdateDescription={(description) =>
-                                            m.id && handleUpdateDescription(m.id, description)
+                                          onRename={(newName) => {
+                                            if (!model.id) return;
+                                            return collectionModels.renameModel(model.id, newName);
+                                          }}
+                                          onDeleteModel={() => model.id && deletion.requestDelete(model.id)}
+                                          onUpdateFinishedOn={(finishedOn) => {
+                                            if (!model.id) return;
+                                            return collectionModels.updateFinishedOn(model.id, finishedOn);
+                                          }}
+                                          onUpdateDescription={(description) => {
+                                            if (!model.id) return;
+                                            return collectionModels.updateDescription(model.id, description);
+                                          }}
+                                          onUpdateWargearSelection={(attachmentSlotId, update) =>
+                                            collectionModels.updateWargearSelection(model, attachmentSlotId, update)
                                           }
-                                          onUpdateWargearSelection={(attachmentSlotId, wargearOptionId) =>
-                                            handleUpdateWargearSelection(m, attachmentSlotId, wargearOptionId)
+                                          onUpdateStatus={(status) => {
+                                            if (!model.id) return;
+                                            return collectionModels.updateStatus(
+                                              model.id,
+                                              status as CollectionModelStatus,
+                                            );
+                                          }}
+                                          isUploading={modelImages.uploadingModelId === model.id}
+                                          deletingImageId={modelImages.deletingImageId}
+                                          isDeleting={deletion.pendingDelete?.modelId === model.id}
+                                          selected={!!model.id && selection.selectedModelIds.has(model.id)}
+                                          onToggleSelected={(isSelected) =>
+                                            model.id && selection.toggleSelected(model.id, isSelected)
                                           }
-                                          onUpdateStatus={(status) =>
-                                            m.id && handleUpdateStatus(m.id, status as CollectionModelStatus)
-                                          }
-                                          isUploading={uploadingModelId === m.id}
-                                          deletingImageId={deletingImageId}
-                                          isRenaming={renamingModelId === m.id}
-                                          isDeleting={deletingModelId === m.id}
-                                          isUpdatingFinishedOn={updatingFinishedOnModelId === m.id}
-                                          isUpdatingDescription={updatingDescriptionModelId === m.id}
-                                          isUpdatingStatus={updatingStatusModelId === m.id}
-                                          updatingWargearSlotId={
-                                            updatingWargearSlotKey?.startsWith(`${m.id}:`)
-                                              ? updatingWargearSlotKey.slice(`${m.id}:`.length)
-                                              : null
-                                          }
-                                          selected={!!m.id && selectedModelIds.has(m.id)}
-                                          onToggleSelected={(isSelected) => m.id && toggleSelected(m.id, isSelected)}
                                         />
                                       ))}
                                     </SimpleGrid>
@@ -1021,9 +551,9 @@ export default function CollectionPage() {
                   </Accordion>
                 </SortableContext>
                 <DragOverlay>
-                  {draggingGroupKey &&
+                  {drag.draggingGroupKey &&
                     (() => {
-                      const draggedGroup = groupedModels.find((g) => g.key === draggingGroupKey);
+                      const draggedGroup = groupedModels.groupedModels.find((g) => g.key === drag.draggingGroupKey);
                       if (!draggedGroup) return null;
                       return (
                         <Group
@@ -1054,30 +584,31 @@ export default function CollectionPage() {
       )}
 
       <Modal
-        opened={confirmOpened}
-        onClose={() => {
-          setPendingDelete(null);
-          closeConfirm();
-        }}
-        title={pendingDelete?.mode === "bulk" ? "Delete selected models?" : "Delete model?"}
+        opened={deletion.confirmOpened}
+        onClose={deletion.closeConfirm}
+        title={deletion.pendingDelete?.mode === "bulk" ? "Delete selected models?" : "Delete model?"}
       >
         <Stack gap="md">
           <Text size="sm">
-            {pendingDelete?.mode === "bulk"
-              ? `This will permanently delete ${selectedModelIds.size} model(s) and their images. This cannot be undone.`
+            {deletion.pendingDelete?.mode === "bulk"
+              ? `This will permanently delete ${selection.selectedModelIds.size} model(s) and their images. This cannot be undone.`
               : "This will permanently delete this model and its images. This cannot be undone."}
           </Text>
           <Group justify="flex-end">
-            <Button
-              variant="default"
-              onClick={() => {
-                setPendingDelete(null);
-                closeConfirm();
-              }}
-            >
+            <Button variant="default" onClick={deletion.closeConfirm}>
               Cancel
             </Button>
-            <Button color="red" onClick={handleConfirmDelete} loading={bulkDeleting || deletingModelId !== null}>
+            <Button
+              color="red"
+              onClick={() =>
+                deletion.confirmDelete(
+                  collectionModels.deleteModel,
+                  collectionModels.bulkDeleteModels,
+                  selection.selectedModelIds,
+                )
+              }
+              loading={collectionModels.loading}
+            >
               Delete
             </Button>
           </Group>
