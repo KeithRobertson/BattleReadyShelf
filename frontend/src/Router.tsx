@@ -2,15 +2,15 @@ import { lazy } from "react";
 import { Route, Routes } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
 
-const CollectionsPage = lazy(() => import("./pages/CollectionsPage"));
-const CollectionPage = lazy(() => import("./pages/CollectionPage"));
-const PublicCollectionsPage = lazy(() => import("./pages/PublicCollectionsPage"));
-const ArmyBuilderPage = lazy(() => import("./pages/ArmyBuilderPage"));
-const SettingsPage = lazy(() => import("./pages/SettingsPage"));
-const UsersAdminPage = lazy(() => import("./pages/UsersAdminPage"));
-const ModelDefinitionsAdminPage = lazy(() => import("./pages/ModelDefinitionsAdminPage"));
-const FactionDefinitionsAdminPage = lazy(() => import("./pages/FactionDefinitionsAdminPage"));
-const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
+const CollectionsPage = lazy(() => import("@/pages/CollectionsPage"));
+const CollectionPage = lazy(() => import("@/pages/CollectionPage"));
+const PublicCollectionsPage = lazy(() => import("@/pages/PublicCollectionsPage"));
+const ArmyBuilderPage = lazy(() => import("@/pages/ArmyBuilderPage"));
+const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
+const UsersAdminPage = lazy(() => import("@/pages/UsersAdminPage"));
+const ModelDefinitionsAdminPage = lazy(() => import("@/pages/ModelDefinitionsAdminPage"));
+const FactionDefinitionsAdminPage = lazy(() => import("@/pages/FactionDefinitionsAdminPage"));
+const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 
 const Router = () => (
   <Routes>
