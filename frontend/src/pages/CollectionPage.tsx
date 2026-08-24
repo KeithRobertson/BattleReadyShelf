@@ -40,9 +40,9 @@ import { isAxiosError } from "axios";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useAuth } from "../auth/useAuth";
-import ModelCard from "../components/ModelCard";
-import type { ArmyCollection, CollectionModel, CollectionModelStatus, Faction, ModelDefinition } from "../generated";
+import { useAuth } from "@/auth/useAuth";
+import ModelCard from "@/components/ModelCard";
+import type { ArmyCollection, CollectionModel, CollectionModelStatus, Faction, ModelDefinition } from "@/generated";
 import {
   bulkCreateCollectionModels,
   bulkDeleteCollectionModels,
@@ -57,15 +57,15 @@ import {
   reorderModelDefinitionGroups,
   updateArmyCollection,
   updateCollectionModel,
-} from "../generated";
+} from "@/generated";
+import NotFoundPage from "@/pages//NotFoundPage";
 import {
   COLLECTION_MODEL_STATUS_COLORS,
   COLLECTION_MODEL_STATUS_LABELS,
   COLLECTION_MODEL_STATUS_OPTIONS,
   COLLECTION_MODEL_STATUSES,
-} from "../utils/collectionModelStatus";
-import { createImageVariants } from "../utils/imageVariants";
-import NotFoundPage from "./NotFoundPage";
+} from "@/utils/collectionModelStatus";
+import { createImageVariants } from "@/utils/imageVariants";
 
 type ModelGroup = {
   key: string;

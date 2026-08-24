@@ -1,5 +1,5 @@
-import type { AuthResponse, ThemePreference, UserDto } from "../generated";
-import { authenticateWithGoogle, getCurrentUser, updateMyThemePreference } from "../generated";
+import type { AuthResponse, ThemePreference, UserDto } from "@/generated";
+import { authenticateWithGoogle, getCurrentUser, updateMyThemePreference } from "@/generated";
 
 export type CurrentUser = UserDto;
 

@@ -1,6 +1,6 @@
 import { useContext, useMemo } from "react";
+import { AuthContext } from "@/auth/AuthContext";
 import type { UserRole } from "@/generated";
-import { AuthContext } from "./AuthContext";
 
 const ADMIN_ROLES = new Set<UserRole>(["ADMIN", "SUPERADMIN"]);
 

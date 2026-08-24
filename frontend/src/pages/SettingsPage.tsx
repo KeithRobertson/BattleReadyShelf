@@ -1,8 +1,8 @@
 import { Alert, Loader, SegmentedControl, Stack, Text, Title } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useState } from "react";
-import { useAuth } from "../auth/useAuth";
-import type { ThemePreference } from "../generated";
+import { useAuth } from "@/auth/useAuth";
+import type { ThemePreference } from "@/generated";
 
 export default function SettingsPage() {
   const { user, isAuthenticated, isLoading, setThemePreference } = useAuth();

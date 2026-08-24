@@ -1,11 +1,11 @@
 import { Divider, Group, Stack, Text } from "@mantine/core";
 import { IconStack2 } from "@tabler/icons-react";
-import type { CollectionModelStatus } from "../generated";
+import type { CollectionModelStatus } from "@/generated";
 import {
   COLLECTION_MODEL_STATUS_COLORS,
   COLLECTION_MODEL_STATUS_LABELS,
   COLLECTION_MODEL_STATUSES,
-} from "../utils/collectionModelStatus";
+} from "@/utils/collectionModelStatus";
 
 export function CollectionStatsPanel({
   totalCount,

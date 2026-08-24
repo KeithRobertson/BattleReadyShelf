@@ -17,13 +17,13 @@ import {
 import { DateInput } from "@mantine/dates";
 import { IconCalendar, IconCheck, IconPencil, IconPhoto, IconTrash, IconUpload, IconX } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
-import type { CollectionModel } from "../generated";
+import type { CollectionModel } from "@/generated";
 import {
   COLLECTION_MODEL_STATUS_BACKGROUNDS,
   COLLECTION_MODEL_STATUS_COLORS,
   COLLECTION_MODEL_STATUS_LABELS,
   COLLECTION_MODEL_STATUS_OPTIONS,
-} from "../utils/collectionModelStatus";
+} from "@/utils/collectionModelStatus";
 
 const MAX_VISIBLE_THUMBNAILS = 4;
 const CUSTOM_WARGEAR_VALUE = "__custom__";

@@ -29,9 +29,9 @@ import {
 import { isAxiosError } from "axios";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAuth } from "../auth/useAuth";
-import ModelDefinitionDraftEditor from "../components/ModelDefinitionDraftEditor";
-import type { Faction, ModelDefinition, ModelDefinitionDraft, ModelDefinitionExport } from "../generated";
+import { useAuth } from "@/auth/useAuth";
+import ModelDefinitionDraftEditor from "@/components/ModelDefinitionDraftEditor";
+import type { Faction, ModelDefinition, ModelDefinitionDraft, ModelDefinitionExport } from "@/generated";
 import {
   createModelDefinitionDraft,
   deleteModelDefinition,

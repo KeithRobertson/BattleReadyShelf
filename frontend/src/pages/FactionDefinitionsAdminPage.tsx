@@ -16,9 +16,9 @@ import { useDisclosure } from "@mantine/hooks";
 import { IconAlertCircle, IconPlus, IconTrash } from "@tabler/icons-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAuth } from "../auth/useAuth";
-import type { Faction } from "../generated";
-import { createFaction, deleteFaction, getFactions } from "../generated";
+import { useAuth } from "@/auth/useAuth";
+import type { Faction } from "@/generated";
+import { createFaction, deleteFaction, getFactions } from "@/generated";
 
 export default function FactionDefinitionsAdminPage() {
   const { isAuthenticated, isLoading: isAuthLoading, isAdmin } = useAuth();

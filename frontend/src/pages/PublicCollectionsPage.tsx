@@ -1,9 +1,9 @@
 import { Alert, Loader, Stack, Text, Title } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
-import CollectionCard from "../components/CollectionCard";
-import type { ArmyCollection } from "../generated";
-import { getPublicArmyCollections } from "../generated";
+import CollectionCard from "@/components/CollectionCard";
+import type { ArmyCollection } from "@/generated";
+import { getPublicArmyCollections } from "@/generated";
 
 export default function PublicCollectionsPage() {
   const [collections, setCollections] = useState<ArmyCollection[]>([]);

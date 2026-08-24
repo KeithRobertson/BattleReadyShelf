@@ -2,9 +2,9 @@ import { useMantineColorScheme } from "@mantine/core";
 import { googleLogout } from "@react-oauth/google";
 import type { ReactNode } from "react";
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
-import type { ThemePreference } from "../generated";
-import { type CurrentUser, fetchCurrentUser, loginWithGoogle, updateThemePreference } from "./authApi";
-import { getStoredToken, setStoredToken, setUnauthorizedHandler } from "./tokenStorage";
+import { getStoredToken, setStoredToken, setUnauthorizedHandler } from "@/auth//tokenStorage";
+import { type CurrentUser, fetchCurrentUser, loginWithGoogle, updateThemePreference } from "@/auth/authApi";
+import type { ThemePreference } from "@/generated";
 
 export type AuthContextValue = {
   user: CurrentUser | null;

@@ -16,8 +16,8 @@ import {
 } from "@mantine/core";
 import { IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
-import type { Faction, ModelDefinition, ModelDefinitionDraft, UpsertModelDefinitionDraftRequest } from "../generated";
-import { discardModelDefinitionDraft, publishModelDefinitionDraft, updateModelDefinitionDraft } from "../generated";
+import type { Faction, ModelDefinition, ModelDefinitionDraft, UpsertModelDefinitionDraftRequest } from "@/generated";
+import { discardModelDefinitionDraft, publishModelDefinitionDraft, updateModelDefinitionDraft } from "@/generated";
 
 interface EditableSlot {
   id: string;

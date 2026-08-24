@@ -8,12 +8,12 @@ import { IconAlertCircle, IconPlus } from "@tabler/icons-react";
 import type React from "react";
 import { type ReactNode, useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { useAuth } from "../auth/useAuth";
-import CollectionCard from "../components/CollectionCard";
-import { CollectionStatsPanel } from "../components/CollectionStatsPanel";
-import type { ArmyCollection, CollectionModelStatus } from "../generated";
-import { createArmyCollection, getArmyCollections, reorderArmyCollections } from "../generated";
-import { COLLECTION_MODEL_STATUSES } from "../utils/collectionModelStatus";
+import { useAuth } from "@/auth/useAuth";
+import CollectionCard from "@/components/CollectionCard";
+import { CollectionStatsPanel } from "@/components/CollectionStatsPanel";
+import type { ArmyCollection, CollectionModelStatus } from "@/generated";
+import { createArmyCollection, getArmyCollections, reorderArmyCollections } from "@/generated";
+import { COLLECTION_MODEL_STATUSES } from "@/utils/collectionModelStatus";
 
 /** Wraps a single CollectionCard so it can be reordered via drag-and-drop. */
 function SortableCollectionCard({ collection }: { collection: ArmyCollection }) {

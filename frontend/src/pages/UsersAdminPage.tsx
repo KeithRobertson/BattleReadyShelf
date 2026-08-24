@@ -1,9 +1,9 @@
 import { Alert, Badge, Button, Checkbox, Group, Loader, Select, Stack, Table, Text, Title } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
-import { useAuth } from "../auth/useAuth";
-import type { UserDto, UserRole } from "../generated";
-import { bulkUpdateUserRoles, getUsers, updateUserRole } from "../generated";
+import { useAuth } from "@/auth/useAuth";
+import type { UserDto, UserRole } from "@/generated";
+import { bulkUpdateUserRoles, getUsers, updateUserRole } from "@/generated";
 
 const ASSIGNABLE_ROLES: UserRole[] = ["GUEST", "USER", "ADMIN"];
 

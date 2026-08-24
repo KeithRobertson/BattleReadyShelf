@@ -1,5 +1,5 @@
-import { client } from "../generated/client.gen";
-import { clearTokenDueToUnauthorized, getStoredToken } from "./tokenStorage";
+import { clearTokenDueToUnauthorized, getStoredToken } from "@/auth/tokenStorage";
+import { client } from "@/generated/client.gen";
 
 // Attach the JWT (if present) to every request made via the generated API client.
 client.instance.interceptors.request.use((config) => {

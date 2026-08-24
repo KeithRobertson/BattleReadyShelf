@@ -1,4 +1,4 @@
-import type { CollectionModelStatus } from "../generated";
+import type { CollectionModelStatus } from "@/generated";
 
 /**
  * Statuses in painting-pipeline order, for consistent display/filtering across the app.
