@@ -2,6 +2,8 @@ import { type DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-ki
 import { arrayMove } from "@dnd-kit/sortable";
 import { Stack, Text, Title } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { AxiosResponse } from "axios";
 import { type ReactNode, useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
@@ -15,48 +17,32 @@ export type CollectionsState = "auth-loading" | "unauthenticated" | "collections
 export function useCollections() {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const { setAsideContent } = useOutletContext<{ setAsideContent: (c: ReactNode) => void }>();
+  const queryClient = useQueryClient();
 
   const isUser = user?.role === "USER" || user?.role === "ADMIN" || user?.role === "SUPERADMIN";
 
-  const [collections, setCollections] = useState<ArmyCollection[]>([]);
+  const [opened, { open, close }] = useDisclosure(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isPublic, setIsPublic] = useState(false);
-  const [collectionsLoading, setCollectionsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Modal state
-  const [opened, { open, close }] = useDisclosure(false);
+  const {
+    data: collections = [],
+    isLoading: collectionsLoading,
+    error,
+  } = useQuery<ArmyCollection[]>({
+    queryKey: ["collections"],
+    queryFn: async () => {
+      const response = await getArmyCollections();
+      return response.data ?? [];
+    },
+    enabled: isAuthenticated,
+    placeholderData: [],
+  });
 
-  // Fetch collections
   useEffect(() => {
-    if (!isAuthenticated) {
-      setCollections([]);
-      setCollectionsLoading(false);
-      return;
-    }
+    if (!collections) return;
 
-    const ac = new AbortController();
-    setCollectionsLoading(true);
-
-    getArmyCollections({ signal: ac.signal })
-      .then((r) => {
-        if (!ac.signal.aborted && r.data) {
-          setCollections(r.data);
-        }
-      })
-      .catch((e) => {
-        if (!ac.signal.aborted) setError(String(e));
-      })
-      .finally(() => {
-        if (!ac.signal.aborted) setCollectionsLoading(false);
-      });
-
-    return () => ac.abort();
-  }, [isAuthenticated]);
-
-  // Aside stats
-  useEffect(() => {
     const totalModels = collections.reduce((sum, c) => sum + (c.modelCount ?? 0), 0);
 
     const totalCountsByStatus = COLLECTION_MODEL_STATUSES.reduce(
@@ -78,37 +64,52 @@ export function useCollections() {
     return () => setAsideContent(null);
   }, [collections, setAsideContent]);
 
-  // Create collection
-  async function handleCreate(e: React.SubmitEvent) {
-    e.preventDefault();
-    setError(null);
-
-    try {
-      const created = (
-        await createArmyCollection({
-          body: { name, description, isPublic },
-        })
-      ).data;
-
-      if (!created) {
-        setError("Failed to create collection");
-        return;
-      }
-
-      setCollections((prev) => [...prev, created]);
+  const createCollection = useMutation({
+    mutationFn: async () => (await createArmyCollection({ body: { name, description, isPublic } })).data,
+    onSuccess: (created) => {
+      if (!created) return;
+      queryClient.setQueryData<ArmyCollection[]>(["collections"], (prev = []) => [...prev, created]);
       setName("");
       setDescription("");
       setIsPublic(false);
       close();
-    } catch (e) {
-      setError(String(e));
-    }
+    },
+  });
+
+  function handleCreate(e: React.SubmitEvent) {
+    e.preventDefault();
+    createCollection.mutate();
   }
 
-  // Drag sensors
   const dragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  // Drag end handler
+  const reorderMutation = useMutation<
+    AxiosResponse<ArmyCollection[]>,
+    Error,
+    ArmyCollection[],
+    { previous: ArmyCollection[] | undefined }
+  >({
+    mutationFn: async (newOrder) =>
+      reorderArmyCollections({
+        body: { armyCollectionIds: newOrder.map((c) => c.id as string) },
+        throwOnError: true,
+      }),
+    onMutate: async (newOrder) => {
+      await queryClient.cancelQueries({ queryKey: ["collections"] });
+      const previous = queryClient.getQueryData<ArmyCollection[]>(["collections"]);
+      queryClient.setQueryData(["collections"], newOrder);
+      return { previous };
+    },
+    onError: (_, __, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["collections"], context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["collections"] });
+    },
+  });
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -117,20 +118,10 @@ export function useCollections() {
     const newIndex = collections.findIndex((c) => c.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
-    const previous = collections;
     const reordered = arrayMove(collections, oldIndex, newIndex);
-    setCollections(reordered);
-
-    reorderArmyCollections({
-      body: { armyCollectionIds: reordered.map((c) => c.id as string) },
-      throwOnError: true,
-    }).catch((e) => {
-      setCollections(previous);
-      setError(String(e));
-    });
+    reorderMutation.mutate(reordered);
   }
 
-  // Derived state machine
   function getCollectionsState(): CollectionsState {
     if (isAuthLoading) return "auth-loading";
     if (!isAuthenticated) return "unauthenticated";
@@ -142,30 +133,21 @@ export function useCollections() {
   const collectionsState = getCollectionsState();
 
   return {
-    // state
     collections,
     collectionsState,
     error,
     isUser,
-
-    // modal
     opened,
     open,
     close,
-
-    // create form fields
     name,
     setName,
     description,
     setDescription,
     isPublic,
     setIsPublic,
-
-    // handlers
     handleCreate,
     handleDragEnd,
-
-    // dnd
     dragSensors,
   };
 }

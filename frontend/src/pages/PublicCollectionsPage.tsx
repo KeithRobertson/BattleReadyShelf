@@ -7,7 +7,7 @@ import { getPublicArmyCollections } from "@/generated";
 
 export default function PublicCollectionsPage() {
   const {
-    data: collections,
+    data: collections = [],
     isLoading,
     isError,
     error,
@@ -17,7 +17,6 @@ export default function PublicCollectionsPage() {
       const response = await getPublicArmyCollections();
       return response.data ?? [];
     },
-    initialData: [],
   });
 
   return (
