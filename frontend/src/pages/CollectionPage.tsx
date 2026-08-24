@@ -70,12 +70,6 @@ import {
 } from "@/utils/collectionModelStatus";
 import { createImageVariants } from "@/utils/imageVariants";
 
-/**
- * Wraps a single Accordion.Item so it can be reordered via drag-and-drop. The drag handle (not the
- * whole control) carries the dnd-kit listeners, so clicking elsewhere in the header still toggles
- * the accordion section as normal.
- */
-
 export default function CollectionPage() {
   const { sortOrder, setSortOrder, sortOptions, sortModels } = useModelSort();
   const { collectionId } = useParams<{ collectionId: string }>();
