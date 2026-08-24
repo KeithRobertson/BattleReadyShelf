@@ -1,7 +1,6 @@
-import type { DragEndEvent, DraggableAttributes, DraggableSyntheticListeners, DragStartEvent } from "@dnd-kit/core";
+import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import {
   Accordion,
   ActionIcon,
@@ -58,7 +57,11 @@ import {
   updateArmyCollection,
   updateCollectionModel,
 } from "@/generated";
+import SortableAccordionGroup from "@/hooks/collections/models/SortableAccordionGroup.tsx";
+import { useModelSort } from "@/hooks/collections/useModelSort.ts";
 import NotFoundPage from "@/pages//NotFoundPage";
+import type { ModelGroup } from "@/types/ModelGroup.ts";
+import type { SortOrder } from "@/types/ModelSort.ts";
 import {
   COLLECTION_MODEL_STATUS_COLORS,
   COLLECTION_MODEL_STATUS_LABELS,
@@ -67,90 +70,14 @@ import {
 } from "@/utils/collectionModelStatus";
 import { createImageVariants } from "@/utils/imageVariants";
 
-type ModelGroup = {
-  key: string;
-  label: string;
-  models: CollectionModel[];
-};
-
-type SortField = "name" | "status" | "date";
-type SortDirection = "asc" | "desc";
-type SortOrder = `${SortField}-${SortDirection}`;
-
-const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
-  { value: "name-asc", label: "Name (A–Z)" },
-  { value: "name-desc", label: "Name (Z–A)" },
-  { value: "status-asc", label: "Status (Boxed → Painted)" },
-  { value: "status-desc", label: "Status (Painted → Boxed)" },
-  { value: "date-asc", label: "Date finished (oldest first)" },
-  { value: "date-desc", label: "Date finished (newest first)" },
-];
-
-/** Sorts models by the chosen field/direction; models missing that field's value always sort to the end. */
-function sortModels(models: CollectionModel[], sortOrder: SortOrder): CollectionModel[] {
-  const [field, dir] = sortOrder.split("-") as [SortField, SortDirection];
-  const direction = dir === "asc" ? 1 : -1;
-  return [...models].sort((a, b) => {
-    if (field === "status") {
-      const rankA = a.status ? COLLECTION_MODEL_STATUSES.indexOf(a.status) : -1;
-      const rankB = b.status ? COLLECTION_MODEL_STATUSES.indexOf(b.status) : -1;
-      if (rankA === -1 && rankB === -1) return 0;
-      if (rankA === -1) return 1;
-      if (rankB === -1) return -1;
-      return direction * (rankA - rankB);
-    }
-    if (field === "date") {
-      const dateA = a.finishedOn;
-      const dateB = b.finishedOn;
-      if (!dateA && !dateB) return 0;
-      if (!dateA) return 1;
-      if (!dateB) return -1;
-      return direction * dateA.localeCompare(dateB);
-    }
-    const nameA = a.name?.trim();
-    const nameB = b.name?.trim();
-    if (!nameA && !nameB) return 0;
-    if (!nameA) return 1;
-    if (!nameB) return -1;
-    return direction * nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
-  });
-}
-
 /**
  * Wraps a single Accordion.Item so it can be reordered via drag-and-drop. The drag handle (not the
  * whole control) carries the dnd-kit listeners, so clicking elsewhere in the header still toggles
  * the accordion section as normal.
  */
-function SortableAccordionGroup({
-  group,
-  children,
-}: {
-  group: ModelGroup;
-  children: (dragHandleProps: {
-    attributes: DraggableAttributes;
-    listeners: DraggableSyntheticListeners;
-    isDragging: boolean;
-  }) => React.ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: group.key });
-  return (
-    <Accordion.Item
-      value={group.key}
-      ref={setNodeRef}
-      style={{
-        // While dragging, only the transform (not a full-height carry of the expanded panel) moves with
-        // the pointer - the panel content is hidden below so the item collapses to just its header height.
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.6 : 1,
-      }}
-    >
-      {children({ attributes, listeners, isDragging })}
-    </Accordion.Item>
-  );
-}
 
 export default function CollectionPage() {
+  const { sortOrder, setSortOrder, sortOptions, sortModels } = useModelSort();
   const { collectionId } = useParams<{ collectionId: string }>();
   const { user: currentUser, isLoading: isAuthLoading } = useAuth();
   const isUser = currentUser?.role === "USER" || currentUser?.role === "ADMIN" || currentUser?.role === "SUPERADMIN";
@@ -191,7 +118,6 @@ export default function CollectionPage() {
   const [collectionDescriptionDraft, setCollectionDescriptionDraft] = useState("");
   const [savingCollectionDescription, setSavingCollectionDescription] = useState(false);
   const [savingCollectionVisibility, setSavingCollectionVisibility] = useState(false);
-  const [sortOrder, setSortOrder] = useState<SortOrder>("name-asc");
 
   const statusCounts = useMemo(() => {
     const counts = new Map<CollectionModelStatus, number>();
@@ -230,7 +156,7 @@ export default function CollectionPage() {
         return a.label.localeCompare(b.label);
       })
       .map((group) => ({ ...group, models: sortModels(group.models, sortOrder) }));
-  }, [models, sortOrder, statusFilter, armyCollection?.modelDefinitionOrder]);
+  }, [models, sortOrder, sortModels, statusFilter, armyCollection?.modelDefinitionOrder]);
 
   const factionFilterOptions = useMemo(
     () =>
@@ -975,7 +901,7 @@ export default function CollectionPage() {
                   />
                   <Select
                     label="Sort by"
-                    data={SORT_OPTIONS}
+                    data={sortOptions}
                     value={sortOrder}
                     onChange={(value) => value && setSortOrder(value as SortOrder)}
                     w={220}
