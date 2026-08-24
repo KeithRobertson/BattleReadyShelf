@@ -10,12 +10,11 @@ export default function CollectionCard({
   collection,
   dragHandleProps,
   showCreator = false,
-}: {
+}: Readonly<{
   collection: ArmyCollection;
-  /** When provided, renders a drag handle carrying these dnd-kit listeners/attributes. */
   dragHandleProps?: { attributes: DraggableAttributes; listeners: DraggableSyntheticListeners };
   showCreator?: boolean;
-}) {
+}>) {
   const navigate = useNavigate();
   const modelCount = collection.modelCount;
   const emptyCounts: Record<CollectionModelStatus, number> = COLLECTION_MODEL_STATUSES.reduce(
