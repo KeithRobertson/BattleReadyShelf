@@ -1,8 +1,8 @@
 import { useContext, useMemo } from "react";
-import { AuthContext } from "./AuthContext";
 import type { UserRole } from "@/generated";
+import { AuthContext } from "./AuthContext";
 
-const ADMIN_ROLES = new Set<UserRole>(['ADMIN', 'SUPERADMIN']);
+const ADMIN_ROLES = new Set<UserRole>(["ADMIN", "SUPERADMIN"]);
 
 export function useAuth() {
   const context = useContext(AuthContext);
@@ -13,7 +13,7 @@ export function useAuth() {
   const { user } = context;
 
   const isAdmin = useMemo(() => {
-    return ADMIN_ROLES.has((user?.role ?? 'GUEST') as UserRole);
+    return ADMIN_ROLES.has((user?.role ?? "GUEST") as UserRole);
   }, [user?.role]);
 
   return {

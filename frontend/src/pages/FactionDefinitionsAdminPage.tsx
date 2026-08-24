@@ -21,7 +21,7 @@ import type { Faction } from "../generated";
 import { createFaction, deleteFaction, getFactions } from "../generated";
 
 export default function FactionDefinitionsAdminPage() {
-  const { user: currentUser, isAuthenticated, isLoading: isAuthLoading, isAdmin } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, isAdmin } = useAuth();
   const [factions, setFactions] = useState<Faction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -78,7 +78,7 @@ function groupByFaction<T extends { factionId?: string }>(
 }
 
 export default function ModelDefinitionsAdminPage() {
-  const { user: currentUser, isAuthenticated, isLoading: isAuthLoading, isAdmin } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, isAdmin } = useAuth();
   const [modelDefinitions, setModelDefinitions] = useState<ModelDefinition[]>([]);
   const [drafts, setDrafts] = useState<ModelDefinitionDraft[]>([]);
   const [factions, setFactions] = useState<Faction[]>([]);

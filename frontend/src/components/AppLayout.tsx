@@ -1,18 +1,4 @@
-import {
-  ActionIcon,
-  AppShell,
-  Avatar,
-  Burger,
-  Group,
-  MantineProvider,
-  Menu,
-  NavLink,
-  Skeleton,
-  Stack,
-  Text,
-  Title,
-  UnstyledButton,
-} from "@mantine/core";
+import { ActionIcon, AppShell, Avatar, Burger, Group, Menu, NavLink, Text, Title, UnstyledButton } from "@mantine/core";
 import { GoogleLogin } from "@react-oauth/google";
 import {
   IconChevronDown,
@@ -23,20 +9,17 @@ import {
   IconShieldLock,
   IconStack2,
   IconSwords,
-  IconTags,
-  IconTagsChevronUp,
   IconUser,
-  IconUsers,
   IconWorld,
 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { Suspense, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
-import { useResponsivePersistentDisclosure } from "@/hooks/useResponsivePersistentDisclosure.ts";
-import initialsFor from "@/utils/user"
-import { adminNavItems } from "@/config/admin/navigation";
 import PageSkeleton from "@/components/PageSkeleton.tsx";
+import { adminNavItems } from "@/config/admin/navigation";
+import { useResponsivePersistentDisclosure } from "@/hooks/useResponsivePersistentDisclosure.ts";
+import initialsFor from "@/utils/user";
 
 export default function AppLayout() {
   const { user, isAuthenticated, isLoading, loginWithGoogleIdToken, logout, isAdmin } = useAuth();
@@ -53,9 +36,7 @@ export default function AppLayout() {
   const isAdminRoute = location.pathname.startsWith("/admin");
   const isCollectionsRoute = location.pathname === "/" || location.pathname.startsWith("/collections");
 
-  const AsideIcon = asideOpened
-      ? IconLayoutSidebarRightCollapseFilled
-      : IconLayoutSidebarRightExpandFilled;
+  const AsideIcon = asideOpened ? IconLayoutSidebarRightCollapseFilled : IconLayoutSidebarRightExpandFilled;
 
   return (
     <AppShell
@@ -104,7 +85,7 @@ export default function AppLayout() {
                 </Menu.Dropdown>
               </Menu>
             ) : (
-              <MantineProvider colorScheme="light">
+              <div style={{ colorScheme: "light" }}>
                 <GoogleLogin
                   onSuccess={(credentialResponse) => {
                     if (credentialResponse.credential) {
@@ -119,7 +100,7 @@ export default function AppLayout() {
                   useOneTap
                   auto_select
                 />
-              </MantineProvider>
+              </div>
             )}
             <ActionIcon variant="subtle" size="lg" onClick={toggleAside}>
               <AsideIcon size={20} />
