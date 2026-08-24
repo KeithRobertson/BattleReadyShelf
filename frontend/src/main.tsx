@@ -14,7 +14,15 @@ import Router from "@/Router";
 import { theme } from "@/theme";
 
 const rootElement = document.getElementById("root");
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+    },
+  },
+});
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
 
 if (rootElement) {

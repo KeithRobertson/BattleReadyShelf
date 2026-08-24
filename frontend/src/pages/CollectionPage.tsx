@@ -1,5 +1,5 @@
-import {closestCenter, DndContext, DragOverlay} from "@dnd-kit/core";
-import {SortableContext, verticalListSortingStrategy} from "@dnd-kit/sortable";
+import { closestCenter, DndContext, DragOverlay } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import {
   Accordion,
   ActionIcon,
@@ -33,11 +33,11 @@ import {
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
-import {useState} from "react";
-import {Link, useParams} from "react-router-dom";
-import {useAuth} from "@/auth/useAuth";
+import { useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { useAuth } from "@/auth/useAuth";
 import ModelCard from "@/components/ModelCard";
-import type {CollectionModelStatus} from "@/generated";
+import type { CollectionModelStatus } from "@/generated";
 import SortableAccordionGroup from "@/hooks/collections/models/SortableAccordionGroup.tsx";
 import useCollection from "@/hooks/collections/useCollection.ts";
 import useCollectionEditing from "@/hooks/collections/useCollectionEditing.ts";
@@ -48,9 +48,9 @@ import useGroupDrag from "@/hooks/collections/useGroupDrag.ts";
 import useGroupedModels from "@/hooks/collections/useGroupedModels.ts";
 import useModelImages from "@/hooks/collections/useModelImages.ts";
 import useModelSelection from "@/hooks/collections/useModelSelection.ts";
-import {useModelSort} from "@/hooks/collections/useModelSort.ts";
+import { useModelSort } from "@/hooks/collections/useModelSort.ts";
 import NotFoundPage from "@/pages//NotFoundPage";
-import type {SortOrder} from "@/types/ModelSort.ts";
+import type { SortOrder } from "@/types/ModelSort.ts";
 import {
   COLLECTION_MODEL_STATUS_COLORS,
   COLLECTION_MODEL_STATUS_LABELS,
@@ -91,10 +91,22 @@ export default function CollectionPage() {
   const editing = useCollectionEditing(collectionId, collection.collection ?? null, collection.setCollection, setError);
   const modelImages = useModelImages(collectionModels.setModels, setError);
   const { isLoading: isAuthLoading } = useAuth();
-
   const loading = isAuthLoading || collection.loading || collectionMetaData.loading || collectionModels.loading;
-
   const fatalError = collection.error || collectionMetaData.error || collectionModels.error;
+
+  const filteredModelDefinitionSelectData = useMemo(() => {
+    if (factionFilter.length === 0) return collectionMetaData.modelDefinitionSelectData;
+
+    return collectionMetaData.modelDefinitionSelectData
+      .map((group) => ({
+        group: group.group,
+        items: group.items.filter((item) => {
+          const modelDefinition = collectionMetaData.modelDefinitions.find((m) => m.id === item.value);
+          return modelDefinition && factionFilter.includes(modelDefinition.factionId ?? "");
+        }),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [collectionMetaData.modelDefinitionSelectData, factionFilter, collectionMetaData.modelDefinitions]);
 
   if (!loading && fatalError) {
     return (
@@ -279,19 +291,26 @@ export default function CollectionPage() {
           ) : (
             collection.isOwner &&
             isEditMode && (
-              <form onSubmit={(e: React.SubmitEvent) => {
-                e.preventDefault();
+              <form
+                onSubmit={(e: React.SubmitEvent) => {
+                  e.preventDefault();
 
-                if (!collectionId || !modelDefinitionId) return;
+                  if (!collectionId || !modelDefinitionId) return;
 
-                const requestedCount = typeof count === "number" ? count : Number.parseInt(count, 10) || 1;
+                  const requestedCount = typeof count === "number" ? count : Number.parseInt(count, 10) || 1;
 
-                collectionModels.addModel(modelDefinitionId, name || undefined, description || undefined, requestedCount);
+                  collectionModels.addModel(
+                    modelDefinitionId,
+                    name || undefined,
+                    description || undefined,
+                    requestedCount,
+                  );
 
-                setName("");
-                setDescription("");
-                setCount(1);
-              }}>
+                  setName("");
+                  setDescription("");
+                  setCount(1);
+                }}
+              >
                 <Stack gap="xs">
                   <Group align="flex-end" wrap="wrap">
                     <MultiSelect
@@ -314,7 +333,7 @@ export default function CollectionPage() {
                     />
                     <Select
                       label="Model type"
-                      data={collectionMetaData.modelDefinitionSelectData}
+                      data={filteredModelDefinitionSelectData}
                       value={modelDefinitionId}
                       onChange={setModelDefinitionId}
                       searchable

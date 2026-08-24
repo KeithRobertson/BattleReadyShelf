@@ -42,16 +42,20 @@ export default function useCollectionModels(collectionId: string | undefined) {
     mutationFn: async (params: { modelDefinitionId: string; name?: string; description?: string; count?: number }) => {
       const { modelDefinitionId, name, description, count = 1 } = params;
 
+      if (!collectionId) {
+        throw new Error("Collection ID is required");
+      }
+
       if (count > 1) {
         const bulkCreateCollectionModelsResponse = await bulkCreateCollectionModels({
-          path: { armyCollectionId: collectionId! },
+          path: { armyCollectionId: collectionId },
           body: { modelDefinitionId, count },
         });
         return bulkCreateCollectionModelsResponse.data ?? [];
       }
 
       const createCollectionModelResponse = await createCollectionModel({
-        path: { armyCollectionId: collectionId! },
+        path: { armyCollectionId: collectionId },
         body: { modelDefinitionId, name, description },
       });
       return createCollectionModelResponse.data ? [createCollectionModelResponse.data] : [];
@@ -67,7 +71,7 @@ export default function useCollectionModels(collectionId: string | undefined) {
   }
 
   const updateModelMutation = useMutation({
-    mutationFn: async (params: { modelId: string; body: any }) => {
+    mutationFn: async (params: { modelId: string; body: Partial<CollectionModel> }) => {
       const res = await updateCollectionModel({
         path: { collectionModelId: params.modelId },
         body: params.body,
@@ -81,7 +85,7 @@ export default function useCollectionModels(collectionId: string | undefined) {
     },
   });
 
-  function updateModel(modelId: string, body: any) {
+  function updateModel(modelId: string, body: Partial<CollectionModel>) {
     updateModelMutation.mutate({ modelId, body });
   }
 
@@ -96,6 +100,9 @@ export default function useCollectionModels(collectionId: string | undefined) {
     attachmentSlotId: string,
     update: { wargearOptionId?: string | null; customLabel?: string | null },
   ) {
+    if (!model.id) {
+      throw new Error("Model ID is required");
+    }
     const otherSelections = (model.wargearSelections ?? []).filter((s) => s.attachmentSlotId !== attachmentSlotId);
 
     const wargearSelections = [
@@ -107,7 +114,7 @@ export default function useCollectionModels(collectionId: string | undefined) {
       },
     ];
 
-    updateModel(model.id!, { wargearSelections });
+    updateModel(model.id, { wargearSelections });
   }
 
   const deleteModelMutation = useMutation({
@@ -127,8 +134,11 @@ export default function useCollectionModels(collectionId: string | undefined) {
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (modelIds: string[]) => {
+      if (!collectionId) {
+        throw new Error("Collection ID is required");
+      }
       await bulkDeleteCollectionModels({
-        path: { armyCollectionId: collectionId! },
+        path: { armyCollectionId: collectionId },
         body: { collectionModelIds: modelIds },
       });
       return modelIds;
