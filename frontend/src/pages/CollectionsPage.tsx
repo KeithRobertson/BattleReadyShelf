@@ -1,194 +1,56 @@
-import type { DragEndEvent } from "@dnd-kit/core";
-import { closestCenter, DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { Alert, Button, Group, Loader, Modal, Stack, Switch, Text, Textarea, TextInput, Title } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
-import { IconAlertCircle, IconPlus } from "@tabler/icons-react";
-import type React from "react";
-import { type ReactNode, useEffect, useState } from "react";
-import { useOutletContext } from "react-router-dom";
-import { useAuth } from "@/auth/useAuth";
-import CollectionCard from "@/components/CollectionCard";
-import { CollectionStatsPanel } from "@/components/CollectionStatsPanel";
-import type { ArmyCollection, CollectionModelStatus } from "@/generated";
-import { createArmyCollection, getArmyCollections, reorderArmyCollections } from "@/generated";
-import { COLLECTION_MODEL_STATUSES } from "@/utils/collectionModelStatus";
-
-/** Wraps a single CollectionCard so it can be reordered via drag-and-drop. */
-function SortableCollectionCard({ collection }: { collection: ArmyCollection }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: collection.id ?? "",
-  });
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.6 : 1,
-      }}
-    >
-      <CollectionCard collection={collection} dragHandleProps={{ attributes, listeners }} />
-    </div>
-  );
-}
+import { Stack } from "@mantine/core";
+import { useAuth } from "@/auth/useAuth.ts";
+import { CollectionsContent } from "@/components/collections/CollectionsContent.tsx";
+import { CollectionsError } from "@/components/collections/CollectionsError.tsx";
+import { CollectionsHeader } from "@/components/collections/CollectionsHeader.tsx";
+import { CreateCollectionModal } from "@/components/collections/CreateCollectionModal.tsx";
+import { useCollections } from "@/hooks/collections/useCollections.tsx";
 
 export default function CollectionsPage() {
-  const { user: currentUser, isAuthenticated, isLoading: isAuthLoading } = useAuth();
-  const { setAsideContent } = useOutletContext<{ setAsideContent: (c: ReactNode) => void }>();
-  const isUser = currentUser?.role === "USER" || currentUser?.role === "ADMIN" || currentUser?.role === "SUPERADMIN";
-  const [collections, setCollections] = useState<ArmyCollection[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [opened, { open, close }] = useDisclosure(false);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [isPublic, setIsPublic] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setCollections([]);
-      setLoading(false);
-      return;
-    }
-    const ac = new AbortController();
-    setLoading(true);
-    getArmyCollections({ signal: ac.signal })
-      .then((r) => {
-        if (ac.signal.aborted || !r.data) return;
-        setCollections(r.data);
-      })
-      .catch((e) => {
-        if (!ac.signal.aborted) setError(String(e));
-      })
-      .finally(() => {
-        if (!ac.signal.aborted) setLoading(false);
-      });
-    return () => ac.abort();
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    const totalModels = collections.reduce((sum, c) => sum + (c.modelCount ?? 0), 0);
-
-    const totalCountsByStatus = COLLECTION_MODEL_STATUSES.reduce(
-      (acc, status) => {
-        acc[status] = collections.reduce((sum, c) => sum + (c.modelCountsByStatus?.[status] ?? 0), 0);
-        return acc;
-      },
-      {} as Record<CollectionModelStatus, number>,
-    );
-
-    setAsideContent(
-      <Stack>
-        <Title order={4}>All Collections</Title>
-        <Text c="dimmed">Totals across all your collections.</Text>
-
-        <CollectionStatsPanel totalCount={totalModels} countsByStatus={totalCountsByStatus} />
-      </Stack>,
-    );
-    return () => setAsideContent(null);
-  }, [collections, setAsideContent]);
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    try {
-      const created = (await createArmyCollection({ body: { name, description, isPublic } })).data;
-      if (!created) {
-        throw new Error("Failed to create collection");
-      }
-      setCollections((s) => [...s, created]);
-      setName("");
-      setDescription("");
-      setIsPublic(false);
-      close();
-    } catch (e) {
-      setError(String(e));
-    }
-  }
-
-  const dragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = collections.findIndex((c) => c.id === active.id);
-    const newIndex = collections.findIndex((c) => c.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    const previous = collections;
-    const reordered = arrayMove(collections, oldIndex, newIndex);
-    setCollections(reordered);
-
-    reorderArmyCollections({
-      body: { armyCollectionIds: reordered.map((c) => c.id as string) },
-      throwOnError: true,
-    }).catch((e) => {
-      setCollections(previous);
-      setError(String(e));
-    });
-  }
+  const { isAuthenticated } = useAuth();
+  const {
+    collections,
+    collectionsState,
+    error,
+    isUser,
+    opened,
+    open,
+    close,
+    name,
+    setName,
+    description,
+    setDescription,
+    isPublic,
+    setIsPublic,
+    handleCreate,
+    handleDragEnd,
+    dragSensors,
+  } = useCollections();
 
   return (
     <Stack gap="md">
-      <Group justify="space-between">
-        <div>
-          <Title order={2}>Collections</Title>
-          <Text c="dimmed">Create and manage your miniature collections.</Text>
-        </div>
-        {isAuthenticated && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open} disabled={!isUser}>
-            Create collection
-          </Button>
-        )}
-      </Group>
+      <CollectionsHeader isAuthenticated={isAuthenticated} isUser={isUser} open={open} />
 
-      {error && (
-        <Alert color="red" icon={<IconAlertCircle size={16} />}>
-          {error}
-        </Alert>
-      )}
+      <CollectionsError error={error} />
 
-      {isAuthLoading ? (
-        <Loader />
-      ) : !isAuthenticated ? (
-        <Alert color="blue" icon={<IconAlertCircle size={16} />}>
-          Sign in with Google (top right) to view and manage your collections.
-        </Alert>
-      ) : loading ? (
-        <Loader />
-      ) : collections.length === 0 ? (
-        <Text c="dimmed">You haven't created any collections yet.</Text>
-      ) : (
-        <DndContext sensors={dragSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={collections.map((c) => c.id ?? "")} strategy={verticalListSortingStrategy}>
-            <Stack gap="md">
-              {collections.map((c) => (
-                <SortableCollectionCard key={c.id} collection={c} />
-              ))}
-            </Stack>
-          </SortableContext>
-        </DndContext>
-      )}
+      <CollectionsContent
+        state={collectionsState}
+        collections={collections}
+        dragSensors={dragSensors}
+        handleDragEnd={handleDragEnd}
+      />
 
-      <Modal opened={opened} onClose={close} title="Create collection">
-        <form onSubmit={handleCreate}>
-          <Stack>
-            <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
-            <Textarea label="Description" value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
-            <Switch
-              label="Public collection"
-              description="Allow anyone to view this collection"
-              checked={isPublic}
-              onChange={(e) => setIsPublic(e.currentTarget.checked)}
-            />
-            <Group justify="flex-end">
-              <Button type="submit">Create</Button>
-            </Group>
-          </Stack>
-        </form>
-      </Modal>
+      <CreateCollectionModal
+        opened={opened}
+        close={close}
+        name={name}
+        setName={setName}
+        description={description}
+        setDescription={setDescription}
+        isPublic={isPublic}
+        setIsPublic={setIsPublic}
+        handleCreate={handleCreate}
+      />
     </Stack>
   );
 }

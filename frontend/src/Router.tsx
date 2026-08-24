@@ -2,7 +2,7 @@ import { lazy } from "react";
 import { Route, Routes } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
 
-const CollectionsPage = lazy(() => import("@/pages/CollectionsPage"));
+const CollectionsPage = lazy(() => import("@/pages/CollectionsPage.tsx"));
 const CollectionPage = lazy(() => import("@/pages/CollectionPage"));
 const PublicCollectionsPage = lazy(() => import("@/pages/PublicCollectionsPage"));
 const ArmyBuilderPage = lazy(() => import("@/pages/ArmyBuilderPage"));
