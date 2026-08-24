@@ -39,7 +39,7 @@ import { adminNavItems } from "@/config/admin/navigation";
 import PageSkeleton from "@/components/PageSkeleton.tsx";
 
 export default function AppLayout() {
-  const { user, isAuthenticated, isLoading, loginWithGoogleIdToken, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, loginWithGoogleIdToken, logout, isAdmin } = useAuth();
   const [asideContent, setAsideContent] = useState<ReactNode>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -50,7 +50,6 @@ export default function AppLayout() {
   };
   const { opened: navOpened, toggle: toggleNav, isMobile } = useResponsivePersistentDisclosure("navOpened");
   const { opened: asideOpened, toggle: toggleAside } = useResponsivePersistentDisclosure("asideOpened");
-  const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
   const isAdminRoute = location.pathname.startsWith("/admin");
   const isCollectionsRoute = location.pathname === "/" || location.pathname.startsWith("/collections");
 

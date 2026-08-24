@@ -12,8 +12,7 @@ function isEditable(user: UserDto, currentUserId?: string): boolean {
 }
 
 export default function UsersAdminPage() {
-  const { user: currentUser, isAuthenticated, isLoading: isAuthLoading } = useAuth();
-  const isAdmin = currentUser?.role === "ADMIN" || currentUser?.role === "SUPERADMIN";
+  const { user: currentUser, isAuthenticated, isLoading: isAuthLoading, isAdmin } = useAuth();
   const [users, setUsers] = useState<UserDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
