@@ -3,6 +3,8 @@ import { useAuth } from "@/auth/useAuth";
 import type { ArmyCollection } from "@/generated";
 import { getArmyCollection } from "@/generated";
 
+export type CollectionHook = ReturnType<typeof useCollection>;
+
 export default function useCollection(collectionId: string | undefined) {
   const queryClient = useQueryClient();
   const { user, isLoading: isAuthLoading } = useAuth();

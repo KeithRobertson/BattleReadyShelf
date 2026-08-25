@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { ModelGroup } from "@/hooks/collections/useGroupedModels";
 
+export type ModelSelection = ReturnType<typeof useModelSelection>;
+
 export default function useModelSelection() {
   const [selectedModelIds, setSelectedModelIds] = useState<Set<string>>(new Set());
 

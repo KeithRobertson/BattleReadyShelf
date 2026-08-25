@@ -3,6 +3,8 @@ import type { CollectionModel } from "@/generated";
 import type { SortDirection, SortField, SortOrder } from "@/types/ModelSort.ts";
 import { COLLECTION_MODEL_STATUSES } from "@/utils/collectionModelStatus.ts";
 
+export type ModelSort = ReturnType<typeof useModelSort>;
+
 function compareStatus(a: CollectionModel, b: CollectionModel): number {
   const rankA = a.status ? COLLECTION_MODEL_STATUSES.indexOf(a.status) : -1;
   const rankB = b.status ? COLLECTION_MODEL_STATUSES.indexOf(b.status) : -1;

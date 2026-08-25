@@ -9,6 +9,8 @@ export interface ModelGroup {
   models: CollectionModel[];
 }
 
+export type GroupedModels = ReturnType<typeof useGroupedModels>;
+
 export default function useGroupedModels(
   models: CollectionModel[],
   collection: ArmyCollection | null,

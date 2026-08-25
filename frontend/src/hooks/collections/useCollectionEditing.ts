@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { ArmyCollection } from "@/generated";
 import { updateArmyCollection } from "@/generated";
 
+export type CollectionEditing = ReturnType<typeof useCollectionEditing>;
+
 export default function useCollectionEditing(
   collectionId: string | undefined,
   collection: ArmyCollection | null,

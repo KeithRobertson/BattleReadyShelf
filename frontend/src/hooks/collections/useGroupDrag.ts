@@ -5,23 +5,30 @@ import type { ArmyCollection } from "@/generated";
 import { reorderModelDefinitionGroups } from "@/generated";
 import type { ModelGroup } from "@/hooks/collections/useGroupedModels";
 
+export type GroupDrag = ReturnType<typeof useGroupDrag>;
+
 export default function useGroupDrag(
   collectionId: string | undefined,
   groupedModels: ModelGroup[],
   collection: ArmyCollection | null,
   setCollection: (updater: (prev: ArmyCollection | null) => ArmyCollection | null) => void,
   setError: (msg: string | null) => void,
+  setOpenGroups: (openGroups: string[]) => void,
 ) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const [draggingGroupKey, setDraggingGroupKey] = useState<string | null>(null);
 
   function handleGroupDragStart(event: DragStartEvent) {
-    setDraggingGroupKey(String(event.active.id));
+    const key = String(event.active.id);
+    setDraggingGroupKey(key);
+    setOpenGroups([key]);
   }
 
   async function handleGroupDragEnd(event: DragEndEvent) {
+    const key = String(event.active.id);
     setDraggingGroupKey(null);
+    setOpenGroups([key]);
 
     const { active, over } = event;
     if (!over || active.id === over.id || !collectionId) return;

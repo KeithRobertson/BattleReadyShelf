@@ -9,6 +9,8 @@ function compareFactionGroups(a: string, b: string): number {
   return a.localeCompare(b);
 }
 
+export type CollectionMetadata = ReturnType<typeof useCollectionMetadata>;
+
 export default function useCollectionMetadata(collectionId: string | undefined) {
   const {
     data: modelDefinitions = [],

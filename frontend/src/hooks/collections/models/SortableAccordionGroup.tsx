@@ -2,14 +2,15 @@ import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Accordion } from "@mantine/core";
-import type { ModelGroup } from "@/types/ModelGroup.ts";
+import React from "react";
+import type { ModelGroup } from "@/hooks/collections/useGroupedModels.ts";
 
 /**
  * Wraps a single Accordion.Item so it can be reordered via drag-and-drop. The drag handle (not the
  * whole control) carries the dnd-kit listeners, so clicking elsewhere in the header still toggles
  * the accordion section as normal.
  */
-export default function SortableAccordionGroup({
+const SortableAccordionGroup = React.memo(function SortableAccordionGroup({
   group,
   children,
 }: Readonly<{
@@ -36,4 +37,6 @@ export default function SortableAccordionGroup({
       {children({ attributes, listeners, isDragging })}
     </Accordion.Item>
   );
-}
+});
+
+export default SortableAccordionGroup;

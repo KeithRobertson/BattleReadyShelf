@@ -8,6 +8,8 @@ export interface PendingDelete {
   modelId?: string;
 }
 
+export type ModelDeletion = ReturnType<typeof useDeleteConfirmation>;
+
 export default function useDeleteConfirmation() {
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [opened, { open, close }] = useDisclosure(false);

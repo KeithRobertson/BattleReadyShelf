@@ -12,6 +12,8 @@ import {
 } from "@/generated";
 import { createImageVariants } from "@/utils/imageVariants";
 
+export type CollectionModels = ReturnType<typeof useCollectionModels>;
+
 export default function useCollectionModels(collectionId: string | undefined) {
   const queryClient = useQueryClient();
 

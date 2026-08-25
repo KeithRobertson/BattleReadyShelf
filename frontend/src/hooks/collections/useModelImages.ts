@@ -3,6 +3,8 @@ import type { CollectionModel } from "@/generated";
 import { createCollectionModelImageUploadUrl, deleteCollectionModelImage } from "@/generated";
 import { createImageVariants } from "@/utils/imageVariants";
 
+export type ModelImages = ReturnType<typeof useModelImages>;
+
 export default function useModelImages(
   setModels: (updater: (prev: CollectionModel[]) => CollectionModel[]) => void,
   setError: (msg: string | null) => void,
