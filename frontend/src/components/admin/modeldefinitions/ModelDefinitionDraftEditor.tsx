@@ -46,12 +46,12 @@ function toRequest(
     name,
     faction_id: faction,
     description: description || undefined,
-    attachmentSlots: slots.map((s) => ({ id: s.id, name: s.name })),
-    wargearOptions: options.map((o) => ({
-      id: o.id,
-      name: o.name,
-      isDefault: o.isDefault,
-      attachmentSlotIds: o.attachmentSlotIds,
+    attachmentSlots: slots.map((slot) => ({ id: slot.id, name: slot.name })),
+    wargearOptions: options.map((option) => ({
+      id: option.id,
+      name: option.name,
+      isDefault: option.isDefault,
+      attachmentSlotIds: option.attachmentSlotIds,
     })),
   };
 }
@@ -80,11 +80,11 @@ export default function ModelDefinitionDraftEditor({
     draft.attachmentSlots.map((s) => ({ id: s.id ?? newId(), name: s.name })),
   );
   const [options, setOptions] = useState<EditableOption[]>(
-    draft.wargearOptions.map((o) => ({
-      id: o.id ?? newId(),
-      name: o.name,
-      isDefault: o.isDefault,
-      attachmentSlotIds: o.attachmentSlotIds,
+    draft.wargearOptions.map((option) => ({
+      id: option.id ?? newId(),
+      name: option.name,
+      isDefault: option.isDefault,
+      attachmentSlotIds: option.attachmentSlotIds,
     })),
   );
   const [changeSummary, setChangeSummary] = useState("");
@@ -94,7 +94,7 @@ export default function ModelDefinitionDraftEditor({
   const [discarding, setDiscarding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const slotOptions = slots.map((s) => ({ value: s.id, label: s.name || "(unnamed slot)" }));
+  const slotOptions = slots.map((slot) => ({ value: slot.id, label: slot.name || "(unnamed slot)" }));
 
   // Replaces local editor state with the server's view of the draft. Needed after
   // save/publish because the backend assigns real ids to newly-added slots/options
@@ -103,34 +103,37 @@ export default function ModelDefinitionDraftEditor({
   function applyServerDraft(serverDraft: ModelDefinitionDraft) {
     setName(serverDraft.name);
     setDescription(serverDraft.description ?? "");
-    setSlots(serverDraft.attachmentSlots.map((s) => ({ id: s.id ?? newId(), name: s.name })));
+    setSlots(serverDraft.attachmentSlots.map((slot) => ({ id: slot.id ?? newId(), name: slot.name })));
     setOptions(
-      serverDraft.wargearOptions.map((o) => ({
-        id: o.id ?? newId(),
-        name: o.name,
-        isDefault: o.isDefault,
-        attachmentSlotIds: o.attachmentSlotIds,
+      serverDraft.wargearOptions.map((option) => ({
+        id: option.id ?? newId(),
+        name: option.name,
+        isDefault: option.isDefault,
+        attachmentSlotIds: option.attachmentSlotIds,
       })),
     );
   }
 
   function addSlot() {
-    setSlots((s) => [...s, { id: newId(), name: "" }]);
+    setSlots((slots) => [...slots, { id: newId(), name: "" }]);
   }
 
   function removeSlot(id: string) {
-    setSlots((s) => s.filter((slot) => slot.id !== id));
-    setOptions((opts) =>
-      opts.map((o) => ({ ...o, attachmentSlotIds: o.attachmentSlotIds.filter((sid) => sid !== id) })),
+    setSlots((slots) => slots.filter((slot) => slot.id !== id));
+    setOptions((options) =>
+      options.map((option) => ({
+        ...option,
+        attachmentSlotIds: option.attachmentSlotIds.filter((slotId) => slotId !== id),
+      })),
     );
   }
 
   function addOption() {
-    setOptions((o) => [...o, { id: newId(), name: "", isDefault: false, attachmentSlotIds: [] }]);
+    setOptions((options) => [...options, { id: newId(), name: "", isDefault: false, attachmentSlotIds: [] }]);
   }
 
   function removeOption(id: string) {
-    setOptions((o) => o.filter((option) => option.id !== id));
+    setOptions((options) => options.filter((option) => option.id !== id));
   }
 
   // `closeOnSuccess` is true for the explicit "Save draft" button, but false when this
@@ -146,7 +149,10 @@ export default function ModelDefinitionDraftEditor({
           body: toRequest(name, faction, description, slots, options),
         })
       ).data;
-      if (!updated) throw new Error("Failed to save draft");
+      if (!updated) {
+        setError("Failed to save draft");
+        return null;
+      }
       applyServerDraft(updated);
       onSaved(updated);
       if (closeOnSuccess) onClose();
@@ -171,7 +177,10 @@ export default function ModelDefinitionDraftEditor({
           body: { changeSummary: changeSummary || undefined },
         })
       ).data;
-      if (!published) throw new Error("Failed to publish draft");
+      if (!published) {
+        setError("Failed to publish draft");
+        return;
+      }
       onPublished(published);
     } catch (e) {
       setError(String(e));

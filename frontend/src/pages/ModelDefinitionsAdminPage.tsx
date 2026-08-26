@@ -30,7 +30,7 @@ import { isAxiosError } from "axios";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
-import ModelDefinitionDraftEditor from "@/components/ModelDefinitionDraftEditor";
+import ModelDefinitionDraftEditor from "@/components/admin/modeldefinitions/ModelDefinitionDraftEditor.tsx";
 import type { Faction, ModelDefinition, ModelDefinitionDraft, ModelDefinitionExport } from "@/generated";
 import {
   createModelDefinitionDraft,
