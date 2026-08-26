@@ -1,8 +1,9 @@
 import { Accordion, Checkbox, SimpleGrid, Stack } from "@mantine/core";
-import React, { useCallback, useMemo } from "react";
+import React, { useMemo } from "react";
 import { useCollectionContext } from "@/components/collection/context/CollectionContext.ts";
 import ModelCard from "@/components/collection/group/model/ModelCard.tsx";
-import type { CollectionModel, CollectionModelStatus } from "@/generated";
+import type { CollectionModelStatus } from "@/generated";
+import { useModelActions } from "@/hooks/collections/models/useModelActions.ts";
 import type { ModelGroup } from "@/hooks/collections/useGroupedModels.ts";
 import getSelectedInGroup from "@/utils/collection/getSelectedInGroup.ts";
 
@@ -11,61 +12,12 @@ export const CollectionGroupPanel = React.memo(function CollectionGroupPanel({
 }: Readonly<{
   group: ModelGroup;
 }>) {
-  const { isEditMode, selection, deletion, modelImages, collectionModels } = useCollectionContext();
+  const { isEditMode, selection, deletion, modelImages } = useCollectionContext();
   const selectedInGroup = useMemo(
     () => getSelectedInGroup(group, selection.selectedModelIds),
     [group, selection.selectedModelIds],
   );
-
-  const handleRename = useCallback(
-    (id: string | undefined, newName: string) => {
-      if (!id) return;
-      return collectionModels.renameModel(id, newName);
-    },
-    [collectionModels],
-  );
-  const handleUploadImage = useCallback(
-    (id: string | undefined, file: File) => id && modelImages.uploadImage(id, file),
-    [modelImages],
-  );
-  const handleDeleteImage = useCallback(
-    (id: string | undefined, imageId: string) => id && modelImages.deleteImage(id, imageId),
-    [modelImages],
-  );
-  const handleDeleteModel = useCallback((id: string | undefined) => id && deletion.requestDelete(id), [deletion]);
-  const handleUpdateFinishedOn = useCallback(
-    (id: string | undefined, finishedOn: string | null) => {
-      if (!id) return;
-      return collectionModels.updateFinishedOn(id, finishedOn);
-    },
-    [collectionModels],
-  );
-  const handleUpdateDescription = useCallback(
-    (id: string | undefined, description: string) => {
-      if (!id) return;
-      return collectionModels.updateDescription(id, description);
-    },
-    [collectionModels],
-  );
-  const handleUpdateWargearSelection = useCallback(
-    (
-      model: CollectionModel,
-      slotId: string,
-      update: { wargearOptionId?: string | null; customLabel?: string | null },
-    ) => collectionModels.updateWargearSelection(model, slotId, update),
-    [collectionModels],
-  );
-  const handleUpdateStatus = useCallback(
-    (id: string | undefined, status: CollectionModelStatus) => {
-      if (!id) return;
-      return collectionModels.updateStatus(id, status);
-    },
-    [collectionModels],
-  );
-  const handleToggleSelected = useCallback(
-    (id: string | undefined, isSelected: boolean) => id && selection.toggleSelected(id, isSelected),
-    [selection],
-  );
+  const actions = useModelActions();
 
   return (
     <Accordion.Panel>
@@ -86,22 +38,22 @@ export const CollectionGroupPanel = React.memo(function CollectionGroupPanel({
                 key={model.id}
                 model={model}
                 editMode={isEditMode}
-                onUploadImage={(file: File) => handleUploadImage(model.id, file)}
-                onDeleteImage={(imageId: string) => handleDeleteImage(model.id, imageId)}
-                onRename={(newName: string) => handleRename(model.id, newName)}
-                onDeleteModel={() => handleDeleteModel(model.id)}
-                onUpdateFinishedOn={(finishedOn: string | null) => handleUpdateFinishedOn(model.id, finishedOn)}
-                onUpdateDescription={(description: string) => handleUpdateDescription(model.id, description)}
+                onUploadImage={(file: File) => actions.uploadImage(model.id, file)}
+                onDeleteImage={(imageId: string) => actions.deleteImage(model.id, imageId)}
+                onRename={(newName: string) => actions.rename(model.id, newName)}
+                onDeleteModel={() => actions.deleteModel(model.id)}
+                onUpdateFinishedOn={(finishedOn: string | null) => actions.updateFinishedOn(model.id, finishedOn)}
+                onUpdateDescription={(description: string) => actions.updateDescription(model.id, description)}
                 onUpdateWargearSelection={(
                   slotId: string,
                   update: { wargearOptionId?: string | null; customLabel?: string | null },
-                ) => handleUpdateWargearSelection(model, slotId, update)}
-                onUpdateStatus={(status: CollectionModelStatus) => handleUpdateStatus(model.id, status)}
+                ) => actions.updateWargearSelection(model, slotId, update)}
+                onUpdateStatus={(status: CollectionModelStatus) => actions.updateStatus(model.id, status)}
                 isUploading={modelImages.uploadingModelId === model.id}
                 deletingImageId={modelImages.deletingImageId}
                 isDeleting={deletion.pendingDelete?.modelId === model.id}
                 selected={!!model.id && selection.selectedModelIds.has(model.id)}
-                onToggleSelected={(isSelected: boolean) => handleToggleSelected(model.id, isSelected)}
+                onToggleSelected={(isSelected: boolean) => actions.toggleSelected(model.id, isSelected)}
               />
             );
           })}
