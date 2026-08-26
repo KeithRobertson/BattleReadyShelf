@@ -43,7 +43,7 @@ import {
   importModelDefinitions,
   publishModelDefinitionDraft,
   startModelDefinitionDraft,
-} from "../generated";
+} from "@/generated";
 
 interface FactionGroup<T> {
   faction: Faction | null;
@@ -75,6 +75,13 @@ function groupByFaction<T extends { factionId?: string }>(
     return a.faction.name.localeCompare(b.faction.name);
   });
   return groups;
+}
+
+function extractErrorMessage(e: unknown): string {
+  if (isAxiosError(e) && typeof e.response?.data?.message === "string") {
+    return e.response.data.message;
+  }
+  return String(e);
 }
 
 export default function ModelDefinitionsAdminPage() {
@@ -129,7 +136,10 @@ export default function ModelDefinitionsAdminPage() {
     setError(null);
     try {
       const draft = (await startModelDefinitionDraft({ path: { modelDefinitionId } })).data;
-      if (!draft) throw new Error("Failed to start draft");
+      if (!draft) {
+        setError("Failed to start draft");
+        return;
+      }
       setDrafts((d) =>
         d.some((x) => x.id === draft.id) ? d.map((x) => (x.id === draft.id ? draft : x)) : [...d, draft],
       );
@@ -139,7 +149,7 @@ export default function ModelDefinitionsAdminPage() {
     }
   }
 
-  async function handleCreateNew(e: React.FormEvent) {
+  async function handleCreateNew(e: React.SubmitEvent) {
     e.preventDefault();
     setError(null);
     try {
@@ -148,7 +158,10 @@ export default function ModelDefinitionsAdminPage() {
           body: { name: newName, attachmentSlots: [], wargearOptions: [] },
         })
       ).data;
-      if (!draft) throw new Error("Failed to create draft");
+      if (!draft) {
+        setError("Failed to create draft");
+        return;
+      }
       setDrafts((d) => [...d, draft]);
       setNewName("");
       closeCreate();
@@ -159,11 +172,11 @@ export default function ModelDefinitionsAdminPage() {
   }
 
   function handleDraftSaved(updated: ModelDefinitionDraft) {
-    setDrafts((d) => d.map((x) => (x.id === updated.id ? updated : x)));
+    setDrafts((drafts) => drafts.map((draft) => (draft.id === updated.id ? updated : draft)));
   }
 
   function handleDraftDiscarded(draftId: string) {
-    setDrafts((d) => d.filter((x) => x.id !== draftId));
+    setDrafts((drafts) => drafts.filter((draft) => draft.id !== draftId));
     setSelectedDraftIds((ids) => {
       const next = new Set(ids);
       next.delete(draftId);
@@ -229,7 +242,7 @@ export default function ModelDefinitionsAdminPage() {
     setDiscarding(true);
     try {
       await Promise.all(ids.map((draftId) => discardModelDefinitionDraft({ path: { draftId } })));
-      setDrafts((d) => d.filter((x) => !selectedDraftIds.has(x.id ?? "")));
+      setDrafts((drafts) => drafts.filter((draft) => !selectedDraftIds.has(draft.id ?? "")));
       setSelectedDraftIds(new Set());
       if (editingDraft && selectedDraftIds.has(editingDraft.id ?? "")) {
         setEditingDraft(null);
@@ -241,16 +254,16 @@ export default function ModelDefinitionsAdminPage() {
     }
   }
 
-  // Applies a successfully-published model definition to state: upserts it into the
+  // Applies a successfully published model definition to state: upserts it into the
   // published list and removes the now-consumed draft (and closes the editor if it
   // happened to be open for that same draft).
   function applyPublishedModelDefinition(published: ModelDefinition, draftId: string) {
-    setModelDefinitions((mds) =>
-      mds.some((md) => md.id === published.id)
-        ? mds.map((md) => (md.id === published.id ? published : md))
-        : [...mds, published],
+    setModelDefinitions((modelDefinitions) =>
+      modelDefinitions.some((modelDefinition) => modelDefinition.id === published.id)
+        ? modelDefinitions.map((modelDefinition) => (modelDefinition.id === published.id ? published : modelDefinition))
+        : [...modelDefinitions, published],
     );
-    setDrafts((d) => d.filter((x) => x.id !== draftId));
+    setDrafts((drafts) => drafts.filter((draft) => draft.id !== draftId));
     setSelectedDraftIds((ids) => {
       const next = new Set(ids);
       next.delete(draftId);
@@ -266,7 +279,10 @@ export default function ModelDefinitionsAdminPage() {
     setPublishingDraftIds((ids) => new Set(ids).add(draftId));
     try {
       const published = (await publishModelDefinitionDraft({ path: { draftId }, body: {} })).data;
-      if (!published) throw new Error("Failed to publish draft");
+      if (!published) {
+        setError("Failed to publish draft");
+        return;
+      }
       applyPublishedModelDefinition(published, draftId);
     } catch (e) {
       setError(extractErrorMessage(e));
@@ -315,13 +331,6 @@ export default function ModelDefinitionsAdminPage() {
 
   function handlePublished(published: ModelDefinition) {
     applyPublishedModelDefinition(published, editingDraft?.id ?? "");
-  }
-
-  function extractErrorMessage(e: unknown): string {
-    if (isAxiosError(e) && typeof e.response?.data?.message === "string") {
-      return e.response.data.message;
-    }
-    return String(e);
   }
 
   async function handleDeleteModelDefinition(modelDefinitionId: string) {
@@ -379,7 +388,10 @@ export default function ModelDefinitionsAdminPage() {
     setError(null);
     try {
       const exportData = (await exportModelDefinitions()).data;
-      if (!exportData) throw new Error("Failed to export model definitions");
+      if (!exportData) {
+        setError("Failed to export model definitions");
+        return;
+      }
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -401,8 +413,8 @@ export default function ModelDefinitionsAdminPage() {
       const parsed = JSON.parse(text) as ModelDefinitionExport;
       const importedDrafts = (await importModelDefinitions({ body: parsed })).data;
       if (importedDrafts) {
-        setDrafts((d) => {
-          const byId = new Map(d.map((x) => [x.id, x]));
+        setDrafts((drafts) => {
+          const byId = new Map(drafts.map((draft) => [draft.id, draft]));
           for (const draft of importedDrafts) {
             byId.set(draft.id, draft);
           }
@@ -416,7 +428,7 @@ export default function ModelDefinitionsAdminPage() {
     }
   }
 
-  const factionsById = useMemo(() => new Map(factions.map((f) => [f.id ?? "", f])), [factions]);
+  const factionsById = useMemo(() => new Map(factions.map((faction) => [faction.id ?? "", faction])), [factions]);
   const draftGroups = useMemo(() => groupByFaction(drafts, factionsById), [drafts, factionsById]);
   const modelDefinitionGroups = useMemo(
     () => groupByFaction(modelDefinitions, factionsById),
