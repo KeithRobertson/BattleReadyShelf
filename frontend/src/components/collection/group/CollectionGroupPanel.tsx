@@ -1,7 +1,7 @@
 import { Accordion, Checkbox, SimpleGrid, Stack } from "@mantine/core";
 import React, { useCallback, useMemo } from "react";
 import { useCollectionContext } from "@/components/collection/context/CollectionContext.ts";
-import ModelCard from "@/components/ModelCard.tsx";
+import ModelCard from "@/components/collection/group/model/ModelCard.tsx";
 import type { CollectionModel, CollectionModelStatus } from "@/generated";
 import type { ModelGroup } from "@/hooks/collections/useGroupedModels.ts";
 import getSelectedInGroup from "@/utils/collection/getSelectedInGroup.ts";

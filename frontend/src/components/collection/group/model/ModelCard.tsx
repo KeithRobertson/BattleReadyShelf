@@ -7,7 +7,7 @@ import { ModelCardStatus } from "@/components/collection/group/model/ModelCardSt
 import { ModelCardWargear } from "@/components/collection/group/model/ModelCardWargear.tsx";
 import { ModelImageSection } from "@/components/collection/group/model/ModelImageSection.tsx";
 import type { CollectionModel, CollectionModelStatus } from "@/generated";
-import { COLLECTION_MODEL_STATUS_BACKGROUNDS } from "@/utils/collectionModelStatus";
+import { COLLECTION_MODEL_STATUS_BACKGROUNDS } from "@/utils/collectionModelStatus.ts";
 
 const MAX_VISIBLE_THUMBNAILS = 4;
 
