@@ -5,6 +5,15 @@ import { Accordion } from "@mantine/core";
 import React from "react";
 import type { ModelGroup } from "@/hooks/collections/useGroupedModels.ts";
 
+export type SortableAccordionGroupProps = Readonly<{
+  group: ModelGroup;
+  children: (dragHandleProps: {
+    attributes: DraggableAttributes;
+    listeners: DraggableSyntheticListeners;
+    isDragging: boolean;
+  }) => React.ReactNode;
+}>;
+
 /**
  * Wraps a single Accordion.Item so it can be reordered via drag-and-drop. The drag handle (not the
  * whole control) carries the dnd-kit listeners, so clicking elsewhere in the header still toggles
@@ -13,14 +22,7 @@ import type { ModelGroup } from "@/hooks/collections/useGroupedModels.ts";
 const SortableAccordionGroup = React.memo(function SortableAccordionGroup({
   group,
   children,
-}: Readonly<{
-  group: ModelGroup;
-  children: (dragHandleProps: {
-    attributes: DraggableAttributes;
-    listeners: DraggableSyntheticListeners;
-    isDragging: boolean;
-  }) => React.ReactNode;
-}>) {
+}: SortableAccordionGroupProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: group.key });
   return (
     <Accordion.Item

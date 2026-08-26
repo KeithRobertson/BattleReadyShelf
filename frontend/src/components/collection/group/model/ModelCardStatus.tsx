@@ -7,12 +7,12 @@ import {
   COLLECTION_MODEL_STATUS_OPTIONS,
 } from "@/utils/collectionModelStatus.ts";
 
-type ModelCardStatusProps = {
+export type ModelCardStatusProps = Readonly<{
   model: CollectionModel;
   editMode: boolean;
   isUpdatingStatus: boolean;
   commitStatus: (status: CollectionModelStatus) => void;
-};
+}>;
 
 export const ModelCardStatus = React.memo(function ModelCardStatus({
   model,

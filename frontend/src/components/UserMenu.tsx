@@ -3,13 +3,13 @@ import { IconChevronDown, IconLogout, IconSettings } from "@tabler/icons-react";
 import type { UserDto } from "@/generated";
 import initialsFor from "@/utils/user";
 
-interface UserMenuProps {
+export type UserMenuProps = Readonly<{
   user: UserDto | null;
   onLogout: () => void;
   onNavigateToSettings: () => void;
-}
+}>;
 
-export function UserMenu({ user, onLogout, onNavigateToSettings }: Readonly<UserMenuProps>) {
+export function UserMenu({ user, onLogout, onNavigateToSettings }: UserMenuProps) {
   return (
     <Menu shadow="md" width={200} position="bottom-end">
       <Menu.Target>

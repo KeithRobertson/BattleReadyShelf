@@ -4,7 +4,7 @@ import { IconCalendar, IconCheck, IconPencil, IconX } from "@tabler/icons-react"
 import React from "react";
 import type { CollectionModel } from "@/generated";
 
-type ModelCardCompletedDateProps = {
+export type ModelCardCompletedDateProps = Readonly<{
   model: CollectionModel;
   finishedOnDraft: string | null;
   isEditingFinishedOn: boolean;
@@ -14,7 +14,7 @@ type ModelCardCompletedDateProps = {
   setFinishedOnDraft: (finishedOnDraft: string | null) => void;
   setIsEditingFinishedOn: (isEditingFinishedOn: boolean) => void;
   editMode: boolean;
-};
+}>;
 
 export const ModelCardCompletedDate = React.memo(function ModelCardCompletedDate({
   model,

@@ -3,7 +3,7 @@ import { IconCheck, IconPencil } from "@tabler/icons-react";
 import React from "react";
 import type { AttachmentSlot, CollectionModel, WargearOption } from "@/generated";
 
-type ModelCardWargearProps = {
+export type ModelCardWargearProps = Readonly<{
   model: CollectionModel;
   editMode: boolean;
   wargearOptions: WargearOption[];
@@ -16,7 +16,7 @@ type ModelCardWargearProps = {
   setCustomWargearModeBySlot: (customWargearModeBySlot: Record<string, boolean>) => void;
   setCustomLabelDraftsBySlot: (customLabelDraftsBySlot: Record<string, string>) => void;
   setIsEditingWargear: (isEditingWargear: boolean) => void;
-};
+}>;
 
 const CUSTOM_WARGEAR_VALUE = "__custom__";
 

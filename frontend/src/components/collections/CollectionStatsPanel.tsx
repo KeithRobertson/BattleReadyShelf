@@ -7,13 +7,12 @@ import {
   COLLECTION_MODEL_STATUSES,
 } from "@/utils/collectionModelStatus.ts";
 
-export function CollectionStatsPanel({
-  totalCount,
-  countsByStatus,
-}: {
+export type CollectionStatsPanelProps = Readonly<{
   totalCount: number;
   countsByStatus: Record<CollectionModelStatus, number>;
-}) {
+}>;
+
+export function CollectionStatsPanel({ totalCount, countsByStatus }: CollectionStatsPanelProps) {
   const statusEntries = COLLECTION_MODEL_STATUSES.map((status) => ({
     status,
     count: countsByStatus[status] ?? 0,

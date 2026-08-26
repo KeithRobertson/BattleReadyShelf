@@ -1,7 +1,7 @@
 import { Accordion } from "@mantine/core";
 import { useCollectionContext } from "@/components/collection/context/CollectionContext.ts";
 import { CollectionGroup } from "@/components/collection/group/CollectionGroup.tsx";
-import SortableAccordionGroup from "@/hooks/collections/models/SortableAccordionGroup.tsx";
+import SortableAccordionGroup from "@/components/collection/group/SortableAccordionGroup.tsx";
 
 export function CollectionGroupsAccordion() {
   const { groupedModels, openGroups, setOpenGroups } = useCollectionContext();

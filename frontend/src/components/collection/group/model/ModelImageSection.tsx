@@ -3,6 +3,21 @@ import { IconPhoto, IconTrash, IconUpload } from "@tabler/icons-react";
 import React from "react";
 import type { CollectionModelImage } from "@/generated";
 
+export type ModelImageSectionProps = Readonly<{
+  images: CollectionModelImage[];
+  visibleImages: CollectionModelImage[];
+  hiddenImageCount: number;
+  imageGridCols: number;
+  imageGridSpacing: number;
+  imageCellHeight: number;
+  displayName?: string;
+  editMode: boolean;
+  deletingImageId: string | null;
+  onDeleteImage: (id: string) => void;
+  isUploading: boolean;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+}>;
+
 export const ModelImageSection = React.memo(function ModelImageSection({
   images,
   visibleImages,
@@ -16,20 +31,7 @@ export const ModelImageSection = React.memo(function ModelImageSection({
   onDeleteImage,
   isUploading,
   fileInputRef,
-}: Readonly<{
-  images: CollectionModelImage[];
-  visibleImages: CollectionModelImage[];
-  hiddenImageCount: number;
-  imageGridCols: number;
-  imageGridSpacing: number;
-  imageCellHeight: number;
-  displayName?: string;
-  editMode: boolean;
-  deletingImageId: string | null;
-  onDeleteImage: (id: string) => void;
-  isUploading: boolean;
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
-}>) {
+}: ModelImageSectionProps) {
   return (
     <Box w={100} style={{ flexShrink: 0, position: "relative" }}>
       {images.length > 0 ? (

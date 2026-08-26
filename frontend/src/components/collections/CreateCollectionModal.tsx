@@ -1,5 +1,17 @@
 import { Button, Group, Modal, Stack, Switch, Textarea, TextInput } from "@mantine/core";
 
+export type CreateCollectionModalProps = Readonly<{
+  opened: boolean;
+  close: () => void;
+  name: string;
+  setName: (v: string) => void;
+  description: string;
+  setDescription: (v: string) => void;
+  isPublic: boolean;
+  setIsPublic: (v: boolean) => void;
+  handleCreate: (e: React.SubmitEvent) => void;
+}>;
+
 export function CreateCollectionModal({
   opened,
   close,
@@ -10,17 +22,7 @@ export function CreateCollectionModal({
   isPublic,
   setIsPublic,
   handleCreate,
-}: Readonly<{
-  opened: boolean;
-  close: () => void;
-  name: string;
-  setName: (v: string) => void;
-  description: string;
-  setDescription: (v: string) => void;
-  isPublic: boolean;
-  setIsPublic: (v: boolean) => void;
-  handleCreate: (e: React.SubmitEvent) => void;
-}>) {
+}: CreateCollectionModalProps) {
   return (
     <Modal opened={opened} onClose={close} title="Create collection">
       <form onSubmit={handleCreate}>

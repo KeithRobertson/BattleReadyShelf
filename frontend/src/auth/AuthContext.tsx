@@ -20,7 +20,9 @@ export type AuthContextValue = {
 // eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export type AuthProviderProps = Readonly<{ children: ReactNode }>;
+
+export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { setColorScheme } = useMantineColorScheme();

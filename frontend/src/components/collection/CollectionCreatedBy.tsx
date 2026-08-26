@@ -1,6 +1,8 @@
 import { Badge, Group, Text } from "@mantine/core";
 
-export function CollectionCreatedBy({ name }: Readonly<{ name: string }>) {
+export type CollectionCreatedByProps = Readonly<{ name: string }>;
+
+export function CollectionCreatedBy({ name }: CollectionCreatedByProps) {
   return (
     <Group gap={6} align="center">
       <Text size="sm" c="dimmed">

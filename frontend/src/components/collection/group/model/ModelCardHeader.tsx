@@ -3,7 +3,7 @@ import { IconCheck, IconPencil, IconTrash, IconX } from "@tabler/icons-react";
 import React from "react";
 import type { CollectionModel } from "@/generated";
 
-type ModelCardHeaderProps = {
+export type ModelCardHeaderProps = Readonly<{
   model: CollectionModel;
   editMode: boolean;
   selected: boolean;
@@ -19,7 +19,7 @@ type ModelCardHeaderProps = {
   onDeleteModel: () => void;
   isDeleting: boolean;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
-};
+}>;
 
 export const ModelCardHeader = React.memo(function ModelCardHeader({
   model,

@@ -6,13 +6,15 @@ import type { DragProps } from "@/components/collection/group/CollectionGroup.ts
 import type { ModelGroup } from "@/hooks/collections/useGroupedModels.ts";
 import getSelectedInGroup from "@/utils/collection/getSelectedInGroup.ts";
 
+export type CollectionGroupHeaderProps = Readonly<{
+  group: ModelGroup;
+  dragProps: DragProps;
+}>;
+
 export const CollectionGroupHeader = React.memo(function CollectionGroupHeader({
   group,
   dragProps,
-}: Readonly<{
-  group: ModelGroup;
-  dragProps: DragProps;
-}>) {
+}: CollectionGroupHeaderProps) {
   const { isEditMode, selection } = useCollectionContext();
   const selectedInGroup = useMemo(
     () => getSelectedInGroup(group, selection.selectedModelIds),

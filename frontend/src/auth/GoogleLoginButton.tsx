@@ -1,10 +1,10 @@
 import { GoogleLogin } from "@react-oauth/google";
 
-interface GoogleLoginButtonProps {
+export type GoogleLoginButtonProps = Readonly<{
   loginWithGoogleIdToken: (token: string) => Promise<void>;
-}
+}>;
 
-export function GoogleLoginButton({ loginWithGoogleIdToken }: Readonly<GoogleLoginButtonProps>) {
+export function GoogleLoginButton({ loginWithGoogleIdToken }: GoogleLoginButtonProps) {
   return (
     <div style={{ colorScheme: "light" }}>
       <GoogleLogin

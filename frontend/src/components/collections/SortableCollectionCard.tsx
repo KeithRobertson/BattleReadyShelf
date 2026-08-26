@@ -3,7 +3,9 @@ import { CSS } from "@dnd-kit/utilities";
 import CollectionCard from "@/components/collections/CollectionCard.tsx";
 import type { ArmyCollection } from "@/generated";
 
-export function SortableCollectionCard({ collection }: Readonly<{ collection: ArmyCollection }>) {
+export type SortableCollectionCardProps = Readonly<{ collection: ArmyCollection }>;
+
+export function SortableCollectionCard({ collection }: SortableCollectionCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: collection.id ?? "",
   });

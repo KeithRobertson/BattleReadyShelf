@@ -2,7 +2,7 @@ import { ActionIcon, Group, Loader, Stack, Text, Textarea, Tooltip } from "@mant
 import { IconCheck, IconPencil, IconX } from "@tabler/icons-react";
 import React from "react";
 
-type ModelCardDescriptionProps = {
+export type ModelCardDescriptionProps = Readonly<{
   description: string | undefined;
   descriptionDraft: string;
   isEditingDescription: boolean;
@@ -12,7 +12,7 @@ type ModelCardDescriptionProps = {
   setDescriptionDraft: (description: string) => void;
   setIsEditingDescription: (isEditingDescription: boolean) => void;
   editMode: boolean;
-};
+}>;
 
 export const ModelCardDescription = React.memo(function ModelCardDescription({
   description,

@@ -7,11 +7,11 @@ import { useModelActions } from "@/hooks/collections/models/useModelActions.ts";
 import type { ModelGroup } from "@/hooks/collections/useGroupedModels.ts";
 import getSelectedInGroup from "@/utils/collection/getSelectedInGroup.ts";
 
-export const CollectionGroupPanel = React.memo(function CollectionGroupPanel({
-  group,
-}: Readonly<{
+export type CollectionGroupPanelProps = Readonly<{
   group: ModelGroup;
-}>) {
+}>;
+
+export const CollectionGroupPanel = React.memo(function CollectionGroupPanel({ group }: CollectionGroupPanelProps) {
   const { isEditMode, selection, deletion, modelImages } = useCollectionContext();
   const selectedInGroup = useMemo(
     () => getSelectedInGroup(group, selection.selectedModelIds),

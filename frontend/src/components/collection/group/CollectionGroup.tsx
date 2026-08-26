@@ -4,19 +4,15 @@ import { CollectionGroupHeader } from "@/components/collection/group/CollectionG
 import { CollectionGroupPanel } from "@/components/collection/group/CollectionGroupPanel.tsx";
 import type { ModelGroup } from "@/hooks/collections/useGroupedModels.ts";
 
-export type DragProps = {
+export type DragProps = Readonly<{
   attributes: DraggableAttributes;
   listeners: DraggableSyntheticListeners;
   isDragging: boolean;
-};
+}>;
 
-export function CollectionGroup({
-  group,
-  dragProps,
-}: Readonly<{
-  group: ModelGroup;
-  dragProps: DragProps;
-}>) {
+export type CollectionGroupProps = Readonly<{ group: ModelGroup; dragProps: DragProps }>;
+
+export function CollectionGroup({ group, dragProps }: CollectionGroupProps) {
   const { drag } = useCollectionContext();
 
   return (

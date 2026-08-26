@@ -1,8 +1,7 @@
 import { Badge, Button, Group, MultiSelect, Select, Text } from "@mantine/core";
 import { IconTrash } from "@tabler/icons-react";
 import { useCallback } from "react";
-import type { CollectionModelStatus } from "@/generated";
-import type { CollectionModelsToolbarProps } from "@/types/CollectionModelsToolbarProps.ts";
+import type { CollectionModel, CollectionModelStatus } from "@/generated";
 import type { SortOrder } from "@/types/ModelSort.ts";
 import {
   COLLECTION_MODEL_STATUS_COLORS,
@@ -36,6 +35,34 @@ function getSelectionText({
   return `${shownCount} model${shownCount === 1 ? "" : "s"}`;
 }
 
+export type CollectionModelsToolbarProps = Readonly<{
+  isEditMode: boolean;
+
+  statusFilter: CollectionModelStatus[];
+  setStatusFilter: (value: CollectionModelStatus[]) => void;
+
+  groupedModels: {
+    groupedModels: { models: CollectionModel[] }[];
+    statusCounts: { status: CollectionModelStatus; count: number }[];
+  };
+
+  collectionModelsCount: number;
+
+  selection: {
+    selectedModelIds: Set<string>;
+  };
+
+  modelSort: {
+    sortOptions: { value: string; label: string }[];
+    sortOrder: SortOrder;
+    setSortOrder: (order: SortOrder) => void;
+  };
+
+  deletion: {
+    requestBulkDelete: (ids: Set<string>) => void;
+  };
+}>;
+
 export function CollectionModelsToolbar({
   isEditMode,
   statusFilter,
@@ -45,7 +72,7 @@ export function CollectionModelsToolbar({
   selection,
   modelSort,
   deletion,
-}: Readonly<CollectionModelsToolbarProps>) {
+}: CollectionModelsToolbarProps) {
   const shownCount = groupedModels.groupedModels.reduce((sum, g) => sum + g.models.length, 0);
 
   const toggleStatusFilter = useCallback(

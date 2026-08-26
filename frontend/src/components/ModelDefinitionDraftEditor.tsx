@@ -56,14 +56,14 @@ function toRequest(
   };
 }
 
-interface ModelDefinitionDraftEditorProps {
+export type ModelDefinitionDraftEditorProps = Readonly<{
   draft: ModelDefinitionDraft;
   factions: Faction[];
   onClose: () => void;
   onSaved: (draft: ModelDefinitionDraft) => void;
   onPublished: (modelDefinition: ModelDefinition) => void;
   onDiscarded: (draftId: string) => void;
-}
+}>;
 
 export default function ModelDefinitionDraftEditor({
   draft,

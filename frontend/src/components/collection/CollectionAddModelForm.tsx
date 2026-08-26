@@ -3,6 +3,26 @@ import { IconAlertCircle, IconPlus } from "@tabler/icons-react";
 import type { CollectionMetadata } from "@/hooks/collections/useCollectionMetadata.ts";
 import type { ModelDefinitionSelectData } from "@/pages/CollectionPage.tsx";
 
+export type CollectionAddModelFormProps = Readonly<{
+  isOwner: boolean;
+  isEditMode: boolean;
+  collectionId: string | undefined;
+  collectionMetaData: CollectionMetadata;
+  filteredModelDefinitionSelectData: ModelDefinitionSelectData;
+  modelDefinitionId: string | null;
+  setModelDefinitionId: (v: string | null) => void;
+  name: string;
+  setName: (v: string) => void;
+  description: string;
+  setDescription: (v: string) => void;
+  count: number | string;
+  setCount: (v: number | string) => void;
+  factionFilter: string[];
+  setFactionFilter: (v: string[]) => void;
+  addModel: (modelDefinitionId: string, name?: string, description?: string, count?: number) => void;
+  loading: boolean;
+}>;
+
 export function CollectionAddModelForm({
   isOwner,
   isEditMode,
@@ -21,25 +41,7 @@ export function CollectionAddModelForm({
   setFactionFilter,
   addModel,
   loading,
-}: Readonly<{
-  isOwner: boolean;
-  isEditMode: boolean;
-  collectionId: string | undefined;
-  collectionMetaData: CollectionMetadata;
-  filteredModelDefinitionSelectData: ModelDefinitionSelectData;
-  modelDefinitionId: string | null;
-  setModelDefinitionId: (v: string | null) => void;
-  name: string;
-  setName: (v: string) => void;
-  description: string;
-  setDescription: (v: string) => void;
-  count: number | string;
-  setCount: (v: number | string) => void;
-  factionFilter: string[];
-  setFactionFilter: (v: string[]) => void;
-  addModel: (modelDefinitionId: string, name?: string, description?: string, count?: number) => void;
-  loading: boolean;
-}>) {
+}: CollectionAddModelFormProps) {
   if (!isOwner || !isEditMode) return null;
 
   const handleSubmit = (e: React.SubmitEvent) => {

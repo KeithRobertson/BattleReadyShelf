@@ -2,13 +2,15 @@ import { Button, Stack, Text, Title } from "@mantine/core";
 import { IconMoodSad } from "@tabler/icons-react";
 import { Link } from "react-router-dom";
 
+export type NotFoundPageProps = Readonly<{
+  title?: string;
+  message?: string;
+}>;
+
 export default function NotFoundPage({
   title = "Page not found",
   message = "The page you're looking for doesn't exist or may have been removed.",
-}: {
-  title?: string;
-  message?: string;
-}) {
+}: NotFoundPageProps) {
   return (
     <Stack align="center" gap="xs" py={80}>
       <IconMoodSad size={48} stroke={1.5} />

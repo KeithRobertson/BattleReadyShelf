@@ -3,7 +3,9 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { useCollectionContext } from "@/components/collection/context/CollectionContext.ts";
 import { CollectionGroupDragOverlay } from "@/components/collection/group/CollectionGroupDragOverlay.tsx";
 
-export function CollectionGroupsDndWrapper({ children }: Readonly<{ children: React.ReactNode }>) {
+export type CollectionGroupsDndWrapperProps = Readonly<{ children: React.ReactNode }>;
+
+export function CollectionGroupsDndWrapper({ children }: CollectionGroupsDndWrapperProps) {
   const { drag, groupedModels } = useCollectionContext();
   return (
     <DndContext

@@ -11,7 +11,7 @@ import { COLLECTION_MODEL_STATUS_BACKGROUNDS } from "@/utils/collectionModelStat
 
 const MAX_VISIBLE_THUMBNAILS = 4;
 
-type ModelCardProps = {
+export type ModelCardProps = Readonly<{
   model: CollectionModel;
   editMode: boolean;
   onUploadImage: (file: File) => void;
@@ -33,7 +33,7 @@ type ModelCardProps = {
 
   selected: boolean;
   onToggleSelected: (selected: boolean) => void;
-};
+}>;
 
 function ModelCard({
   model,
@@ -51,7 +51,7 @@ function ModelCard({
   isDeleting,
   selected,
   onToggleSelected,
-}: Readonly<ModelCardProps>) {
+}: ModelCardProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const images = model.images ?? [];
   const visibleImages = images.slice(0, MAX_VISIBLE_THUMBNAILS);

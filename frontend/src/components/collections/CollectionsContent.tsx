@@ -6,17 +6,14 @@ import { SortableCollectionCard } from "@/components/collections/SortableCollect
 import type { ArmyCollection } from "@/generated";
 import type { CollectionsState } from "@/hooks/collections/useCollections.tsx";
 
-export function CollectionsContent({
-  state,
-  collections,
-  dragSensors,
-  handleDragEnd,
-}: Readonly<{
+export type CollectionsContentProps = Readonly<{
   state: CollectionsState;
   collections: ArmyCollection[];
   dragSensors: SensorDescriptor<SensorOptions>[];
   handleDragEnd: (event: DragEndEvent) => void;
-}>) {
+}>;
+
+export function CollectionsContent({ state, collections, dragSensors, handleDragEnd }: CollectionsContentProps) {
   if (state === "auth-loading") return <Loader />;
 
   if (state === "unauthenticated")

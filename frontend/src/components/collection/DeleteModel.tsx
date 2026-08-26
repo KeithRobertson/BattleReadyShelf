@@ -2,11 +2,13 @@ import { Button, Group, Modal, Stack, Text } from "@mantine/core";
 import type { CollectionModels } from "@/hooks/collections/useCollectionModels.ts";
 import type { ModelDeletion } from "@/hooks/collections/useDeleteConfirmation.ts";
 
-export default function DeleteModel({
-  deletion,
-  collectionModels,
-  selectedModelIds,
-}: Readonly<{ deletion: ModelDeletion; collectionModels: CollectionModels; selectedModelIds: Set<string> }>) {
+export type DeleteModelProps = Readonly<{
+  deletion: ModelDeletion;
+  collectionModels: CollectionModels;
+  selectedModelIds: Set<string>;
+}>;
+
+export default function DeleteModel({ deletion, collectionModels, selectedModelIds }: DeleteModelProps) {
   return (
     <Modal
       opened={deletion.confirmOpened}

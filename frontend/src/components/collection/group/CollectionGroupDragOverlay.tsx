@@ -4,13 +4,9 @@ import { IconGripVertical } from "@tabler/icons-react";
 import type { GroupDrag } from "@/hooks/collections/useGroupDrag.ts";
 import type { GroupedModels } from "@/hooks/collections/useGroupedModels.ts";
 
-export function CollectionGroupDragOverlay({
-  drag,
-  groupedModels,
-}: Readonly<{
-  drag: GroupDrag;
-  groupedModels: GroupedModels;
-}>) {
+export type CollectionGroupDragOverlayProps = Readonly<{ drag: GroupDrag; groupedModels: GroupedModels }>;
+
+export function CollectionGroupDragOverlay({ drag, groupedModels }: CollectionGroupDragOverlayProps) {
   if (!drag.draggingGroupKey) return null;
 
   const draggedGroup = groupedModels.groupedModels.find((g) => g.key === drag.draggingGroupKey);

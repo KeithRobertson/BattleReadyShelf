@@ -6,15 +6,13 @@ import { CollectionStatsPanel } from "@/components/collections/CollectionStatsPa
 import type { ArmyCollection, CollectionModelStatus } from "@/generated";
 import { COLLECTION_MODEL_STATUSES } from "@/utils/collectionModelStatus.ts";
 
-export default function CollectionCard({
-  collection,
-  dragHandleProps,
-  showCreator = false,
-}: Readonly<{
+export type CollectionCardProps = Readonly<{
   collection: ArmyCollection;
   dragHandleProps?: { attributes: DraggableAttributes; listeners: DraggableSyntheticListeners };
   showCreator?: boolean;
-}>) {
+}>;
+
+export default function CollectionCard({ collection, dragHandleProps, showCreator = false }: CollectionCardProps) {
   const navigate = useNavigate();
   const modelCount = collection.modelCount;
   const emptyCounts: Record<CollectionModelStatus, number> = COLLECTION_MODEL_STATUSES.reduce(
