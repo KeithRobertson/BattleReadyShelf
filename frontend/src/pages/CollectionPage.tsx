@@ -3,7 +3,7 @@ import { IconAlertCircle, IconArrowLeft } from "@tabler/icons-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
-import { CollectionAddModelForm } from "@/components/collection/CollectionAddModelForm.tsx";
+import { AddModelModal } from "@/components/collection/AddModelModal.tsx";
 import CollectionHeader from "@/components/collection/CollectionHeader.tsx";
 import { CollectionModelsToolbar } from "@/components/collection/CollectionModelsToolbar.tsx";
 import CollectionPublicToggle from "@/components/collection/CollectionPublicToggle.tsx";
@@ -117,7 +117,7 @@ export default function CollectionPage() {
           <Loader />
         ) : (
           <>
-            <CollectionAddModelForm
+            <AddModelModal
               isOwner={collection.isOwner}
               isEditMode={isEditMode}
               collectionId={collectionId}

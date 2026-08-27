@@ -21,27 +21,31 @@ export type CollectionAddModelFormProps = Readonly<{
   setFactionFilter: (v: string[]) => void;
   addModel: (modelDefinitionId: string, name?: string, description?: string, count?: number) => void;
   loading: boolean;
+  onSubmitted?: () => void;
 }>;
 
-export function CollectionAddModelForm({
-  isOwner,
-  isEditMode,
-  collectionId,
-  collectionMetaData,
-  filteredModelDefinitionSelectData,
-  modelDefinitionId,
-  setModelDefinitionId,
-  name,
-  setName,
-  description,
-  setDescription,
-  count,
-  setCount,
-  factionFilter,
-  setFactionFilter,
-  addModel,
-  loading,
-}: CollectionAddModelFormProps) {
+export function CollectionAddModelForm(props: CollectionAddModelFormProps) {
+  const {
+    isOwner,
+    isEditMode,
+    collectionId,
+    collectionMetaData,
+    filteredModelDefinitionSelectData,
+    modelDefinitionId,
+    setModelDefinitionId,
+    name,
+    setName,
+    description,
+    setDescription,
+    count,
+    setCount,
+    factionFilter,
+    setFactionFilter,
+    addModel,
+    loading,
+    onSubmitted,
+  } = props;
+
   if (!isOwner || !isEditMode) return null;
 
   const handleSubmit = (e: React.SubmitEvent) => {
@@ -56,78 +60,94 @@ export function CollectionAddModelForm({
     setName("");
     setDescription("");
     setCount(1);
+
+    onSubmitted?.();
   };
 
+  if (collectionMetaData.modelDefinitions.length === 0) {
+    return (
+      <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
+        No model types are defined yet.
+      </Alert>
+    );
+  }
+
   return (
-    <>
-      {collectionMetaData.modelDefinitions.length === 0 ? (
-        <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
-          No model types are defined yet.
-        </Alert>
-      ) : (
-        <form onSubmit={handleSubmit}>
-          <Stack gap="xs">
-            <Group align="flex-end" wrap="wrap">
-              <MultiSelect
-                label="Filter by faction"
-                placeholder={factionFilter.length === 0 ? "All factions" : undefined}
-                data={collectionMetaData.factionFilterOptions}
-                value={factionFilter}
-                onChange={setFactionFilter}
-                searchable
-                clearable
-                w={220}
-                hidePickedOptions
-                styles={{
-                  pillsList: {
-                    display: "flex",
-                    flexWrap: "nowrap",
-                    overflow: "hidden",
-                  },
-                }}
-              />
+    <form onSubmit={handleSubmit}>
+      <Stack gap="xs">
+        <Group align="flex-end" wrap="wrap">
+          <MultiSelect
+            label="Filter by faction"
+            placeholder={factionFilter.length === 0 ? "All factions" : undefined}
+            data={collectionMetaData.factionFilterOptions}
+            value={factionFilter}
+            onChange={setFactionFilter}
+            searchable
+            clearable
+            w={220}
+            hidePickedOptions
+            styles={{
+              pillsList: {
+                display: "flex",
+                flexWrap: "nowrap",
+                overflow: "hidden",
+              },
+            }}
+          />
 
-              <Select
-                label="Model type"
-                data={filteredModelDefinitionSelectData}
-                value={modelDefinitionId}
-                onChange={setModelDefinitionId}
-                searchable
-                required
-                w={220}
-              />
+          <Select
+            label="Model type"
+            data={filteredModelDefinitionSelectData}
+            value={modelDefinitionId}
+            onChange={setModelDefinitionId}
+            searchable
+            required
+            w={220}
+          />
 
-              <NumberInput label="Count" value={count} onChange={setCount} min={1} max={500} w={100} />
+          <NumberInput
+            label="Count"
+            value={count}
+            onChange={setCount}
+            min={1}
+            max={500}
+            w={100}
+            styles={{
+              input: {
+                width: "100px",
+                minWidth: "100px",
+                maxWidth: "100px",
+              },
+            }}
+          />
 
-              <TextInput
-                label="Name (optional)"
-                value={name}
-                onChange={(e) => setName(e.currentTarget.value)}
-                disabled={Number(count) > 1}
-                w={200}
-              />
+          <TextInput
+            label="Name (optional)"
+            value={name}
+            onChange={(e) => setName(e.currentTarget.value)}
+            disabled={Number(count) > 1}
+            w={200}
+          />
 
-              <TextInput
-                label="Description (optional)"
-                value={description}
-                onChange={(e) => setDescription(e.currentTarget.value)}
-                disabled={Number(count) > 1}
-                w={240}
-              />
+          <TextInput
+            label="Description (optional)"
+            value={description}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+            disabled={Number(count) > 1}
+            w={240}
+          />
 
-              <Button type="submit" leftSection={<IconPlus size={16} />} loading={loading}>
-                {Number(count) > 1 ? `Add ${count} models` : "Add model"}
-              </Button>
-            </Group>
+          <Button type="submit" leftSection={<IconPlus size={16} />} loading={loading}>
+            {Number(count) > 1 ? `Add ${count} models` : "Add model"}
+          </Button>
+        </Group>
 
-            {Number(count) > 1 && (
-              <Text size="xs" c="dimmed">
-                Models added in bulk are created unnamed — name each one individually afterwards.
-              </Text>
-            )}
-          </Stack>
-        </form>
-      )}
-    </>
+        {Number(count) > 1 && (
+          <Text size="xs" c="dimmed">
+            Models added in bulk are created unnamed — name each one individually afterwards.
+          </Text>
+        )}
+      </Stack>
+    </form>
   );
 }
