@@ -51,7 +51,8 @@ public class CollectionModelsController implements CollectionModelsApi {
                         currentUser.id(),
                         armyCollectionId,
                         bulkCreateCollectionModelsRequest.getModelDefinitionId(),
-                        bulkCreateCollectionModelsRequest.getCount());
+                        bulkCreateCollectionModelsRequest.getCount(),
+                        bulkCreateCollectionModelsRequest.getStatus());
         return ResponseEntity.status(201).body(createdCollectionModels);
     }
 

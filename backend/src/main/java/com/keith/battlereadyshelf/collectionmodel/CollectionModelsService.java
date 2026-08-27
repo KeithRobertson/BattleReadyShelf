@@ -10,6 +10,8 @@ import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionRepository;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionsService;
 import com.keith.battlereadyshelf.storage.PresignedUrlService;
 
+import jakarta.annotation.Nullable;
+
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
@@ -35,6 +37,7 @@ public class CollectionModelsService {
     private final CollectionModelImageMapper collectionModelImageMapper;
     private final ModelDefinitionsService modelDefinitionsService;
     private final PresignedUrlService presignedUrlService;
+    private final CollectionModelStatusMapper collectionModelStatusMapper;
 
     public List<CollectionModel> getCollectionModels(UUID userId, UUID armyCollectionId) {
         requireViewableArmyCollection(userId, armyCollectionId);
@@ -69,7 +72,7 @@ public class CollectionModelsService {
      * adding 60 Poxwalkers at once) so they can be individually named afterwards.
      */
     public List<CollectionModel> bulkCreateCollectionModels(
-            UUID userId, UUID armyCollectionId, UUID modelDefinitionId, int count) {
+            UUID userId, UUID armyCollectionId, UUID modelDefinitionId, int count, @Nullable com.keith.battlereadyshelf.generated.model.CollectionModelStatus status) {
         requireOwnedArmyCollection(userId, armyCollectionId);
 
         var modelDefinition =
@@ -87,6 +90,7 @@ public class CollectionModelsService {
                                         CollectionModelEntity.builder()
                                                 .armyCollectionId(armyCollectionId)
                                                 .modelDefinition(modelDefinition)
+                                                .status(collectionModelStatusMapper.toEntityStatus(status))
                                                 .build())
                         .limit(count)
                         .toList();

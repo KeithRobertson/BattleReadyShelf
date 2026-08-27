@@ -57,7 +57,7 @@ export default function useCollectionModels(collectionId: string | undefined) {
       if (count > 1) {
         const bulkCreateCollectionModelsResponse = await bulkCreateCollectionModels({
           path: { armyCollectionId: collectionId },
-          body: { modelDefinitionId, count },
+          body: { modelDefinitionId, count, status },
         });
         return bulkCreateCollectionModelsResponse.data ?? [];
       }

@@ -61,7 +61,8 @@ class CollectionModelImagesServiceTest {
                         new CollectionModelMapperImpl(new ModelDefinitionMapperImpl()),
                         new CollectionModelImageMapperImpl(),
                         modelDefinitionsService,
-                        presignedUrlService);
+                        presignedUrlService,
+                        new CollectionModelStatusMapperImpl());
 
         var storageProperties =
                 new StorageProperties("battlereadyshelf-dev", "keith", true, 10);

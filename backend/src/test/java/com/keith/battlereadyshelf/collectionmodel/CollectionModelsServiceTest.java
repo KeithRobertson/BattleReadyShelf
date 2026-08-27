@@ -80,7 +80,8 @@ class CollectionModelsServiceTest {
                         new CollectionModelMapperImpl(new ModelDefinitionMapperImpl()),
                         new CollectionModelImageMapperImpl(),
                         modelDefinitionsService,
-                        presignedUrlService);
+                        presignedUrlService,
+                        new CollectionModelStatusMapperImpl());
     }
 
     @Test
@@ -343,7 +344,7 @@ class CollectionModelsServiceTest {
 
         var createdCollectionModels =
                 collectionModelsService.bulkCreateCollectionModels(
-                        userId, armyCollectionId, poxwalkerId, 60);
+                        userId, armyCollectionId, poxwalkerId, 60, null);
 
         assertThat(createdCollectionModels)
                 .hasSize(60)
@@ -352,6 +353,49 @@ class CollectionModelsServiceTest {
                             assertThat(model.getId()).isNotNull();
                             assertThat(model.getModelDefinitionId()).isEqualTo(poxwalkerId);
                             assertThat(model.getName()).isNull();
+                        });
+    }
+
+    @Test
+    void bulkCreateCollectionModels_persistsRequestedStatusOfUnnamedModels() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var poxwalkerId = UUID.randomUUID();
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                                    .id(armyCollectionId)
+                                                    .userId(userId)
+                                                    .name("Starter Collection")
+                                                    .build()));
+        when(modelDefinitionRepository.findById(poxwalkerId))
+                .thenReturn(
+                        Optional.of(
+                                ModelDefinitionEntity.builder()
+                                                     .id(poxwalkerId)
+                                                     .name("Poxwalker")
+                                                     .build()));
+        when(collectionModelRepository.saveAll(any()))
+                .thenAnswer(
+                        invocation -> {
+                            List<CollectionModelEntity> entities = invocation.getArgument(0);
+                            entities.forEach(e -> e.setId(UUID.randomUUID()));
+                            return entities;
+                        });
+
+        var createdCollectionModels =
+                collectionModelsService.bulkCreateCollectionModels(
+                        userId, armyCollectionId, poxwalkerId, 60, CollectionModelStatus.PAINTED);
+
+        assertThat(createdCollectionModels)
+                .hasSize(60)
+                .allSatisfy(
+                        model -> {
+                            assertThat(model.getId()).isNotNull();
+                            assertThat(model.getModelDefinitionId()).isEqualTo(poxwalkerId);
+                            assertThat(model.getName()).isNull();
+                            assertThat(model.getStatus()).isEqualTo(CollectionModelStatus.PAINTED);
                         });
     }
 
@@ -373,7 +417,7 @@ class CollectionModelsServiceTest {
         assertThatThrownBy(
                         () ->
                                 collectionModelsService.bulkCreateCollectionModels(
-                                        userId, armyCollectionId, poxwalkerId, 10))
+                                        userId, armyCollectionId, poxwalkerId, 10, null))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -396,7 +440,7 @@ class CollectionModelsServiceTest {
         assertThatThrownBy(
                         () ->
                                 collectionModelsService.bulkCreateCollectionModels(
-                                        userId, armyCollectionId, unknownModelDefinitionId, 10))
+                                        userId, armyCollectionId, unknownModelDefinitionId, 10, null))
                 .isInstanceOf(NotFoundException.class);
     }
 
