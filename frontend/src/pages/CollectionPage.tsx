@@ -36,6 +36,7 @@ export default function CollectionPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [count, setCount] = useState<number | string>(1);
+  const [status, setStatus] = useState<CollectionModelStatus>("BOXED");
   const [factionFilter, setFactionFilter] = useState<string[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
 
@@ -133,6 +134,8 @@ export default function CollectionPage() {
               setCount={setCount}
               factionFilter={factionFilter}
               setFactionFilter={setFactionFilter}
+              status={status}
+              setStatus={setStatus}
               addModel={collectionModels.addModel}
               loading={collectionModels.loading}
             />

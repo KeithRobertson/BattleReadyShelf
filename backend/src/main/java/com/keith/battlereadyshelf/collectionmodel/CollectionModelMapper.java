@@ -29,7 +29,7 @@ public interface CollectionModelMapper {
     @Mapping(target = "modelDefinition", source = "modelDefinition")
     @Mapping(target = "name", source = "collectionModel.name")
     @Mapping(target = "description", source = "collectionModel.description")
-    @Mapping(target = "status", ignore = true)
+    @Mapping(target = "status", source="collectionModel.status")
     CollectionModelEntity toEntity(
             UUID armyCollectionId,
             ModelDefinitionEntity modelDefinition,

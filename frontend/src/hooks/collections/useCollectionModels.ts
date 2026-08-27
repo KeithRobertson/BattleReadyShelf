@@ -41,8 +41,14 @@ export default function useCollectionModels(collectionId: string | undefined) {
   }
 
   const addModelMutation = useMutation({
-    mutationFn: async (params: { modelDefinitionId: string; name?: string; description?: string; count?: number }) => {
-      const { modelDefinitionId, name, description, count = 1 } = params;
+    mutationFn: async (params: {
+      modelDefinitionId: string;
+      name?: string;
+      description?: string;
+      count?: number;
+      status?: CollectionModelStatus;
+    }) => {
+      const { modelDefinitionId, name, description, count = 1, status = "BOXED" } = params;
 
       if (!collectionId) {
         throw new Error("Collection ID is required");
@@ -58,7 +64,7 @@ export default function useCollectionModels(collectionId: string | undefined) {
 
       const createCollectionModelResponse = await createCollectionModel({
         path: { armyCollectionId: collectionId },
-        body: { modelDefinitionId, name, description },
+        body: { modelDefinitionId, name, description, status },
       });
       return createCollectionModelResponse.data ? [createCollectionModelResponse.data] : [];
     },
@@ -68,8 +74,14 @@ export default function useCollectionModels(collectionId: string | undefined) {
     },
   });
 
-  function addModel(modelDefinitionId: string, name?: string, description?: string, count?: number) {
-    addModelMutation.mutate({ modelDefinitionId, name, description, count });
+  function addModel(
+    modelDefinitionId: string,
+    name?: string,
+    description?: string,
+    count?: number,
+    status?: CollectionModelStatus,
+  ) {
+    addModelMutation.mutate({ modelDefinitionId, name, description, count, status });
   }
 
   const updateModelMutation = useMutation({

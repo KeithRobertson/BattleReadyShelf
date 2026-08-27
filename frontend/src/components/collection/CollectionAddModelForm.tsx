@@ -1,7 +1,9 @@
 import { Alert, Button, Group, MultiSelect, NumberInput, Select, Stack, Text, TextInput } from "@mantine/core";
 import { IconAlertCircle, IconPlus } from "@tabler/icons-react";
+import type { CollectionModelStatus } from "@/generated";
 import type { CollectionMetadata } from "@/hooks/collections/useCollectionMetadata.ts";
 import type { ModelDefinitionSelectData } from "@/pages/CollectionPage.tsx";
+import { COLLECTION_MODEL_STATUSES } from "@/utils/collectionModelStatus.ts";
 
 export type CollectionAddModelFormProps = Readonly<{
   isOwner: boolean;
@@ -19,7 +21,15 @@ export type CollectionAddModelFormProps = Readonly<{
   setCount: (v: number | string) => void;
   factionFilter: string[];
   setFactionFilter: (v: string[]) => void;
-  addModel: (modelDefinitionId: string, name?: string, description?: string, count?: number) => void;
+  status: CollectionModelStatus;
+  setStatus: (status: CollectionModelStatus) => void;
+  addModel: (
+    modelDefinitionId: string,
+    name?: string,
+    description?: string,
+    count?: number,
+    status?: CollectionModelStatus,
+  ) => void;
   loading: boolean;
   onSubmitted?: () => void;
 }>;
@@ -41,6 +51,8 @@ export function CollectionAddModelForm(props: CollectionAddModelFormProps) {
     setCount,
     factionFilter,
     setFactionFilter,
+    status,
+    setStatus,
     addModel,
     loading,
     onSubmitted,
@@ -55,11 +67,12 @@ export function CollectionAddModelForm(props: CollectionAddModelFormProps) {
 
     const requestedCount = typeof count === "number" ? count : Number.parseInt(count, 10) || 1;
 
-    addModel(modelDefinitionId, name || undefined, description || undefined, requestedCount);
+    addModel(modelDefinitionId, name || undefined, description || undefined, requestedCount, status);
 
     setName("");
     setDescription("");
     setCount(1);
+    setStatus("BOXED");
 
     onSubmitted?.();
   };
@@ -135,6 +148,14 @@ export function CollectionAddModelForm(props: CollectionAddModelFormProps) {
             onChange={(e) => setDescription(e.currentTarget.value)}
             disabled={Number(count) > 1}
             w={240}
+          />
+
+          <Select
+            label="Status"
+            data={COLLECTION_MODEL_STATUSES.map((status) => ({ label: status, value: status }))}
+            value={status}
+            onChange={(status) => setStatus(status ?? "BOXED")}
+            w={160}
           />
 
           <Button type="submit" leftSection={<IconPlus size={16} />} loading={loading}>
