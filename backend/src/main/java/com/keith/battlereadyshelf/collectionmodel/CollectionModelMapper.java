@@ -14,7 +14,7 @@ import static org.mapstruct.InjectionStrategy.CONSTRUCTOR;
 
 @Mapper(
         componentModel = "spring",
-        uses = {ModelDefinitionMapper.class, CollectionModelStatusMapper.class},
+        uses = ModelDefinitionMapper.class,
         injectionStrategy = CONSTRUCTOR)
 public interface CollectionModelMapper {
     @Mapping(target = "modelDefinitionId", source = "modelDefinition.id")
