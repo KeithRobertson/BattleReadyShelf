@@ -2,14 +2,19 @@ package com.keith.battlereadyshelf.modeldefinition;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.keith.battlereadyshelf.factiondefinition.FactionEntity;
 import com.keith.battlereadyshelf.factiondefinition.FactionRepository;
+import com.keith.battlereadyshelf.generated.model.FactionExportItem;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionDraft;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionExport;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionExportItem;
+import com.keith.battlereadyshelf.generated.model.ModelDefinitionExportItemAttachmentSlotsInner;
+import com.keith.battlereadyshelf.generated.model.ModelDefinitionExportItemWargearOptionsInner;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 import com.keith.battlereadyshelf.user.Role;
 
@@ -205,6 +210,125 @@ class ModelDefinitionDraftServiceTest {
 
         assertThat(drafts).hasSize(2);
         assertThat(drafts).allSatisfy(d -> assertThat(d.getName()).isEqualTo("Fire Dragon"));
+    }
+
+    @Test
+    void importSkipsDefinitionsAlreadyMatchingThePublishedState() {
+        var factionId = UUID.randomUUID();
+        var modelId = UUID.randomUUID();
+        var slotId = UUID.randomUUID();
+        var optionId = UUID.randomUUID();
+
+        var faction =
+                FactionEntity.builder().id(factionId).externalId("aeldari").name("Aeldari").build();
+        var published =
+                ModelDefinitionEntity.builder()
+                        .id(modelId)
+                        .externalId("aeldari_fire_dragon")
+                        .factionId(factionId)
+                        .name("Fire Dragon")
+                        .build();
+        var slot =
+                AttachmentSlotEntity.builder()
+                        .id(slotId)
+                        .modelDefinitionId(modelId)
+                        .externalId("weapon")
+                        .name("Weapon")
+                        .type("weapon")
+                        .build();
+        var option =
+                WargearOptionEntity.builder()
+                        .id(optionId)
+                        .modelDefinitionId(modelId)
+                        .externalId("fusion_gun")
+                        .name("Fusion Gun")
+                        .isDefault(true)
+                        .attachmentSlots(List.of(slot))
+                        .build();
+
+        when(factionRepository.findAll()).thenReturn(List.of(faction));
+        when(factionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(modelDefinitionRepository.findAll()).thenReturn(List.of(published));
+        when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
+        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(modelId)))
+                .thenReturn(List.of(slot));
+        when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(modelId)))
+                .thenReturn(List.of(option));
+
+        var export =
+                new ModelDefinitionExport(
+                        3,
+                        List.of(new FactionExportItem("aeldari", "Aeldari")),
+                        List.of(
+                                new ModelDefinitionExportItem(
+                                        "aeldari_fire_dragon",
+                                        "aeldari",
+                                        "Fire Dragon",
+                                        List.of(
+                                                new ModelDefinitionExportItemAttachmentSlotsInner(
+                                                        "weapon", "Weapon", "weapon")),
+                                        List.of(
+                                                new ModelDefinitionExportItemWargearOptionsInner(
+                                                        "fusion_gun",
+                                                        "Fusion Gun",
+                                                        true,
+                                                        List.of("weapon"))))));
+
+        assertThat(service.importModelDefinitions(currentUser(), export)).isEmpty();
+        verify(modelDefinitionDraftRepository, never()).save(any());
+    }
+
+    @Test
+    void importReusesAnOpenDraftInsteadOfCreatingASecondOne() {
+        var draftId = UUID.randomUUID();
+        var draft =
+                ModelDefinitionDraftEntity.builder()
+                        .id(draftId)
+                        .externalId("aeldari_fire_dragon")
+                        .name("Fire Dragon")
+                        .build();
+
+        when(modelDefinitionRepository.findAll()).thenReturn(List.of());
+        when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of(draft));
+        when(modelDefinitionDraftRepository.findById(draftId)).thenReturn(Optional.of(draft));
+        when(modelDefinitionDraftRepository.save(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(modelDefinitionMapper.toDto(any(ModelDefinitionDraftEntity.class)))
+                .thenAnswer(
+                        invocation -> {
+                            ModelDefinitionDraftEntity d = invocation.getArgument(0);
+                            return new ModelDefinitionDraft(d.getName(), List.of(), List.of());
+                        });
+
+        var export =
+                new ModelDefinitionExport(
+                        3, List.of(), List.of(exportItem("aeldari_fire_dragon", "Shining Spear")));
+
+        var drafts = service.importModelDefinitions(currentUser(), export);
+
+        assertThat(drafts).singleElement().satisfies(d -> assertThat(d.getName()).isEqualTo("Shining Spear"));
+        assertThat(draft.getName()).isEqualTo("Shining Spear");
+    }
+
+    @Test
+    void importSkipsDefinitionsAlreadyMatchingAnOpenDraft() {
+        var draftId = UUID.randomUUID();
+        var draft =
+                ModelDefinitionDraftEntity.builder()
+                        .id(draftId)
+                        .externalId("aeldari_fire_dragon")
+                        .name("Fire Dragon")
+                        .build();
+
+        when(modelDefinitionRepository.findAll()).thenReturn(List.of());
+        when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of(draft));
+
+        var export =
+                new ModelDefinitionExport(
+                        3, List.of(), List.of(exportItem("aeldari_fire_dragon", "Fire Dragon")));
+
+        assertThat(service.importModelDefinitions(currentUser(), export)).isEmpty();
+        verify(modelDefinitionDraftRepository, never()).save(any());
     }
 
     private static ModelDefinitionExportItem exportItem(String sourceId, String name) {

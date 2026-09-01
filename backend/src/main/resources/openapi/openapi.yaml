@@ -801,9 +801,10 @@ paths:
       tags: [ "ModelDefinitionAdmin" ]
       summary: >-
         Import a versioned JSON document of model definitions as drafts (matching by stable source
-        id, with name fallback for legacy hand-authored definitions). Imported data is never
-        published automatically - each imported definition must still be reviewed and published
-        (admin only)
+        id, with name fallback for legacy hand-authored definitions). Definitions whose content
+        already matches what is stored are skipped, so only genuine changes come back as drafts and
+        re-importing the same document is a no-op. Imported data is never published automatically -
+        each returned definition must still be reviewed and published (admin only)
       operationId: importModelDefinitions
       security:
         - bearerAuth: [ ]
@@ -815,7 +816,9 @@ paths:
               $ref: '#/components/schemas/ModelDefinitionExport'
       responses:
         '200':
-          description: The drafts created or updated by the import
+          description: >-
+            The drafts created or updated by the import. Definitions that were already up to date
+            are omitted, so an unchanged re-import returns an empty array.
           content:
             application/json:
               schema:

@@ -95,6 +95,7 @@ export default function ModelDefinitionsAdminPage() {
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [newName, setNewName] = useState("");
   const [importing, setImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState<string | null>(null);
   const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(new Set());
   const [discarding, setDiscarding] = useState(false);
   const [publishingDraftIds, setPublishingDraftIds] = useState<Set<string>>(new Set());
@@ -407,6 +408,7 @@ export default function ModelDefinitionsAdminPage() {
   async function handleImportFile(file: File | null) {
     if (!file) return;
     setError(null);
+    setImportSummary(null);
     setImporting(true);
     try {
       const text = await file.text();
@@ -420,6 +422,13 @@ export default function ModelDefinitionsAdminPage() {
           }
           return [...byId.values()];
         });
+        const total = parsed.modelDefinitions?.length ?? 0;
+        const changed = importedDrafts.length;
+        setImportSummary(
+          changed === 0
+            ? `Imported ${total} model definition(s) — everything was already up to date, so there is nothing to review.`
+            : `Imported ${total} model definition(s) — ${changed} with changes to review, ${total - changed} already up to date.`,
+        );
       }
     } catch (e) {
       setError(String(e));
@@ -466,6 +475,12 @@ export default function ModelDefinitionsAdminPage() {
       {error && (
         <Alert color="red" icon={<IconAlertCircle size={16} />} style={{ whiteSpace: "pre-line" }}>
           {error}
+        </Alert>
+      )}
+
+      {importSummary && (
+        <Alert color="blue" icon={<IconCircleCheck size={16} />} withCloseButton onClose={() => setImportSummary(null)}>
+          {importSummary}
         </Alert>
       )}
 

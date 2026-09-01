@@ -408,6 +408,12 @@ public class ModelDefinitionDraftService {
      * where possible, otherwise a brand-new draft is created. Referenced factions are upserted by
      * source id directly onto the published faction table (factions have no draft/publish
      * workflow of their own). Nothing is published automatically.
+     *
+     * <p>Importing is idempotent: an item whose content already matches what is stored is skipped
+     * rather than turned into an empty draft edit, so re-importing the same catalogue twice leaves
+     * nothing to review the second time and only genuine changes are surfaced. "What is stored"
+     * means the item's open draft when it has one, otherwise the published definition. Only the
+     * definitions that were actually created or updated are returned.
      */
     @Transactional
     public List<ModelDefinitionDraft> importModelDefinitions(
@@ -438,33 +444,211 @@ public class ModelDefinitionDraftService {
 
         warnOnDuplicateNames(export.getModelDefinitions());
 
-        return export.getModelDefinitions().stream()
-                .map(
-                        item -> {
-                            var existing =
-                                    item.getId() != null
-                                            ? existingByExternalId.get(item.getId())
-                                            : null;
-                            if (existing == null) {
-                                existing = existingByName.get(item.getName());
-                            }
+        // Drafts already open for these definitions are the most recent state of record, so they
+        // (not the published rows) are what an incoming item is compared against and applied to.
+        var existingDrafts = modelDefinitionDraftRepository.findAll();
+        var draftsByPublishedId =
+                existingDrafts.stream()
+                        .filter(d -> d.getPublishedModelDefinitionId() != null)
+                        .collect(
+                                Collectors.toMap(
+                                        ModelDefinitionDraftEntity::getPublishedModelDefinitionId,
+                                        d -> d,
+                                        (a, b) -> a));
+        // Drafts for definitions that have never been published: matching these by source id is
+        // what stops a re-import creating a second draft for the same definition.
+        var standaloneDraftsByExternalId =
+                existingDrafts.stream()
+                        .filter(d -> d.getPublishedModelDefinitionId() == null && d.getExternalId() != null)
+                        .collect(
+                                Collectors.toMap(ModelDefinitionDraftEntity::getExternalId, d -> d, (a, b) -> a));
 
-                            FactionEntity faction = null;
-                            if (item.getFactionId() != null) {
-                                faction = factionBySourceId.get(item.getFactionId());
-                                if (faction == null) {
-                                    throw new BadRequestException(
-                                            "Model definition '"
-                                                    + item.getName()
-                                                    + "' references unknown faction id '"
-                                                    + item.getFactionId()
-                                                    + "'");
-                                }
-                            }
+        var publishedSignatures = publishedSignatures(existingDefinitions);
+        var draftSignatures = draftSignatures(existingDrafts);
 
-                            return importItem(currentUser, item, existing, faction);
-                        })
-                .toList();
+        List<ModelDefinitionDraft> changed = new ArrayList<>();
+        int unchanged = 0;
+        for (var item : export.getModelDefinitions()) {
+            var existing = item.getId() != null ? existingByExternalId.get(item.getId()) : null;
+            if (existing == null) {
+                existing = existingByName.get(item.getName());
+            }
+
+            FactionEntity faction = null;
+            if (item.getFactionId() != null) {
+                faction = factionBySourceId.get(item.getFactionId());
+                if (faction == null) {
+                    throw new BadRequestException(
+                            "Model definition '"
+                                    + item.getName()
+                                    + "' references unknown faction id '"
+                                    + item.getFactionId()
+                                    + "'");
+                }
+            }
+
+            var draft =
+                    existing != null
+                            ? draftsByPublishedId.get(existing.getId())
+                            : item.getId() != null ? standaloneDraftsByExternalId.get(item.getId()) : null;
+
+            var current =
+                    draft != null
+                            ? draftSignatures.get(draft.getId())
+                            : existing != null ? publishedSignatures.get(existing.getId()) : null;
+            if (current != null && current.equals(signatureOf(item, faction))) {
+                unchanged++;
+                continue;
+            }
+
+            changed.add(importItem(currentUser, item, existing, draft, faction));
+        }
+
+        log.info(
+                "Imported {} model definitions: {} created or updated as drafts, {} already up to date",
+                export.getModelDefinitions().size(),
+                changed.size(),
+                unchanged);
+
+        return changed;
+    }
+
+    /**
+     * An order-insensitive snapshot of everything an import can set on a model definition, so a
+     * re-imported item can be compared against what is already stored and skipped when identical.
+     * Collections are sorted because neither the export document nor the database guarantees a
+     * stable row order, and an incidental reordering is not a change worth drafting.
+     */
+    private record DefinitionSignature(
+            String name, String description, UUID factionId, List<String> slots, List<String> options) {}
+
+    private DefinitionSignature signatureOf(ModelDefinitionExportItem item, FactionEntity faction) {
+        return new DefinitionSignature(
+                item.getName(),
+                blankToNull(item.getDescription()),
+                faction != null ? faction.getId() : null,
+                item.getAttachmentSlots().stream()
+                        .map(s -> slotKey(s.getId(), s.getName(), s.getType()))
+                        .sorted()
+                        .toList(),
+                item.getWargearOptions().stream()
+                        .map(
+                                o ->
+                                        optionKey(
+                                                o.getId(),
+                                                o.getName(),
+                                                Boolean.TRUE.equals(o.getIsDefault()),
+                                                o.getSlotIds()))
+                        .sorted()
+                        .toList());
+    }
+
+    private Map<UUID, DefinitionSignature> publishedSignatures(List<ModelDefinitionEntity> definitions) {
+        var ids = definitions.stream().map(ModelDefinitionEntity::getId).toList();
+        var slotsByDefinitionId =
+                attachmentSlotRepository.findAllByModelDefinitionIdIn(ids).stream()
+                        .collect(Collectors.groupingBy(AttachmentSlotEntity::getModelDefinitionId));
+        var optionsByDefinitionId =
+                wargearOptionRepository.findAllByModelDefinitionIdIn(ids).stream()
+                        .collect(Collectors.groupingBy(WargearOptionEntity::getModelDefinitionId));
+
+        Map<UUID, DefinitionSignature> signatures = new HashMap<>();
+        for (var definition : definitions) {
+            var slots = slotsByDefinitionId.getOrDefault(definition.getId(), List.of());
+            var options = optionsByDefinitionId.getOrDefault(definition.getId(), List.of());
+            Map<UUID, String> slotSourceIdById =
+                    slots.stream()
+                            .collect(
+                                    Collectors.toMap(
+                                            AttachmentSlotEntity::getId,
+                                            s -> sourceId(s.getExternalId(), s.getId())));
+            signatures.put(
+                    definition.getId(),
+                    new DefinitionSignature(
+                            definition.getName(),
+                            blankToNull(definition.getDescription()),
+                            definition.getFactionId(),
+                            slots.stream()
+                                    .map(s -> slotKey(slotSourceIdById.get(s.getId()), s.getName(), s.getType()))
+                                    .sorted()
+                                    .toList(),
+                            options.stream()
+                                    .map(
+                                            o ->
+                                                    optionKey(
+                                                            sourceId(o.getExternalId(), o.getId()),
+                                                            o.getName(),
+                                                            o.isDefault(),
+                                                            o.getAttachmentSlots().stream()
+                                                                    .map(s -> slotSourceIdById.get(s.getId()))
+                                                                    .toList()))
+                                    .sorted()
+                                    .toList()));
+        }
+        return signatures;
+    }
+
+    private Map<UUID, DefinitionSignature> draftSignatures(List<ModelDefinitionDraftEntity> drafts) {
+        var ids = drafts.stream().map(ModelDefinitionDraftEntity::getId).toList();
+        var slotsByDraftId =
+                attachmentSlotDraftRepository.findAllByModelDefinitionDraftIdIn(ids).stream()
+                        .collect(Collectors.groupingBy(AttachmentSlotDraftEntity::getModelDefinitionDraftId));
+        var optionsByDraftId =
+                wargearOptionDraftRepository.findAllByModelDefinitionDraftIdIn(ids).stream()
+                        .collect(Collectors.groupingBy(WargearOptionDraftEntity::getModelDefinitionDraftId));
+
+        Map<UUID, DefinitionSignature> signatures = new HashMap<>();
+        for (var draft : drafts) {
+            var slots = slotsByDraftId.getOrDefault(draft.getId(), List.of());
+            var options = optionsByDraftId.getOrDefault(draft.getId(), List.of());
+            Map<UUID, String> slotSourceIdById =
+                    slots.stream()
+                            .collect(
+                                    Collectors.toMap(
+                                            AttachmentSlotDraftEntity::getId,
+                                            s -> sourceId(s.getExternalId(), s.getId())));
+            signatures.put(
+                    draft.getId(),
+                    new DefinitionSignature(
+                            draft.getName(),
+                            blankToNull(draft.getDescription()),
+                            draft.getFactionId(),
+                            slots.stream()
+                                    .map(s -> slotKey(slotSourceIdById.get(s.getId()), s.getName(), s.getType()))
+                                    .sorted()
+                                    .toList(),
+                            options.stream()
+                                    .map(
+                                            o ->
+                                                    optionKey(
+                                                            sourceId(o.getExternalId(), o.getId()),
+                                                            o.getName(),
+                                                            o.isDefault(),
+                                                            o.getAttachmentSlots().stream()
+                                                                    .map(s -> slotSourceIdById.get(s.getId()))
+                                                                    .toList()))
+                                    .sorted()
+                                    .toList()));
+        }
+        return signatures;
+    }
+
+    private static String slotKey(String sourceId, String name, String type) {
+        return String.join("\u001f", sourceId, name, type == null ? "" : type);
+    }
+
+    private static String optionKey(
+            String sourceId, String name, boolean isDefault, List<String> slotSourceIds) {
+        return String.join(
+                "\u001f",
+                sourceId,
+                name,
+                Boolean.toString(isDefault),
+                slotSourceIds.stream().sorted().collect(Collectors.joining(",")));
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     /**
@@ -546,19 +730,25 @@ public class ModelDefinitionDraftService {
             CurrentAuthenticatedUser currentUser,
             ModelDefinitionExportItem item,
             ModelDefinitionEntity existingPublished,
+            ModelDefinitionDraftEntity existingDraft,
             FactionEntity faction) {
-        var draftId =
-                existingPublished != null
-                        ? startOrGetDraftEntity(currentUser, existingPublished.getId()).getId()
-                        : modelDefinitionDraftRepository
-                                .save(
-                                        ModelDefinitionDraftEntity.builder()
-                                                .name(item.getName())
-                                                .description(item.getDescription())
-                                                .createdBy(currentUser.id())
-                                                .updatedBy(currentUser.id())
-                                                .build())
-                                .getId();
+        UUID draftId;
+        if (existingDraft != null) {
+            draftId = existingDraft.getId();
+        } else if (existingPublished != null) {
+            draftId = startOrGetDraftEntity(currentUser, existingPublished.getId()).getId();
+        } else {
+            draftId =
+                    modelDefinitionDraftRepository
+                            .save(
+                                    ModelDefinitionDraftEntity.builder()
+                                            .name(item.getName())
+                                            .description(item.getDescription())
+                                            .createdBy(currentUser.id())
+                                            .updatedBy(currentUser.id())
+                                            .build())
+                            .getId();
+        }
 
         var draftEntity = requireDraft(draftId);
         draftEntity.setName(item.getName());
