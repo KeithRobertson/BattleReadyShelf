@@ -553,6 +553,96 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/wargear-definitions/drafts:
+    get:
+      tags: [ "WargearDefinitionAdmin" ]
+      summary: >-
+        List pending wargear name changes proposed by an import (admin only), each showing the
+        stored name and the name the import wants to apply.
+      operationId: getWargearDefinitionDrafts
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: A list of all pending wargear name changes, ordered by name
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WargearDefinitionDraft'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/wargear-definitions/drafts/{draftId}/publish:
+    post:
+      tags: [ "WargearDefinitionAdmin" ]
+      summary: >-
+        Accept a pending wargear name change (admin only), applying it to the shared definition
+        and therefore to every model definition that uses it.
+      operationId: publishWargearDefinitionDraft
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The updated wargear definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WargearDefinition'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Draft not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/wargear-definitions/drafts/{draftId}:
+    delete:
+      tags: [ "WargearDefinitionAdmin" ]
+      summary: >-
+        Reject a pending wargear name change (admin only), keeping the stored name. A later
+        import proposing the same name will raise it again.
+      operationId: discardWargearDefinitionDraft
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The pending change was discarded
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Draft not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/admin/model-definitions/drafts:
     get:
       tags: [ "ModelDefinitionAdmin" ]
@@ -1562,6 +1652,43 @@ components:
         name:
           type: string
       required: [ name ]
+    WargearDefinitionDraft:
+      type: object
+      description: >-
+        A wargear name change proposed by an import but not yet applied. Imports never rename
+        shared wargear directly, because a rename fans out to every model definition using it -
+        the change is staged here for an admin to accept or reject.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        wargearDefinitionId:
+          type: string
+          format: uuid
+          readOnly: true
+        externalId:
+          type: string
+          readOnly: true
+          description: Stable identifier from the reference dataset that proposed the change.
+        currentName:
+          type: string
+          readOnly: true
+          description: The name stored today, which stays in effect unless this change is accepted.
+        proposedName:
+          type: string
+          readOnly: true
+          description: The name the import wants to apply.
+        usageCount:
+          type: integer
+          format: int32
+          readOnly: true
+          description: How many published model definitions the rename would affect.
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+      required: [ currentName, proposedName ]
     PublishModelDefinitionDraftRequest:
       type: object
       properties:
@@ -1624,11 +1751,33 @@ components:
             already known) - they carry no army-building rules, purely catalogue organisation.
           items:
             $ref: '#/components/schemas/FactionExportItem'
+        wargear:
+          type: array
+          description: >-
+            The shared wargear catalogue, naming each item once for every model definition that
+            references it. Added in schemaVersion 4; omitted by older documents, which instead
+            repeat the name inline on every wargear option. A name here that differs from the
+            stored one raises a pending change for an admin to review rather than overwriting it,
+            so a correction in the source dataset never silently discards an edit made in the app.
+          items:
+            $ref: '#/components/schemas/WargearExportItem'
         modelDefinitions:
           type: array
           items:
             $ref: '#/components/schemas/ModelDefinitionExportItem'
       required: [ schemaVersion, factions, modelDefinitions ]
+    WargearExportItem:
+      type: object
+      properties:
+        id:
+          type: string
+          description: >-
+            Stable identifier used to match this wargear across imports, and referenced by
+            each model definition's wargear options. Exports of hand-authored wargear emit
+            the persisted UUID instead.
+        name:
+          type: string
+      required: [ id, name ]
     FactionExportItem:
       type: object
       properties:
@@ -1688,6 +1837,10 @@ components:
                   Exports of hand-authored options emit the persisted UUID instead.
               name:
                 type: string
+                description: >-
+                  Deprecated, and absent from schemaVersion 4 documents: wargear names now
+                  live in the document's top-level 'wargear' catalogue. Still accepted from
+                  older documents, where it names the wargear this option refers to.
               isDefault:
                 type: boolean
               slotIds:
@@ -1695,7 +1848,7 @@ components:
                 description: The id(s) of the attachment slot(s), from this same item, this option fills.
                 items:
                   type: string
-            required: [ id, name, isDefault, slotIds ]
+            required: [ id, isDefault, slotIds ]
       required: [ id, factionId, name, attachmentSlots, wargearOptions ]
     CollectionModelImage:
       type: object

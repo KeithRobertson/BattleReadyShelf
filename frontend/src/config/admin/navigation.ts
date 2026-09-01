@@ -1,5 +1,5 @@
 import type { TablerIcon } from "@tabler/icons-react";
-import { IconTags, IconTagsChevronUp, IconUsers } from "@tabler/icons-react";
+import { IconSwords, IconTags, IconTagsChevronUp, IconUsers } from "@tabler/icons-react";
 
 export interface NavItem {
   label: string;
@@ -22,5 +22,10 @@ export const adminNavItems: NavItem[] = [
     label: "Manage Faction Definitions",
     to: "/admin/faction-definitions",
     icon: IconTagsChevronUp,
+  },
+  {
+    label: "Manage Wargear Definitions",
+    to: "/admin/wargear-definitions",
+    icon: IconSwords,
   },
 ];

@@ -34,7 +34,7 @@ import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
 import ModelDefinitionDraftDiffModal from "@/components/admin/modeldefinitions/ModelDefinitionDraftDiffModal.tsx";
 import ModelDefinitionDraftEditor from "@/components/admin/modeldefinitions/ModelDefinitionDraftEditor.tsx";
 import ModelDefinitionSlotTable from "@/components/admin/modeldefinitions/ModelDefinitionSlotTable.tsx";
-import type { Faction, ModelDefinition, ModelDefinitionDraft, ModelDefinitionExport } from "@/generated";
+import type { Faction, ModelDefinition, ModelDefinitionDraft, ModelDefinitionExport, WargearDefinition } from "@/generated";
 import {
   createModelDefinitionDraft,
   deleteModelDefinition,
@@ -43,6 +43,7 @@ import {
   getFactions,
   getModelDefinitionDrafts,
   getModelDefinitions,
+  getWargearDefinitions,
   importModelDefinitions,
   publishModelDefinitionDraft,
   startModelDefinitionDraft,
@@ -120,6 +121,7 @@ export default function ModelDefinitionsAdminPage() {
   const [modelDefinitions, setModelDefinitions] = useState<ModelDefinition[]>([]);
   const [drafts, setDrafts] = useState<ModelDefinitionDraft[]>([]);
   const [factions, setFactions] = useState<Faction[]>([]);
+  const [wargearDefinitions, setWargearDefinitions] = useState<WargearDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState<ModelDefinitionDraft | null>(null);
@@ -142,12 +144,18 @@ export default function ModelDefinitionsAdminPage() {
         return;
       }
       setLoading(true);
-      Promise.all([getModelDefinitions({ signal }), getModelDefinitionDrafts({ signal }), getFactions({ signal })])
-        .then(([modelDefinitionsRes, draftsRes, factionsRes]) => {
+      Promise.all([
+        getModelDefinitions({ signal }),
+        getModelDefinitionDrafts({ signal }),
+        getFactions({ signal }),
+        getWargearDefinitions({ signal }),
+      ])
+        .then(([modelDefinitionsRes, draftsRes, factionsRes, wargearRes]) => {
           if (signal?.aborted) return;
           setModelDefinitions(modelDefinitionsRes.data ?? []);
           setDrafts(draftsRes.data ?? []);
           setFactions(factionsRes.data ?? []);
+          setWargearDefinitions(wargearRes.data ?? []);
         })
         .catch((e) => {
           if (!signal?.aborted) setError(String(e));
@@ -796,6 +804,7 @@ export default function ModelDefinitionsAdminPage() {
         <ModelDefinitionDraftEditor
           draft={editingDraft}
           factions={factions}
+          wargearDefinitions={wargearDefinitions}
           onClose={() => setEditingDraft(null)}
           onSaved={handleDraftSaved}
           onPublished={handlePublished}

@@ -3,6 +3,7 @@ package com.keith.battlereadyshelf.modeldefinition;
 import com.keith.battlereadyshelf.generated.api.WargearDefinitionAdminApi;
 import com.keith.battlereadyshelf.generated.model.UpdateWargearDefinitionRequest;
 import com.keith.battlereadyshelf.generated.model.WargearDefinition;
+import com.keith.battlereadyshelf.generated.model.WargearDefinitionDraft;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,5 +31,21 @@ public class WargearDefinitionAdminController implements WargearDefinitionAdminA
         return ResponseEntity.ok(
                 wargearDefinitionService.renameWargearDefinition(
                         wargearDefinitionId, updateWargearDefinitionRequest.getName()));
+    }
+
+    @Override
+    public ResponseEntity<List<WargearDefinitionDraft>> getWargearDefinitionDrafts() {
+        return ResponseEntity.ok(wargearDefinitionService.getAllWargearDefinitionDrafts());
+    }
+
+    @Override
+    public ResponseEntity<WargearDefinition> publishWargearDefinitionDraft(UUID draftId) {
+        return ResponseEntity.ok(wargearDefinitionService.publishWargearDefinitionDraft(draftId));
+    }
+
+    @Override
+    public ResponseEntity<Void> discardWargearDefinitionDraft(UUID draftId) {
+        wargearDefinitionService.discardWargearDefinitionDraft(draftId);
+        return ResponseEntity.noContent().build();
     }
 }

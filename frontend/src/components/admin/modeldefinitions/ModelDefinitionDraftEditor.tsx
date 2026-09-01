@@ -1,6 +1,7 @@
 import {
   ActionIcon,
   Badge,
+  Box,
   Button,
   Checkbox,
   Group,
@@ -16,7 +17,14 @@ import {
 } from "@mantine/core";
 import { IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
-import type { Faction, ModelDefinition, ModelDefinitionDraft, UpsertModelDefinitionDraftRequest } from "@/generated";
+import WargearOptionPicker from "@/components/admin/modeldefinitions/WargearOptionPicker.tsx";
+import type {
+  Faction,
+  ModelDefinition,
+  ModelDefinitionDraft,
+  UpsertModelDefinitionDraftRequest,
+  WargearDefinition,
+} from "@/generated";
 import { discardModelDefinitionDraft, publishModelDefinitionDraft, updateModelDefinitionDraft } from "@/generated";
 
 interface EditableSlot {
@@ -27,6 +35,7 @@ interface EditableSlot {
 
 interface EditableOption {
   id: string;
+  wargearDefinitionId?: string;
   name: string;
   isDefault: boolean;
   attachmentSlotIds: string[];
@@ -54,6 +63,7 @@ function toRequest(
     attachmentSlots: slots.map((slot) => ({ id: slot.id, name: slot.name, type: slot.type })),
     wargearOptions: options.map((option) => ({
       id: option.id,
+      wargearDefinitionId: option.wargearDefinitionId,
       name: option.name,
       isDefault: option.isDefault,
       attachmentSlotIds: option.attachmentSlotIds,
@@ -64,6 +74,7 @@ function toRequest(
 export type ModelDefinitionDraftEditorProps = Readonly<{
   draft: ModelDefinitionDraft;
   factions: Faction[];
+  wargearDefinitions: WargearDefinition[];
   onClose: () => void;
   onSaved: (draft: ModelDefinitionDraft) => void;
   onPublished: (modelDefinition: ModelDefinition) => void;
@@ -73,6 +84,7 @@ export type ModelDefinitionDraftEditorProps = Readonly<{
 export default function ModelDefinitionDraftEditor({
   draft,
   factions,
+  wargearDefinitions,
   onClose,
   onSaved,
   onPublished,
@@ -87,6 +99,7 @@ export default function ModelDefinitionDraftEditor({
   const [options, setOptions] = useState<EditableOption[]>(
     draft.wargearOptions.map((option) => ({
       id: option.id ?? newId(),
+      wargearDefinitionId: option.wargearDefinitionId,
       name: option.name,
       isDefault: option.isDefault,
       attachmentSlotIds: option.attachmentSlotIds,
@@ -112,6 +125,7 @@ export default function ModelDefinitionDraftEditor({
     setOptions(
       serverDraft.wargearOptions.map((option) => ({
         id: option.id ?? newId(),
+        wargearDefinitionId: option.wargearDefinitionId,
         name: option.name,
         isDefault: option.isDefault,
         attachmentSlotIds: option.attachmentSlotIds,
@@ -319,15 +333,21 @@ export default function ModelDefinitionDraftEditor({
             <Stack gap="xs">
               {options.map((option) => (
                 <Group key={option.id} align="flex-start" wrap="nowrap">
-                  <TextInput
-                    flex={1}
-                    value={option.name}
-                    placeholder="Option name"
-                    onChange={(e) => {
-                      const value = e.currentTarget.value;
-                      setOptions((o) => o.map((opt) => (opt.id === option.id ? { ...opt, name: value } : opt)));
-                    }}
-                  />
+                  <Box flex={1}>
+                    <WargearOptionPicker
+                      definitions={wargearDefinitions}
+                      value={{ wargearDefinitionId: option.wargearDefinitionId, name: option.name }}
+                      onChange={(selection) => {
+                        setOptions((o) =>
+                          o.map((opt) =>
+                            opt.id === option.id
+                              ? { ...opt, wargearDefinitionId: selection.wargearDefinitionId, name: selection.name }
+                              : opt,
+                          ),
+                        );
+                      }}
+                    />
+                  </Box>
                   <MultiSelect
                     flex={1}
                     placeholder="Fills slot(s)"

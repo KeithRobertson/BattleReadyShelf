@@ -10,6 +10,7 @@ const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
 const UsersAdminPage = lazy(() => import("@/pages/UsersAdminPage"));
 const ModelDefinitionsAdminPage = lazy(() => import("@/pages/ModelDefinitionsAdminPage"));
 const FactionDefinitionsAdminPage = lazy(() => import("@/pages/FactionDefinitionsAdminPage"));
+const WargearDefinitionsAdminPage = lazy(() => import("@/pages/WargearDefinitionsAdminPage"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 
 const Router = () => (
@@ -24,6 +25,7 @@ const Router = () => (
       <Route path="admin/users" element={<UsersAdminPage />} />
       <Route path="admin/model-definitions" element={<ModelDefinitionsAdminPage />} />
       <Route path="admin/faction-definitions" element={<FactionDefinitionsAdminPage />} />
+      <Route path="admin/wargear-definitions" element={<WargearDefinitionsAdminPage />} />
       <Route path="*" element={<NotFoundPage />} />
     </Route>
   </Routes>

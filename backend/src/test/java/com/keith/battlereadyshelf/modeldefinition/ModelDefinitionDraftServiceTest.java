@@ -1,6 +1,7 @@
 package com.keith.battlereadyshelf.modeldefinition;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -8,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.factiondefinition.FactionEntity;
 import com.keith.battlereadyshelf.factiondefinition.FactionRepository;
 import com.keith.battlereadyshelf.generated.model.FactionExportItem;
@@ -16,6 +18,7 @@ import com.keith.battlereadyshelf.generated.model.ModelDefinitionExport;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionExportItem;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionExportItemAttachmentSlotsInner;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionExportItemWargearOptionsInner;
+import com.keith.battlereadyshelf.generated.model.WargearExportItem;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 import com.keith.battlereadyshelf.user.Role;
 
@@ -28,6 +31,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,6 +41,7 @@ class ModelDefinitionDraftServiceTest {
     @Mock private AttachmentSlotRepository attachmentSlotRepository;
     @Mock private WargearOptionRepository wargearOptionRepository;
     @Mock private WargearDefinitionRepository wargearDefinitionRepository;
+    @Mock private WargearDefinitionDraftRepository wargearDefinitionDraftRepository;
     @Mock private FactionRepository factionRepository;
     @Mock private ModelDefinitionDraftRepository modelDefinitionDraftRepository;
     @Mock private AttachmentSlotDraftRepository attachmentSlotDraftRepository;
@@ -55,6 +60,7 @@ class ModelDefinitionDraftServiceTest {
                         attachmentSlotRepository,
                         wargearOptionRepository,
                         wargearDefinitionRepository,
+                        wargearDefinitionDraftRepository,
                         factionRepository,
                         modelDefinitionDraftRepository,
                         attachmentSlotDraftRepository,
@@ -110,11 +116,17 @@ class ModelDefinitionDraftServiceTest {
 
         var result = service.exportModelDefinitions();
 
-        assertThat(result.getSchemaVersion()).isEqualTo(3);
+        assertThat(result.getSchemaVersion()).isEqualTo(4);
         assertThat(result.getFactions()).singleElement().satisfies(
                 item -> {
                     assertThat(item.getId()).isEqualTo("death_guard");
                     assertThat(item.getName()).isEqualTo("Death Guard");
+                });
+        // Wargear is named once in its own catalogue, not repeated on every option that uses it.
+        assertThat(result.getWargear()).singleElement().satisfies(
+                item -> {
+                    assertThat(item.getId()).isEqualTo("boltgun");
+                    assertThat(item.getName()).isEqualTo("Boltgun");
                 });
         assertThat(result.getModelDefinitions()).singleElement().satisfies(
                 item -> {
@@ -128,9 +140,34 @@ class ModelDefinitionDraftServiceTest {
                     assertThat(item.getWargearOptions()).singleElement().satisfies(
                             exportedOption -> {
                                 assertThat(exportedOption.getId()).isEqualTo("boltgun");
+                                assertThat(exportedOption.getName()).isNull();
                                 assertThat(exportedOption.getSlotIds()).containsExactly("left_arm");
                             });
                 });
+    }
+
+    @Test
+    void exportNamesSharedWargearOnceAcrossModels() {
+        var firstId = UUID.randomUUID();
+        var secondId = UUID.randomUUID();
+        var boltgun = wargearDefinition("boltgun", "Boltgun");
+
+        when(factionRepository.findAll()).thenReturn(List.of());
+        when(modelDefinitionRepository.findAll())
+                .thenReturn(
+                        List.of(
+                                publishedModel(firstId, "plague_marine", null, "Plague Marine"),
+                                publishedModel(secondId, "poxwalker", null, "Poxwalker")));
+        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(firstId, secondId)))
+                .thenReturn(List.of());
+        when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(firstId, secondId)))
+                .thenReturn(
+                        List.of(publishedOption(firstId, boltgun), publishedOption(secondId, boltgun)));
+
+        var result = service.exportModelDefinitions();
+
+        assertThat(result.getWargear()).singleElement().satisfies(
+                item -> assertThat(item.getId()).isEqualTo("boltgun"));
     }
 
     @Test
@@ -275,10 +312,8 @@ class ModelDefinitionDraftServiceTest {
                                                         "weapon", "Weapon", "weapon")),
                                         List.of(
                                                 new ModelDefinitionExportItemWargearOptionsInner(
-                                                        "fusion_gun",
-                                                        "Fusion Gun",
-                                                        true,
-                                                        List.of("weapon"))))));
+                                                                "fusion_gun", true, List.of("weapon"))
+                                                        .name("Fusion Gun")))));
 
         assertThat(service.importModelDefinitions(currentUser(), export)).isEmpty();
         verify(modelDefinitionDraftRepository, never()).save(any());
@@ -446,6 +481,113 @@ class ModelDefinitionDraftServiceTest {
         assertThat(definitions.getFirst().getExternalId()).isEqualTo("shuriken_pistol");
     }
 
+    @Test
+    void importStagesAWargearRenameForReviewInsteadOfApplyingItInPlace() {
+        // One definition backs every model carrying the item, so an unattended rename would fan out
+        // across the catalogue and could silently undo a correction an admin made in the app.
+        var factionId = UUID.randomUUID();
+        var faction =
+                FactionEntity.builder().id(factionId).externalId("aeldari").name("Aeldari").build();
+        var shurikenPistol = wargearDefinition("shuriken_pistol", "Shuriken pistol");
+        var guardianId = UUID.randomUUID();
+        var guardian = publishedModel(guardianId, "aeldari_guardian", factionId, "Guardian");
+
+        when(factionRepository.findAll()).thenReturn(List.of(faction));
+        when(factionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(modelDefinitionRepository.findAll()).thenReturn(List.of(guardian));
+        when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
+        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(guardianId)))
+                .thenReturn(List.of());
+        when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(guardianId)))
+                .thenReturn(List.of(publishedOption(guardianId, shurikenPistol)));
+        when(wargearDefinitionRepository.findAllByExternalIdIn(List.of("shuriken_pistol")))
+                .thenReturn(List.of(shurikenPistol));
+
+        assertThat(service.importModelDefinitions(currentUser(), v4Export("Shuriken Pistol")))
+                .isEmpty();
+
+        assertThat(shurikenPistol.getName()).isEqualTo("Shuriken pistol");
+        verify(wargearDefinitionRepository, never()).save(any());
+        var staged = ArgumentCaptor.forClass(WargearDefinitionDraftEntity.class);
+        verify(wargearDefinitionDraftRepository).save(staged.capture());
+        assertThat(staged.getValue().getProposedName()).isEqualTo("Shuriken Pistol");
+        assertThat(staged.getValue().getWargearDefinition()).isSameAs(shurikenPistol);
+    }
+
+    @Test
+    void reimportOfAnUnchangedDocumentLeavesNoPendingWargearRename() {
+        // A stale pending change from an earlier import must disappear once the names agree again,
+        // otherwise an admin is asked to approve a rename that is already in effect.
+        var factionId = UUID.randomUUID();
+        var faction =
+                FactionEntity.builder().id(factionId).externalId("aeldari").name("Aeldari").build();
+        var shurikenPistol = wargearDefinition("shuriken_pistol", "Shuriken Pistol");
+        var stale =
+                WargearDefinitionDraftEntity.builder()
+                        .id(UUID.randomUUID())
+                        .wargearDefinition(shurikenPistol)
+                        .proposedName("Shuriken pistol")
+                        .createdAt(Instant.now())
+                        .build();
+        var guardianId = UUID.randomUUID();
+        var guardian = publishedModel(guardianId, "aeldari_guardian", factionId, "Guardian");
+
+        when(factionRepository.findAll()).thenReturn(List.of(faction));
+        when(factionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(modelDefinitionRepository.findAll()).thenReturn(List.of(guardian));
+        when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
+        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(guardianId)))
+                .thenReturn(List.of());
+        when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(guardianId)))
+                .thenReturn(List.of(publishedOption(guardianId, shurikenPistol)));
+        when(wargearDefinitionRepository.findAllByExternalIdIn(List.of("shuriken_pistol")))
+                .thenReturn(List.of(shurikenPistol));
+        when(wargearDefinitionDraftRepository.findAllByDefinitionId(List.of(shurikenPistol.getId())))
+                .thenReturn(Map.of(shurikenPistol.getId(), stale));
+
+        assertThat(service.importModelDefinitions(currentUser(), v4Export("Shuriken Pistol")))
+                .isEmpty();
+
+        verify(wargearDefinitionDraftRepository).delete(stale);
+        verify(wargearDefinitionDraftRepository, never()).save(any());
+    }
+
+    @Test
+    void importRejectsModelsReferencingWargearMissingFromTheCatalogue() {
+        var export =
+                new ModelDefinitionExport(
+                                4,
+                                List.of(),
+                                List.of(
+                                        itemReferencingWargear(
+                                                "aeldari_guardian", null, "Guardian", "shuriken_pistol")))
+                        .wargear(List.of(new WargearExportItem("boltgun", "Boltgun")));
+
+        assertThatThrownBy(() -> service.importModelDefinitions(currentUser(), export))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("shuriken_pistol");
+    }
+
+    @Test
+    void importRejectsSchemaVersionsOlderThanTheSupportedRange() {
+        var export = new ModelDefinitionExport(2, List.of(), List.of());
+
+        assertThatThrownBy(() -> service.importModelDefinitions(currentUser(), export))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("schemaVersion");
+    }
+
+    /** A schema version 4 document naming one shared wargear item in its own catalogue. */
+    private static ModelDefinitionExport v4Export(String wargearName) {
+        return new ModelDefinitionExport(
+                        4,
+                        List.of(new FactionExportItem("aeldari", "Aeldari")),
+                        List.of(
+                                itemReferencingWargear(
+                                        "aeldari_guardian", "aeldari", "Guardian", "shuriken_pistol")))
+                .wargear(List.of(new WargearExportItem("shuriken_pistol", wargearName)));
+    }
+
     private static ModelDefinitionEntity publishedModel(
             UUID id, String externalId, UUID factionId, String name) {
         return ModelDefinitionEntity.builder()
@@ -467,6 +609,7 @@ class ModelDefinitionDraftServiceTest {
                 .build();
     }
 
+    /** Builds a schema version 3 style item, where the wargear name is repeated inline. */
     private static ModelDefinitionExportItem itemWithWargear(
             String sourceId, String factionSourceId, String name, String wargearName) {
         return new ModelDefinitionExportItem(
@@ -476,7 +619,21 @@ class ModelDefinitionDraftServiceTest {
                 List.of(),
                 List.of(
                         new ModelDefinitionExportItemWargearOptionsInner(
-                                "shuriken_pistol", wargearName, true, List.of())));
+                                        "shuriken_pistol", true, List.of())
+                                .name(wargearName)));
+    }
+
+    /** Builds a schema version 4 style item, which references wargear by id only. */
+    private static ModelDefinitionExportItem itemReferencingWargear(
+            String sourceId, String factionSourceId, String name, String wargearSourceId) {
+        return new ModelDefinitionExportItem(
+                sourceId,
+                factionSourceId,
+                name,
+                List.of(),
+                List.of(
+                        new ModelDefinitionExportItemWargearOptionsInner(
+                                wargearSourceId, true, List.of())));
     }
 
     private static WargearDefinitionEntity wargearDefinition(String externalId, String name) {
