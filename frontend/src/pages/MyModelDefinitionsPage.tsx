@@ -18,9 +18,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
-import ModelDefinitionDiffModal, {
-  PERSONAL_DIFF_LABELS,
-} from "@/components/modeldefinitions/ModelDefinitionDiffModal.tsx";
+import DefinitionDiffModal, { PERSONAL_DIFF_LABELS } from "@/components/definitions/DefinitionDiffModal.tsx";
 import PersonalModelDefinitionEditor from "@/components/mydefinitions/PersonalModelDefinitionEditor.tsx";
 import PageGate from "@/components/PageGate.tsx";
 import type { Faction, ModelDefinition, WargearDefinition } from "@/generated";
@@ -33,8 +31,9 @@ import {
   getMyModelDefinitions,
   getSharedModelDefinitions,
 } from "@/generated";
-import { type DraftDiff, diffPersonalModelDefinition } from "@/utils/modelDefinitionDraftDiff";
+import { MODEL_DEFINITIONS_KEY } from "@/queryKeys.ts";
 import extractErrorMessage from "@/utils/extractErrorMessage.ts";
+import { type DraftDiff, diffPersonalModelDefinition } from "@/utils/modelDefinitionDraftDiff";
 
 function factionLabel(definition: ModelDefinition, factionsById: Map<string, Faction>): string {
   if (!definition.factionId) return "Uncategorised";
@@ -218,11 +217,11 @@ export default function MyModelDefinitionsPage() {
   const [search, setSearch] = useState("");
   const queryClient = useQueryClient();
 
-  // Collection pages cache the catalogue and are configured not to refetch on mount, so a
-  // definition added or removed here would not show up there until a full reload. Dropping the
-  // cached copy outright (rather than invalidating it) is what forces the refetch.
+  // Collection pages cache the catalogue, so a definition added or removed here would keep showing
+  // the stale version there until that page is next mounted. Dropping the cached copy outright
+  // (rather than invalidating it) makes the change visible immediately.
   const invalidateCatalogue = useCallback(() => {
-    queryClient.removeQueries({ queryKey: ["modelDefinitions"] });
+    queryClient.removeQueries({ queryKey: [MODEL_DEFINITIONS_KEY] });
   }, [queryClient]);
 
   const loadAll = useCallback(
@@ -452,7 +451,7 @@ export default function MyModelDefinitionsPage() {
         />
       )}
 
-      <ModelDefinitionDiffModal
+      <DefinitionDiffModal
         opened={diffTarget !== null}
         onClose={() => setDiffTarget(null)}
         definitionName={diffTarget?.name ?? ""}

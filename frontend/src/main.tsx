@@ -14,15 +14,12 @@ import Router from "@/Router";
 import { theme } from "@/theme";
 
 const rootElement = document.getElementById("root");
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      refetchOnMount: false,
-    },
-  },
-});
+// React Query's defaults are deliberately left in place. `refetchOnMount: false` was set here once
+// and meant a catalogue fetched on an earlier visit was reused forever within a session, so a
+// faction or model definition added on one page stayed invisible on the others until a full page
+// reload. Every query below sets `placeholderData`, so a background refetch on mount re-renders
+// with fresh data without ever showing a loading state.
+const queryClient = new QueryClient();
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
 
 if (rootElement) {

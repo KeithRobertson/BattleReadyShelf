@@ -56,10 +56,10 @@ public class PersonalModelDefinitionService {
     }
 
     /**
-     * The shared definitions themselves, with no personal customisation substituted in. This is
-     * deliberately different from the public catalogue, which hides a shared definition once the
-     * user has customised it: the personal definitions page needs the original both to offer it for
-     * customisation and to diff a personal copy against.
+     * The shared definitions on their own. The personal definitions page needs the originals both
+     * to offer them for customisation and to diff a personal copy against, and it lists them
+     * separately from the user's own rather than merged into one catalogue the way the model picker
+     * does.
      */
     public List<ModelDefinition> getSharedModelDefinitions() {
         return modelDefinitionRepository.findAllByOwnerUserIdIsNull().stream()
@@ -169,8 +169,8 @@ public class PersonalModelDefinitionService {
 
     /**
      * Deletes a personal definition. For a customisation this is the "revert to the shared
-     * version" action, since the shared definition becomes visible again as soon as nothing
-     * shadows it.
+     * version" action: the fork disappears from the catalogue, leaving the shared definition as the
+     * only one the user sees.
      *
      * <p>Refuses while the user's collection still points at it: those rows are protected by an
      * {@code ON DELETE RESTRICT} foreign key, and their recorded wargear selections reference this

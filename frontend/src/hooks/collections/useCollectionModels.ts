@@ -10,6 +10,7 @@ import {
   getCollectionModels,
   updateCollectionModel,
 } from "@/generated";
+import { COLLECTION_MODELS_KEY } from "@/queryKeys.ts";
 import { createImageVariants } from "@/utils/imageVariants";
 
 export type CollectionModels = ReturnType<typeof useCollectionModels>;
@@ -23,7 +24,7 @@ export default function useCollectionModels(collectionId: string | undefined) {
     isError,
     error,
   } = useQuery<CollectionModel[]>({
-    queryKey: ["collectionModels", collectionId],
+    queryKey: [COLLECTION_MODELS_KEY, collectionId],
     queryFn: async () => {
       if (!collectionId) return [];
       const collectionModelsResponse = await getCollectionModels({
@@ -37,7 +38,7 @@ export default function useCollectionModels(collectionId: string | undefined) {
   });
 
   function setModels(updater: (prev: CollectionModel[]) => CollectionModel[]) {
-    queryClient.setQueryData<CollectionModel[]>(["collectionModels", collectionId], (prev) => updater(prev ?? []));
+    queryClient.setQueryData<CollectionModel[]>([COLLECTION_MODELS_KEY, collectionId], (prev) => updater(prev ?? []));
   }
 
   const addModelMutation = useMutation({

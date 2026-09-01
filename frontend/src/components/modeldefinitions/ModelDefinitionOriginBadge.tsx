@@ -1,6 +1,6 @@
 import { Badge, Tooltip } from "@mantine/core";
 import type { ModelDefinition } from "@/generated";
-import { modelDefinitionOrigin } from "@/utils/modelDefinitionOrigin.ts";
+import { modelDefinitionOrigin } from "@/utils/definitionOrigin.ts";
 
 /**
  * Marks a model definition that belongs to the signed-in user. Shared definitions get no badge, so

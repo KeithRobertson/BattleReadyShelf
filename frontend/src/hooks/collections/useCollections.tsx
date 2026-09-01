@@ -10,6 +10,7 @@ import { useAuth } from "@/auth/useAuth";
 import { CollectionStatsPanel } from "@/components/collections/CollectionStatsPanel.tsx";
 import type { ArmyCollection, CollectionModelStatus } from "@/generated";
 import { createArmyCollection, getArmyCollections, reorderArmyCollections } from "@/generated";
+import { COLLECTIONS_KEY } from "@/queryKeys.ts";
 import { COLLECTION_MODEL_STATUSES } from "@/utils/collectionModelStatus";
 
 export type CollectionsState = "auth-loading" | "unauthenticated" | "collections-loading" | "empty" | "ready";
@@ -31,7 +32,7 @@ export function useCollections() {
     isLoading: collectionsLoading,
     error,
   } = useQuery<ArmyCollection[]>({
-    queryKey: ["collections"],
+    queryKey: [COLLECTIONS_KEY],
     queryFn: async () => {
       const response = await getArmyCollections();
       return response.data ?? [];
@@ -95,7 +96,7 @@ export function useCollections() {
         throwOnError: true,
       }),
     onMutate: async (newOrder) => {
-      await queryClient.cancelQueries({ queryKey: ["collections"] });
+      await queryClient.cancelQueries({ queryKey: [COLLECTIONS_KEY] });
       const previous = queryClient.getQueryData<ArmyCollection[]>(["collections"]);
       queryClient.setQueryData(["collections"], newOrder);
       return { previous };
@@ -106,7 +107,7 @@ export function useCollections() {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["collections"] });
+      queryClient.invalidateQueries({ queryKey: [COLLECTIONS_KEY] });
     },
   });
 

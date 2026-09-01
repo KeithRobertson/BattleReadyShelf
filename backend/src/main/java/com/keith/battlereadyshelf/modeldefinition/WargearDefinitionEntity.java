@@ -29,6 +29,10 @@ import java.util.UUID;
  * <p>{@code ownerUserId} is null for the shared catalogue. A user who names wargear the catalogue
  * doesn't have (a conversion, a homebrew loadout) gets their own definition instead, owned by
  * them and invisible to everyone else, so personal edits never pollute the shared list.
+ *
+ * <p>{@code baseWargearDefinitionId} records that a personal definition was forked from a shared
+ * one rather than invented, which is what lets the app show the user how their version differs and
+ * offer to revert it. It is null both for shared rows and for wargear a user made up themselves.
  */
 @Entity
 @Table(name = "wargear_definitions")
@@ -46,6 +50,9 @@ public class WargearDefinitionEntity {
 
     @Column(name = "owner_user_id")
     private UUID ownerUserId;
+
+    @Column(name = "base_wargear_definition_id")
+    private UUID baseWargearDefinitionId;
 
     @Column(nullable = false)
     private String name;

@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { type ArmyCollection, getPublicArmyCollections } from "@/generated";
+import { PUBLIC_COLLECTIONS_KEY } from "@/queryKeys.ts";
 
 export function usePublicCollections() {
   const query = useQuery<ArmyCollection[]>({
-    queryKey: ["publicCollections"],
+    queryKey: [PUBLIC_COLLECTIONS_KEY],
     queryFn: async () => {
       const response = await getPublicArmyCollections();
       return response.data ?? [];

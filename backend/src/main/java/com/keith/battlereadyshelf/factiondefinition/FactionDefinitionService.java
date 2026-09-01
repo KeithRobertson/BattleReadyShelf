@@ -16,6 +16,7 @@ import com.keith.battlereadyshelf.generated.model.FactionExportItem;
 import com.keith.battlereadyshelf.generated.model.FactionImportResult;
 import com.keith.battlereadyshelf.generated.model.UpdateFactionRequest;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionRepository;
+import com.keith.battlereadyshelf.security.AuthenticatedUserProvider;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 
 import lombok.RequiredArgsConstructor;
@@ -29,12 +30,12 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Administration of the faction catalogue.
@@ -54,10 +55,42 @@ public class FactionDefinitionService {
     private final FactionDefinitionMapper factionDefinitionMapper;
     private final ModelDefinitionRepository modelDefinitionRepository;
     private final DefinitionPublishAuditService definitionPublishAuditService;
+    private final FactionCycleGuard factionCycleGuard;
+    private final AuthenticatedUserProvider authenticatedUserProvider;
 
-    /** Lists all factions, for admin tooling such as grouping model definitions by faction. */
-    public List<Faction> getAllFactions() {
-        return factionRepository.findAll().stream().map(factionDefinitionMapper::toDto).toList();
+    /**
+     * Lists the shared factions, for admin tooling such as grouping model definitions by faction.
+     * Personal factions are excluded: they are not part of the catalogue an admin curates.
+     */
+    public List<Faction> getSharedFactions() {
+        return factionRepository.findAllByOwnerUserIdIsNull().stream()
+                .map(factionDefinitionMapper::toDto)
+                .toList();
+    }
+
+    /**
+     * Factions as the caller should see them: the shared ones plus anything the signed-in user has
+     * added or customised. Anonymous callers (the list is open for preview mode) get the shared
+     * factions alone.
+     *
+     * <p>As with model definitions, a customisation is listed <em>alongside</em> the faction it was
+     * forked from rather than replacing it; callers tell them apart using {@code ownerUserId}.
+     */
+    public List<Faction> getVisibleFactions() {
+        var ownerUserId =
+                authenticatedUserProvider
+                        .findCurrentUser()
+                        .map(CurrentAuthenticatedUser::id)
+                        .orElse(null);
+        if (ownerUserId == null) {
+            return getSharedFactions();
+        }
+
+        return Stream.concat(
+                        factionRepository.findAllByOwnerUserIdIsNull().stream(),
+                        factionRepository.findAllByOwnerUserId(ownerUserId).stream())
+                .map(factionDefinitionMapper::toDto)
+                .toList();
     }
 
     public Faction createFaction(Faction faction) {
@@ -155,7 +188,7 @@ public class FactionDefinitionService {
      * currently is, not what someone has proposed it should become.
      */
     public FactionExport exportFactions() {
-        var factions = factionRepository.findAll();
+        var factions = factionRepository.findAllByOwnerUserIdIsNull();
         Map<UUID, String> sourceIdById =
                 factions.stream()
                         .collect(Collectors.toMap(FactionEntity::getId, FactionEntity::getExternalId));
@@ -203,7 +236,7 @@ public class FactionDefinitionService {
         }
 
         var existingByExternalId =
-                factionRepository.findAll().stream()
+                factionRepository.findAllByOwnerUserIdIsNull().stream()
                         .collect(Collectors.toMap(FactionEntity::getExternalId, f -> f, (a, b) -> a));
 
         Map<String, FactionEntity> bySourceId = new LinkedHashMap<>();
@@ -339,27 +372,7 @@ public class FactionDefinitionService {
      * walking the hierarchy.
      */
     private void requireNoCycle(UUID factionId, UUID proposedParentFactionId) {
-        if (proposedParentFactionId == null) {
-            return;
-        }
-        if (proposedParentFactionId.equals(factionId)) {
-            throw new BadRequestException("A faction cannot be its own parent.");
-        }
-
-        Map<UUID, UUID> parentById =
-                factionRepository.findAll().stream()
-                        .filter(f -> f.getParentFactionId() != null)
-                        .collect(Collectors.toMap(FactionEntity::getId, FactionEntity::getParentFactionId));
-
-        var seen = new HashSet<UUID>();
-        var ancestor = proposedParentFactionId;
-        while (ancestor != null && seen.add(ancestor)) {
-            if (ancestor.equals(factionId)) {
-                throw new BadRequestException(
-                        "That faction is already beneath this one, so it cannot also be its parent.");
-            }
-            ancestor = parentById.get(ancestor);
-        }
+        factionCycleGuard.requireNoCycle(factionId, proposedParentFactionId);
     }
 
     private Map<UUID, Long> modelDefinitionCounts() {

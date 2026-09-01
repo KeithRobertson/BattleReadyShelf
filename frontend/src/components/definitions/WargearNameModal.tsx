@@ -1,37 +1,36 @@
-import { Alert, Button, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
-import { IconAlertTriangle } from "@tabler/icons-react";
+import { Button, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import type { WargearDefinition } from "@/generated";
 
-type RenameWargearDefinitionModalProps = Readonly<{
+type WargearNameModalProps = Readonly<{
+  opened: boolean;
+  title: string;
+  submitLabel: string;
+  /** Context shown above the field, e.g. an admin warning about how many models a rename affects. */
+  notice?: ReactNode;
+  /** The wargear being renamed, or null when creating a new definition. */
   definition: WargearDefinition | null;
   saving: boolean;
   onClose: () => void;
-  onSave: (definition: WargearDefinition, name: string) => void;
+  onSave: (name: string) => void;
 }>;
 
-function usageWarning(usageCount: number) {
-  if (usageCount === 0) {
-    return "No model definitions use this wargear yet.";
-  }
-  if (usageCount === 1) {
-    return "1 model definition uses this wargear and will show the new name once the change is accepted.";
-  }
-  return `${usageCount} model definitions use this wargear and will all show the new name once the change is accepted.`;
-}
-
 /**
- * Proposes a new name for a shared wargear definition. The name lives in one place, so this is the
- * only way to change how a piece of wargear reads - editing a single model definition cannot do it.
- * For that same reason the change is staged for review rather than applied on save.
+ * The name of a wargear definition, which is the only thing a wargear definition has. Shared by the
+ * admin page, where saving stages a rename for review, and a user's own wargear page, where saving
+ * applies immediately.
  */
-export default function RenameWargearDefinitionModal({
+export default function WargearNameModal({
+  opened,
+  title,
+  submitLabel,
+  notice,
   definition,
   saving,
   onClose,
   onSave,
-}: RenameWargearDefinitionModalProps) {
+}: WargearNameModalProps) {
   const [name, setName] = useState("");
 
   useEffect(() => {
@@ -40,22 +39,19 @@ export default function RenameWargearDefinitionModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!definition) return;
     const trimmed = name.trim();
-    if (trimmed === "" || trimmed === definition.name) return;
-    onSave(definition, trimmed);
+    if (trimmed === "" || trimmed === definition?.name) return;
+    onSave(trimmed);
   }
 
   const trimmedName = name.trim();
   const isUnchanged = trimmedName === (definition?.name ?? "");
 
   return (
-    <Modal opened={definition !== null} onClose={onClose} title="Propose a wargear rename">
+    <Modal opened={opened} onClose={onClose} title={title}>
       <form onSubmit={handleSubmit}>
         <Stack>
-          <Alert color="yellow" icon={<IconAlertTriangle size={16} />}>
-            {usageWarning(definition?.usageCount ?? 0)}
-          </Alert>
+          {notice}
 
           {definition?.externalId != null && (
             <Text size="sm" c="dimmed">
@@ -81,7 +77,7 @@ export default function RenameWargearDefinitionModal({
               Cancel
             </Button>
             <Button type="submit" loading={saving} disabled={trimmedName === "" || isUnchanged}>
-              Propose change
+              {submitLabel}
             </Button>
           </Group>
         </Stack>

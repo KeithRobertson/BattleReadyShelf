@@ -1,5 +1,5 @@
 import { Alert, Group, Stack, Text, TextInput, Title } from "@mantine/core";
-import { IconAlertCircle, IconCircleCheck, IconSearch } from "@tabler/icons-react";
+import { IconAlertCircle, IconAlertTriangle, IconCircleCheck, IconSearch } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
 import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
@@ -7,8 +7,8 @@ import { DefinitionTransferButtons } from "@/components/admin/DefinitionTransfer
 import PendingChangesPanel, { type PendingChangeRow } from "@/components/admin/PendingChangesPanel.tsx";
 import PublishHistoryModal from "@/components/admin/PublishHistoryModal.tsx";
 import usePublishHistory from "@/components/admin/usePublishHistory.ts";
-import RenameWargearDefinitionModal from "@/components/admin/wargear/RenameWargearDefinitionModal.tsx";
 import WargearDefinitionTable from "@/components/admin/wargear/WargearDefinitionTable.tsx";
+import WargearNameModal from "@/components/definitions/WargearNameModal.tsx";
 import type { WargearDefinition, WargearDefinitionDraft, WargearImportResult } from "@/generated";
 import {
   discardWargearDefinitionDraft,
@@ -25,6 +25,17 @@ function matchesSearch(definition: WargearDefinition, search: string) {
   const term = search.trim().toLowerCase();
   if (term === "") return true;
   return definition.name.toLowerCase().includes(term) || (definition.externalId?.toLowerCase().includes(term) ?? false);
+}
+
+/** How many model definitions a rename will change the reading of. */
+function renameWarning(usageCount: number) {
+  if (usageCount === 0) {
+    return "No model definitions use this wargear yet.";
+  }
+  if (usageCount === 1) {
+    return "1 model definition uses this wargear and will show the new name once the change is accepted.";
+  }
+  return `${usageCount} model definitions use this wargear and will all show the new name once the change is accepted.`;
 }
 
 /** A pending rename shown as the single field it changes. */
@@ -118,8 +129,9 @@ export default function WargearDefinitionsAdminPage() {
     [definitions],
   );
 
-  async function handleRename(definition: WargearDefinition, name: string) {
-    if (!definition.id) return;
+  async function handleRename(name: string) {
+    const definition = renaming;
+    if (!definition?.id) return;
     setError(null);
     setSaving(true);
     try {
@@ -258,7 +270,15 @@ export default function WargearDefinitionsAdminPage() {
         </Stack>
       </AdminPageGate>
 
-      <RenameWargearDefinitionModal
+      <WargearNameModal
+        opened={renaming !== null}
+        title="Propose a wargear rename"
+        submitLabel="Propose change"
+        notice={
+          <Alert color="yellow" icon={<IconAlertTriangle size={16} />}>
+            {renameWarning(renaming?.usageCount ?? 0)}
+          </Alert>
+        }
         definition={renaming}
         saving={saving}
         onClose={() => setRenaming(null)}

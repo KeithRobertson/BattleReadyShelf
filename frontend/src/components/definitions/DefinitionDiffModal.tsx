@@ -196,7 +196,7 @@ function DiffBody({ diff, labels }: Readonly<{ diff: DraftDiff | null; labels: D
   );
 }
 
-type ModelDefinitionDiffModalProps = Readonly<{
+type DefinitionDiffModalProps = Readonly<{
   opened: boolean;
   onClose: () => void;
   definitionName: string;
@@ -204,13 +204,18 @@ type ModelDefinitionDiffModalProps = Readonly<{
   labels: DiffLabels;
 }>;
 
-export default function ModelDefinitionDiffModal({
+/**
+ * Renders one definition's differences from another. Used for an admin draft against what is
+ * published, and for a user's own definition against the shared one it was forked from - and for
+ * factions and wargear, whose diffs carry only fields and leave the child sections empty.
+ */
+export default function DefinitionDiffModal({
   opened,
   onClose,
   definitionName,
   diff,
   labels,
-}: ModelDefinitionDiffModalProps) {
+}: DefinitionDiffModalProps) {
   return (
     <Modal opened={opened} onClose={onClose} title={`Changes to "${definitionName}"`} size="xl">
       <DiffBody diff={diff} labels={labels} />

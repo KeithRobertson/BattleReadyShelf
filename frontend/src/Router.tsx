@@ -8,6 +8,8 @@ const PublicCollectionsPage = lazy(() => import("@/pages/PublicCollectionsPage")
 const ArmyBuilderPage = lazy(() => import("@/pages/ArmyBuilderPage"));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
 const MyModelDefinitionsPage = lazy(() => import("@/pages/MyModelDefinitionsPage"));
+const MyFactionsPage = lazy(() => import("@/pages/MyFactionsPage"));
+const MyWargearDefinitionsPage = lazy(() => import("@/pages/MyWargearDefinitionsPage"));
 const UsersAdminPage = lazy(() => import("@/pages/UsersAdminPage"));
 const ModelDefinitionsAdminPage = lazy(() => import("@/pages/ModelDefinitionsAdminPage"));
 const FactionDefinitionsAdminPage = lazy(() => import("@/pages/FactionDefinitionsAdminPage"));
@@ -23,6 +25,8 @@ const Router = () => (
       <Route path="collections/:collectionId" element={<CollectionPage />} />
       <Route path="army-builder" element={<ArmyBuilderPage />} />
       <Route path="my/model-definitions" element={<MyModelDefinitionsPage />} />
+      <Route path="my/factions" element={<MyFactionsPage />} />
+      <Route path="my/wargear-definitions" element={<MyWargearDefinitionsPage />} />
       <Route path="settings" element={<SettingsPage />} />
       <Route path="admin/users" element={<UsersAdminPage />} />
       <Route path="admin/model-definitions" element={<ModelDefinitionsAdminPage />} />

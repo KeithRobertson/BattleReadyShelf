@@ -10,6 +10,7 @@ import {
 } from "@/components/modeldefinitions/definitionChildren.ts";
 import type { Faction, ModelDefinition, WargearDefinition } from "@/generated";
 import { updateMyModelDefinition } from "@/generated";
+import { factionOptionLabel } from "@/utils/definitionOrigin.ts";
 
 export type PersonalModelDefinitionEditorProps = Readonly<{
   definition: ModelDefinition;
@@ -89,7 +90,7 @@ export default function PersonalModelDefinitionEditor({
         <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
         <Select
           label="Faction"
-          data={factions.map((f) => ({ value: f.id, label: f.name }))}
+          data={factions.map((f) => ({ value: f.id, label: factionOptionLabel(f) }))}
           value={faction}
           onChange={(value) => {
             if (value) setFaction(value);

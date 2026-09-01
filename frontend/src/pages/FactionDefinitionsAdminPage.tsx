@@ -1,12 +1,12 @@
 import { ActionIcon, Alert, Button, Group, Modal, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconAlertCircle, IconCircleCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconAlertCircle, IconAlertTriangle, IconCircleCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
 import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
 import { DefinitionTransferButtons } from "@/components/admin/DefinitionTransferButtons.tsx";
-import EditFactionModal from "@/components/admin/factions/EditFactionModal.tsx";
+import FactionFormModal from "@/components/definitions/FactionFormModal.tsx";
 import PendingChangesPanel, { type PendingChangeRow } from "@/components/admin/PendingChangesPanel.tsx";
 import PublishHistoryModal from "@/components/admin/PublishHistoryModal.tsx";
 import usePublishHistory from "@/components/admin/usePublishHistory.ts";
@@ -23,6 +23,17 @@ import {
   proposeFactionChange,
   publishFactionDraft,
 } from "@/generated";
+
+/** How many model definitions a rename or reparent will carry with it. */
+function factionUsageWarning(usageCount: number) {
+  if (usageCount === 0) {
+    return "No model definitions sit under this faction yet.";
+  }
+  if (usageCount === 1) {
+    return "1 model definition sits under this faction and moves with it.";
+  }
+  return `${usageCount} model definitions sit under this faction and move with it.`;
+}
 
 /** A pending change rendered as only the fields that actually move. */
 function toPendingRow(draft: FactionDraft, nameOf: (factionId?: string | null) => string | null): PendingChangeRow {
@@ -133,8 +144,9 @@ export default function FactionDefinitionsAdminPage() {
     }
   }
 
-  async function handleProposeChange(faction: Faction, name: string, parentFactionId: string | null) {
-    if (!faction.id) return;
+  async function handleProposeChange(name: string, parentFactionId: string | null) {
+    const faction = editing;
+    if (!faction?.id) return;
     setError(null);
     setSaving(true);
     try {
@@ -341,10 +353,17 @@ export default function FactionDefinitionsAdminPage() {
         </form>
       </Modal>
 
-      <EditFactionModal
+      <FactionFormModal
+        opened={editing !== null}
+        title="Propose a faction change"
+        submitLabel="Propose change"
+        notice={
+          <Alert color="yellow" icon={<IconAlertTriangle size={16} />}>
+            {factionUsageWarning(usageByFactionId.get(editing?.id) ?? 0)}
+          </Alert>
+        }
         faction={editing}
         factions={factions}
-        usageCount={usageByFactionId.get(editing?.id) ?? 0}
         saving={saving}
         onClose={() => setEditing(null)}
         onSave={handleProposeChange}

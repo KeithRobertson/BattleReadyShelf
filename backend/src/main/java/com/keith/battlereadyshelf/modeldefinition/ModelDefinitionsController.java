@@ -25,6 +25,6 @@ public class ModelDefinitionsController implements ModelDefinitionsApi {
 
     @Override
     public ResponseEntity<List<Faction>> getFactionsList() {
-        return ResponseEntity.ok(factionDefinitionService.getAllFactions());
+        return ResponseEntity.ok(factionDefinitionService.getVisibleFactions());
     }
 }

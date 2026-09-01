@@ -28,4 +28,9 @@ public interface WargearDefinitionRepository extends JpaRepository<WargearDefini
 
     Optional<WargearDefinitionEntity> findFirstByOwnerUserIdAndNameIgnoreCase(
             UUID ownerUserId, String name);
+
+    Optional<WargearDefinitionEntity> findByIdAndOwnerUserId(UUID id, UUID ownerUserId);
+
+    Optional<WargearDefinitionEntity> findByOwnerUserIdAndBaseWargearDefinitionId(
+            UUID ownerUserId, UUID baseWargearDefinitionId);
 }

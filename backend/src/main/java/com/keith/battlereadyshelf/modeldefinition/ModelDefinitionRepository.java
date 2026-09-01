@@ -29,4 +29,6 @@ public interface ModelDefinitionRepository extends JpaRepository<ModelDefinition
 
     Optional<ModelDefinitionEntity> findByOwnerUserIdAndBaseModelDefinitionId(
             UUID ownerUserId, UUID baseModelDefinitionId);
+
+    long countByFactionId(UUID factionId);
 }

@@ -1,11 +1,30 @@
 import type { TablerIcon } from "@tabler/icons-react";
-import { IconSwords, IconTags, IconTagsChevronUp, IconUsers } from "@tabler/icons-react";
+import { IconSwords, IconTags, IconTagsChevronUp, IconTools, IconUsers } from "@tabler/icons-react";
 
 export interface NavItem {
   label: string;
   to: string;
   icon: TablerIcon;
 }
+
+/** The user's own catalogue: their additions, and their customisations of the shared entries. */
+export const myDefinitionNavItems: NavItem[] = [
+  {
+    label: "My Models",
+    to: "/my/model-definitions",
+    icon: IconTools,
+  },
+  {
+    label: "My Factions",
+    to: "/my/factions",
+    icon: IconTagsChevronUp,
+  },
+  {
+    label: "My Wargear",
+    to: "/my/wargear-definitions",
+    icon: IconSwords,
+  },
+];
 
 export const adminNavItems: NavItem[] = [
   {

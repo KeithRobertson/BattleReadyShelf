@@ -454,12 +454,12 @@ paths:
   /api/v1/my/model-definitions/shared:
     get:
       tags: [ "PersonalModelDefinitions" ]
-      summary: List the shared catalogue without the signed-in user's customisations substituted in
+      summary: List the shared catalogue without the signed-in user's customisations
       description: >-
-        GET /api/v1/model-definitions hides a shared definition once the user has customised it, so
-        their version is the one that shows up everywhere. The personal definitions page needs the
-        originals themselves: to offer them for customisation, and to diff a personal copy against
-        the definition it was forked from.
+        GET /api/v1/model-definitions returns the shared catalogue and the user's own definitions
+        together, so a customisation appears alongside the definition it was forked from. This
+        endpoint returns the shared definitions on their own: to offer them for customisation, and
+        to diff a personal copy against the definition it came from.
       operationId: getSharedModelDefinitions
       security:
         - bearerAuth: [ ]
@@ -539,8 +539,8 @@ paths:
       summary: Start customising a shared model definition
       description: >-
         Copies the shared definition, its slots and its wargear options into a personal definition
-        owned by the caller, which then shadows the shared one everywhere they see the catalogue.
-        Idempotent - returns the existing customisation if they already have one.
+        owned by the caller, which is then listed alongside the original wherever they see the
+        catalogue. Idempotent - returns the existing customisation if they already have one.
       operationId: customiseModelDefinition
       security:
         - bearerAuth: [ ]
@@ -566,6 +566,342 @@ paths:
                 $ref: '#/components/schemas/ApiError'
         '404':
           description: Model definition not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/my/factions:
+    get:
+      tags: [ "PersonalFactions" ]
+      summary: List the signed-in user's own factions
+      description: >-
+        Both kinds of personal faction: customisations of a shared faction (which carry a
+        baseFactionId) and ones the user created from scratch (which do not).
+      operationId: getMyFactions
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: This user's factions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Faction'
+    post:
+      tags: [ "PersonalFactions" ]
+      summary: Create a faction of the user's own
+      operationId: createMyFaction
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFactionRequest'
+      responses:
+        '201':
+          description: The created faction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Faction'
+        '409':
+          description: The user already has a faction with that name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/my/factions/shared:
+    get:
+      tags: [ "PersonalFactions" ]
+      summary: List the shared factions on their own
+      description: >-
+        GET /api/v1/factions returns the shared factions and the user's own together. This endpoint
+        returns the shared ones alone: to offer them for customisation, and to diff a personal copy
+        against the faction it was forked from.
+      operationId: getSharedFactions
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: The shared factions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Faction'
+  /api/v1/my/factions/{factionId}:
+    put:
+      tags: [ "PersonalFactions" ]
+      summary: Update one of the user's own factions
+      operationId: updateMyFaction
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: factionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFactionRequest'
+      responses:
+        '200':
+          description: The updated faction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Faction'
+        '404':
+          description: No such faction belongs to this user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: The user already has a faction with that name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    delete:
+      tags: [ "PersonalFactions" ]
+      summary: Delete one of the user's own factions, reverting to the shared one if it was a customisation
+      operationId: deleteMyFaction
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: factionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The faction was deleted
+        '404':
+          description: No such faction belongs to this user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: Model definitions still belong to this faction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/my/factions/from/{factionId}:
+    post:
+      tags: [ "PersonalFactions" ]
+      summary: Start customising a shared faction
+      description: >-
+        Copies the shared faction into one owned by the caller, which is then listed alongside the
+        original. Idempotent - returns the existing customisation if they already have one.
+      operationId: customiseFaction
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: factionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The personal copy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Faction'
+        '400':
+          description: The given faction is not a shared one
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Faction not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/my/wargear-definitions:
+    get:
+      tags: [ "PersonalWargearDefinitions" ]
+      summary: List the signed-in user's own wargear
+      description: >-
+        Both kinds of personal wargear: customisations of shared wargear (which carry a
+        baseWargearDefinitionId) and wargear the user named themselves, including anything created
+        implicitly by naming wargear on a personal model definition.
+      operationId: getMyWargearDefinitions
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: This user's wargear
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WargearDefinition'
+    post:
+      tags: [ "PersonalWargearDefinitions" ]
+      summary: Create wargear of the user's own
+      operationId: createMyWargearDefinition
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWargearDefinitionRequest'
+      responses:
+        '201':
+          description: The created wargear
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WargearDefinition'
+        '409':
+          description: The user already has wargear with that name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/my/wargear-definitions/shared:
+    get:
+      tags: [ "PersonalWargearDefinitions" ]
+      summary: List the shared wargear on its own
+      description: >-
+        GET /api/v1/wargear-definitions returns the shared catalogue and the user's own together.
+        This endpoint returns the shared wargear alone: to offer it for customisation, and to diff a
+        personal copy against the wargear it was forked from.
+      operationId: getSharedWargearDefinitions
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: The shared wargear
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WargearDefinition'
+  /api/v1/my/wargear-definitions/{wargearDefinitionId}:
+    put:
+      tags: [ "PersonalWargearDefinitions" ]
+      summary: Rename one of the user's own wargear definitions
+      operationId: updateMyWargearDefinition
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: wargearDefinitionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWargearDefinitionRequest'
+      responses:
+        '200':
+          description: The updated wargear
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WargearDefinition'
+        '404':
+          description: No such wargear belongs to this user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: The user already has wargear with that name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    delete:
+      tags: [ "PersonalWargearDefinitions" ]
+      summary: Delete one of the user's own wargear definitions
+      operationId: deleteMyWargearDefinition
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: wargearDefinitionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The wargear was deleted
+        '404':
+          description: No such wargear belongs to this user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: Model definition options still reference this wargear
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/my/wargear-definitions/from/{wargearDefinitionId}:
+    post:
+      tags: [ "PersonalWargearDefinitions" ]
+      summary: Start customising a shared wargear definition
+      description: >-
+        Copies the shared wargear into one owned by the caller, which they can then rename and
+        attach to their own model definitions. Idempotent - returns the existing customisation if
+        they already have one.
+      operationId: customiseWargearDefinition
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: wargearDefinitionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The personal copy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WargearDefinition'
+        '400':
+          description: The given wargear is not shared
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Wargear definition not found
           content:
             application/json:
               schema:
@@ -1946,7 +2282,10 @@ components:
           readOnly: true
         externalId:
           type: string
-          description: Stable identifier used to match this faction across imports.
+          nullable: true
+          description: >-
+            Stable identifier used to match this faction across imports. Null for a faction a user
+            created for themselves, which the reference dataset knows nothing about.
         name:
           type: string
         parentFactionId:
@@ -1954,7 +2293,23 @@ components:
           format: uuid
           nullable: true
           description: Null if this faction has no parent.
-      required: [id, externalId, name ]
+        ownerUserId:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: >-
+            Null for the shared catalogue. Set on a faction a user added or customised for
+            themselves, in which case only they can see it.
+        baseFactionId:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: >-
+            The shared faction this personal one was forked from, so the app can show how it
+            differs and offer to revert. Null both for shared factions and for ones a user invented.
+      required: [id, name ]
     AttachmentSlot:
       type: object
       properties:
@@ -2218,6 +2573,15 @@ components:
             have while building a personal model definition, in which case only they can see it.
         name:
           type: string
+        baseWargearDefinitionId:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: >-
+            The shared wargear this personal one was forked from, so the app can show how it
+            differs and offer to revert. Null both for shared wargear and for wargear a user
+            named themselves.
         usageCount:
           type: integer
           format: int32

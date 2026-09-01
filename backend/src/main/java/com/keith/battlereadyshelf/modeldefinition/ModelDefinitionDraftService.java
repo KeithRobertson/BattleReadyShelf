@@ -334,7 +334,7 @@ public class ModelDefinitionDraftService {
      */
     public ModelDefinitionExport exportModelDefinitions() {
         Map<UUID, String> factionSourceIdById =
-                factionRepository.findAll().stream()
+                factionRepository.findAllByOwnerUserIdIsNull().stream()
                         .collect(Collectors.toMap(FactionEntity::getId, FactionEntity::getExternalId));
 
         var modelDefinitions = modelDefinitionRepository.findAllByOwnerUserIdIsNull();
@@ -422,7 +422,7 @@ public class ModelDefinitionDraftService {
         // Deprecated, for older combined catalogues only: current documents carry no factions.
         factionDefinitionService.upsertFactions(export.getFactions());
         var factionBySourceId =
-                factionRepository.findAll().stream()
+                factionRepository.findAllByOwnerUserIdIsNull().stream()
                         .collect(Collectors.toMap(FactionEntity::getExternalId, f -> f, (a, b) -> a));
 
         var existingDefinitions = modelDefinitionRepository.findAllByOwnerUserIdIsNull();

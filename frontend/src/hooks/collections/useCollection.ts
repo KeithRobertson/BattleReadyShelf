@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/auth/useAuth";
 import type { ArmyCollection } from "@/generated";
 import { getArmyCollection } from "@/generated";
+import { COLLECTION_KEY } from "@/queryKeys.ts";
 
 export type CollectionHook = ReturnType<typeof useCollection>;
 
@@ -15,7 +16,7 @@ export default function useCollection(collectionId: string | undefined) {
     isError,
     error,
   } = useQuery<ArmyCollection | null>({
-    queryKey: ["collection", collectionId],
+    queryKey: [COLLECTION_KEY, collectionId],
     queryFn: async () => {
       if (!collectionId) return null;
       const response = await getArmyCollection({

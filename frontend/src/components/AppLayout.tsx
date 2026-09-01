@@ -16,7 +16,7 @@ import { GoogleLoginButton } from "@/auth/GoogleLoginButton.tsx";
 import { useAuth } from "@/auth/useAuth";
 import PageSkeleton from "@/components/PageSkeleton.tsx";
 import { UserMenu } from "@/components/UserMenu.tsx";
-import { adminNavItems } from "@/config/admin/navigation";
+import { adminNavItems, myDefinitionNavItems } from "@/config/navigation";
 import { useResponsivePersistentDisclosure } from "@/hooks/useResponsivePersistentDisclosure.ts";
 
 export default function AppLayout() {
@@ -32,6 +32,7 @@ export default function AppLayout() {
   const { opened: navOpened, toggle: toggleNav, isMobile } = useResponsivePersistentDisclosure("navOpened");
   const { opened: asideOpened, toggle: toggleAside } = useResponsivePersistentDisclosure("asideOpened");
   const isAdminRoute = location.pathname.startsWith("/admin");
+  const isMyDefinitionsRoute = location.pathname.startsWith("/my/");
   const isCollectionsRoute = location.pathname === "/" || location.pathname.startsWith("/collections");
 
   const AsideIcon = asideOpened ? IconLayoutSidebarRightCollapseFilled : IconLayoutSidebarRightExpandFilled;
@@ -104,13 +105,23 @@ export default function AppLayout() {
         />
         {isAuthenticated && (
           <NavLink
-            component={Link}
-            to="/my/model-definitions"
-            label="My Models"
+            label="My Definitions"
             leftSection={<IconTools size={18} stroke={1.5} />}
-            active={location.pathname === "/my/model-definitions"}
-            onClick={toggleNavOnMobile}
-          />
+            defaultOpened={isMyDefinitionsRoute}
+            childrenOffset={28}
+          >
+            {myDefinitionNavItems.map((item) => (
+              <NavLink
+                key={item.to}
+                component={Link}
+                to={item.to}
+                label={item.label}
+                leftSection={<item.icon size={18} stroke={1.5} />}
+                active={location.pathname === item.to}
+                onClick={toggleNavOnMobile}
+              />
+            ))}
+          </NavLink>
         )}
         {isAdmin && (
           <NavLink

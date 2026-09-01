@@ -1,42 +1,39 @@
-import { Alert, Button, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
-import { IconAlertTriangle } from "@tabler/icons-react";
+import { Button, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import type { Faction } from "@/generated";
 
-type EditFactionModalProps = Readonly<{
+type FactionFormModalProps = Readonly<{
+  opened: boolean;
+  title: string;
+  submitLabel: string;
+  /** Context shown above the fields, e.g. an admin warning about what a reparent will move. */
+  notice?: ReactNode;
+  /** The faction being edited, or null when creating a new one. */
   faction: Faction | null;
-  /** Every faction, so a parent can be picked. The faction being edited is filtered out here. */
+  /** The factions a parent can be picked from. The one being edited is filtered out here. */
   factions: Faction[];
-  usageCount: number;
   saving: boolean;
   onClose: () => void;
-  onSave: (faction: Faction, name: string, parentFactionId: string | null) => void;
+  onSave: (name: string, parentFactionId: string | null) => void;
 }>;
 
-function usageWarning(usageCount: number) {
-  if (usageCount === 0) {
-    return "No model definitions sit under this faction yet.";
-  }
-  if (usageCount === 1) {
-    return "1 model definition sits under this faction and moves with it.";
-  }
-  return `${usageCount} model definitions sit under this faction and move with it.`;
-}
-
 /**
- * Proposes a new name or parent for a faction. A faction groups every model definition beneath it,
- * so reparenting one moves that whole subtree - the change is staged for review rather than applied
- * on save.
+ * The name and parent of a faction. Shared by the admin page, where saving stages a change for
+ * review, and a user's own factions page, where saving applies immediately - the fields and the
+ * validation are the same either way, so only the wording and the notice differ.
  */
-export default function EditFactionModal({
+export default function FactionFormModal({
+  opened,
+  title,
+  submitLabel,
+  notice,
   faction,
   factions,
-  usageCount,
   saving,
   onClose,
   onSave,
-}: EditFactionModalProps) {
+}: FactionFormModalProps) {
   const [name, setName] = useState("");
   const [parentFactionId, setParentFactionId] = useState<string | null>(null);
 
@@ -47,10 +44,9 @@ export default function EditFactionModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!faction) return;
     const trimmed = name.trim();
     if (trimmed === "") return;
-    onSave(faction, trimmed, parentFactionId);
+    onSave(trimmed, parentFactionId);
   }
 
   const trimmedName = name.trim();
@@ -62,12 +58,10 @@ export default function EditFactionModal({
   ];
 
   return (
-    <Modal opened={faction !== null} onClose={onClose} title="Propose a faction change">
+    <Modal opened={opened} onClose={onClose} title={title}>
       <form onSubmit={handleSubmit}>
         <Stack>
-          <Alert color="yellow" icon={<IconAlertTriangle size={16} />}>
-            {usageWarning(usageCount)}
-          </Alert>
+          {notice}
 
           {faction?.externalId != null && (
             <Text size="sm" c="dimmed">
@@ -100,7 +94,7 @@ export default function EditFactionModal({
               Cancel
             </Button>
             <Button type="submit" loading={saving} disabled={trimmedName === "" || isUnchanged}>
-              Propose change
+              {submitLabel}
             </Button>
           </Group>
         </Stack>

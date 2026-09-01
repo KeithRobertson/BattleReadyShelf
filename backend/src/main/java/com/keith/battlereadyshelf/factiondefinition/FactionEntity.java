@@ -27,6 +27,15 @@ import java.util.UUID;
  * Factions the catalogue does not have yet are still created outright by an import - there is
  * nothing to review about an addition, and staging one would leave a new faction's parent
  * unresolvable when that parent is also new.
+ *
+ * <p>{@code ownerUserId} is null for the shared catalogue. A user may add factions of their own
+ * (a homebrew warband, a successor chapter) or fork a shared one to rename or reparent it just for
+ * themselves; either way the row is invisible to everyone else and never enters the draft/publish
+ * workflow above, which governs the shared catalogue alone. {@code baseFactionId} records the fork
+ * so the app can show how a personal version differs from the shared one and offer to revert it.
+ *
+ * <p>{@code externalId} is the dataset's id and is null for anything not imported, which includes
+ * every personal faction.
  */
 @Entity
 @Table(name = "factions")
@@ -39,7 +48,7 @@ public class FactionEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "external_id", nullable = false, unique = true)
+    @Column(name = "external_id", unique = true)
     private String externalId;
 
     @Column(nullable = false)
@@ -47,4 +56,10 @@ public class FactionEntity {
 
     @Column(name = "parent_faction_id")
     private UUID parentFactionId;
+
+    @Column(name = "owner_user_id")
+    private UUID ownerUserId;
+
+    @Column(name = "base_faction_id")
+    private UUID baseFactionId;
 }

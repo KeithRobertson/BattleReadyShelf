@@ -18,6 +18,7 @@ import com.keith.battlereadyshelf.generated.model.FactionExport;
 import com.keith.battlereadyshelf.generated.model.FactionExportItem;
 import com.keith.battlereadyshelf.generated.model.UpdateFactionRequest;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionRepository;
+import com.keith.battlereadyshelf.security.AuthenticatedUserProvider;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 import com.keith.battlereadyshelf.user.Role;
 
@@ -44,6 +45,7 @@ class FactionDefinitionServiceTest {
     @Mock private FactionDefinitionMapper factionDefinitionMapper;
     @Mock private ModelDefinitionRepository modelDefinitionRepository;
     @Mock private DefinitionPublishAuditService definitionPublishAuditService;
+    @Mock private AuthenticatedUserProvider authenticatedUserProvider;
 
     private FactionDefinitionService service;
 
@@ -55,13 +57,16 @@ class FactionDefinitionServiceTest {
                         factionDraftRepository,
                         factionDefinitionMapper,
                         modelDefinitionRepository,
-                        definitionPublishAuditService);
+                        definitionPublishAuditService,
+                        new FactionCycleGuard(factionRepository),
+                        authenticatedUserProvider);
         lenient()
                 .when(factionDefinitionMapper.toDto(any(FactionEntity.class)))
                 .thenAnswer(
                         invocation -> {
                             FactionEntity entity = invocation.getArgument(0);
-                            return new Faction(entity.getId(), entity.getExternalId(), entity.getName());
+                            return new Faction(entity.getId(), entity.getName())
+                                    .externalId(entity.getExternalId());
                         });
         lenient().when(modelDefinitionRepository.countByFaction()).thenReturn(List.of());
         lenient()
@@ -86,7 +91,7 @@ class FactionDefinitionServiceTest {
         var child = faction(UUID.randomUUID(), "asuryani", "Asuryani", parentId);
 
         // Deliberately out of order: the export must not depend on how the rows come back.
-        when(factionRepository.findAll()).thenReturn(List.of(child, parent));
+        when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(child, parent));
 
         var result = service.exportFactions();
 
@@ -100,7 +105,7 @@ class FactionDefinitionServiceTest {
 
     @Test
     void importCreatesNewFactionsAndResolvesParentsDefinedInTheSameDocument() {
-        when(factionRepository.findAll()).thenReturn(List.of());
+        when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of());
         when(factionRepository.save(any())).thenAnswer(FactionDefinitionServiceTest::saveWithId);
 
         // The child is listed first, so its parent is only known once the whole document is read.
@@ -124,7 +129,7 @@ class FactionDefinitionServiceTest {
         var parent = faction(parentId, "aeldari", "Aeldari", null);
         var child = faction(UUID.randomUUID(), "asuryani", "Asuryani", parentId);
 
-        when(factionRepository.findAll()).thenReturn(List.of(parent, child));
+        when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(parent, child));
 
         var export =
                 new FactionExport(
@@ -150,7 +155,7 @@ class FactionDefinitionServiceTest {
         var parent = faction(parentId, "aeldari", "Aeldari", null);
         var child = faction(UUID.randomUUID(), "asuryani", "Asuryani", parentId);
 
-        when(factionRepository.findAll()).thenReturn(List.of(parent, child));
+        when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(parent, child));
 
         var export =
                 new FactionExport(
@@ -177,7 +182,7 @@ class FactionDefinitionServiceTest {
     @Test
     void importStagesARenameRatherThanApplyingIt() {
         var existing = faction(UUID.randomUUID(), "aeldari", "Eldar", null);
-        when(factionRepository.findAll()).thenReturn(List.of(existing));
+        when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(existing));
 
         var export = new FactionExport(4, List.of(new FactionExportItem("aeldari", "Aeldari")));
 
@@ -203,7 +208,7 @@ class FactionDefinitionServiceTest {
         var existing = faction(UUID.randomUUID(), "aeldari", "Eldar", null);
         var pending = draft(existing, "Aeldari", null, ProposalOrigin.IMPORT);
 
-        when(factionRepository.findAll()).thenReturn(List.of(existing));
+        when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(existing));
         when(factionDraftRepository.findAllByFactionId(any()))
                 .thenReturn(Map.of(existing.getId(), pending));
 
@@ -315,7 +320,7 @@ class FactionDefinitionServiceTest {
 
     @Test
     void importRejectsAParentThatIsNotInTheDocument() {
-        when(factionRepository.findAll()).thenReturn(List.of());
+        when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of());
         when(factionRepository.save(any())).thenAnswer(FactionDefinitionServiceTest::saveWithId);
 
         var export =

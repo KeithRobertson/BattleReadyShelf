@@ -124,7 +124,7 @@ class ModelDefinitionDraftServiceTest {
                         .attachmentSlots(List.of(slot))
                         .build();
 
-        when(factionRepository.findAll()).thenReturn(List.of(faction));
+        when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(faction));
         when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(model));
         when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(modelId)))
                 .thenReturn(List.of(slot));
@@ -162,7 +162,7 @@ class ModelDefinitionDraftServiceTest {
         var secondId = UUID.randomUUID();
         var boltgun = wargearDefinition("boltgun", "Boltgun");
 
-        when(factionRepository.findAll()).thenReturn(List.of());
+        when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of());
         when(modelDefinitionRepository.findAllByOwnerUserIdIsNull())
                 .thenReturn(
                         List.of(
@@ -207,7 +207,7 @@ class ModelDefinitionDraftServiceTest {
                         .attachmentSlots(List.of(slot))
                         .build();
 
-        when(factionRepository.findAll()).thenReturn(List.of());
+        when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of());
         when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(model));
         when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(modelId)))
                 .thenReturn(List.of(slot));
@@ -303,7 +303,7 @@ class ModelDefinitionDraftServiceTest {
                         .attachmentSlots(List.of(slot))
                         .build();
 
-        when(factionRepository.findAll()).thenReturn(List.of(faction));
+        when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(faction));
         when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(published));
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
         when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(modelId)))
@@ -403,7 +403,7 @@ class ModelDefinitionDraftServiceTest {
         var guardianOption = publishedOption(guardianId, shurikenPistol);
         var rangerOption = publishedOption(rangerId, shurikenPistol);
 
-        when(factionRepository.findAll()).thenReturn(List.of(faction));
+        when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(faction));
         when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(guardian, ranger));
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
         when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(guardianId, rangerId)))
@@ -510,7 +510,7 @@ class ModelDefinitionDraftServiceTest {
     void importRejectsModelsReferencingAFactionThatHasNotBeenImportedYet() {
         when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of());
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
-        when(factionRepository.findAll()).thenReturn(List.of());
+        when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of());
 
         var export =
                 new ModelDefinitionExport(
@@ -542,7 +542,7 @@ class ModelDefinitionDraftServiceTest {
                 .thenReturn(
                         new FactionUpsertOutcome(
                                 Map.of("aeldari", faction), List.of(faction), List.of(), 0));
-        when(factionRepository.findAll()).thenReturn(List.of(faction));
+        when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(faction));
         when(wargearDefinitionService.upsertWargear(any())).thenReturn(outcomeFor(shurikenPistol));
         when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(guardian));
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());

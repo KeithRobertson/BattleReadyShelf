@@ -28,7 +28,7 @@ public class FactionDefinitionAdminController implements FactionDefinitionAdminA
 
     @Override
     public ResponseEntity<List<Faction>> getFactions() {
-        return ResponseEntity.ok(factionDefinitionService.getAllFactions());
+        return ResponseEntity.ok(factionDefinitionService.getSharedFactions());
     }
 
     @Override
