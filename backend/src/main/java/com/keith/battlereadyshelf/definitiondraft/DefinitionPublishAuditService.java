@@ -31,7 +31,7 @@ public class DefinitionPublishAuditService {
      * stays readable as a diff even after the definition changes again later.
      */
     public void record(
-            Definition kind,
+            Definition definition,
             UUID definitionId,
             UUID publishedBy,
             ProposalOrigin origin,
@@ -39,7 +39,7 @@ public class DefinitionPublishAuditService {
             Object newState) {
         definitionPublishAuditRepository.save(
                 DefinitionPublishAuditEntity.builder()
-                        .definition(kind)
+                        .definition(definition)
                         .definitionId(definitionId)
                         .publishedBy(publishedBy)
                         .origin(origin)
@@ -48,9 +48,9 @@ public class DefinitionPublishAuditService {
                         .build());
     }
 
-    public List<DefinitionPublishAudit> getHistory(Definition kind, UUID definitionId) {
+    public List<DefinitionPublishAudit> getHistory(Definition definition, UUID definitionId) {
         return definitionPublishAuditRepository
-                .findAllByDefinitionKindAndDefinitionIdOrderByPublishedAtDesc(kind, definitionId)
+                .findAllByDefinitionAndDefinitionIdOrderByPublishedAtDesc(definition, definitionId)
                 .stream()
                 .map(DefinitionPublishAuditService::toDto)
                 .toList();

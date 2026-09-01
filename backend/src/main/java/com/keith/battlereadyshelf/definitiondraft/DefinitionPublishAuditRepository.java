@@ -8,6 +8,6 @@ import java.util.UUID;
 public interface DefinitionPublishAuditRepository
         extends JpaRepository<DefinitionPublishAuditEntity, UUID> {
 
-    List<DefinitionPublishAuditEntity> findAllByDefinitionKindAndDefinitionIdOrderByPublishedAtDesc(
+    List<DefinitionPublishAuditEntity> findAllByDefinitionAndDefinitionIdOrderByPublishedAtDesc(
             Definition definition, UUID definitionId);
 }

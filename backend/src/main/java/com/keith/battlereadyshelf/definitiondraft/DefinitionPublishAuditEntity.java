@@ -39,7 +39,7 @@ public class DefinitionPublishAuditEntity {
     private UUID id;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "definition_kind", nullable = false)
+    @Column(name = "definition", nullable = false)
     private Definition definition;
 
     @Column(name = "definition_id", nullable = false)

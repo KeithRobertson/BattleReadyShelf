@@ -22,7 +22,7 @@ ALTER TABLE wargear_definition_drafts
 CREATE TABLE IF NOT EXISTS definition_publish_audit
 (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    definition_kind VARCHAR(32)              NOT NULL,
+    definition VARCHAR(32)              NOT NULL,
     definition_id   UUID                     NOT NULL,
     published_by    UUID                     NOT NULL,
     published_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -32,4 +32,4 @@ CREATE TABLE IF NOT EXISTS definition_publish_audit
 );
 
 CREATE INDEX IF NOT EXISTS idx_definition_publish_audit_definition
-    ON definition_publish_audit (definition_kind, definition_id, published_at DESC);
+    ON definition_publish_audit (definition, definition_id, published_at DESC);
