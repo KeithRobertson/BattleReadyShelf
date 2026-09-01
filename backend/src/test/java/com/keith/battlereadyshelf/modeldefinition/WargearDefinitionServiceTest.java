@@ -3,14 +3,20 @@ package com.keith.battlereadyshelf.modeldefinition;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.keith.battlereadyshelf.definitiondraft.Definition;
+import com.keith.battlereadyshelf.definitiondraft.DefinitionPublishAuditService;
+import com.keith.battlereadyshelf.definitiondraft.ProposalOrigin;
 import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.generated.model.WargearDefinitionExport;
 import com.keith.battlereadyshelf.generated.model.WargearExportItem;
+import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
+import com.keith.battlereadyshelf.user.Role;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,9 +33,14 @@ import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
 class WargearDefinitionServiceTest {
+    private static final CurrentAuthenticatedUser ADMIN =
+            new CurrentAuthenticatedUser(
+                    UUID.randomUUID(), "admin@example.com", Role.ADMIN, Instant.now(), Instant.now());
+
     @Mock private WargearDefinitionRepository wargearDefinitionRepository;
     @Mock private WargearDefinitionDraftRepository wargearDefinitionDraftRepository;
     @Mock private WargearOptionRepository wargearOptionRepository;
+    @Mock private DefinitionPublishAuditService definitionPublishAuditService;
 
     private WargearDefinitionService service;
 
@@ -39,7 +50,8 @@ class WargearDefinitionServiceTest {
                 new WargearDefinitionService(
                         wargearDefinitionRepository,
                         wargearDefinitionDraftRepository,
-                        wargearOptionRepository);
+                        wargearOptionRepository,
+                        definitionPublishAuditService);
         lenient()
                 .when(wargearOptionRepository.countUsagesByWargearDefinition())
                 .thenReturn(List.of());
@@ -185,22 +197,64 @@ class WargearDefinitionServiceTest {
     @Test
     void publishingADraftAppliesTheProposedNameToTheSharedDefinition() {
         var shurikenPistol = definition("shuriken_pistol", "Shuriken pistol");
-        var draft =
-                WargearDefinitionDraftEntity.builder()
-                        .id(UUID.randomUUID())
-                        .wargearDefinition(shurikenPistol)
-                        .proposedName("Shuriken Pistol")
-                        .createdAt(Instant.now())
-                        .build();
+        var draft = draft(shurikenPistol, "Shuriken Pistol", ProposalOrigin.IMPORT);
 
         when(wargearDefinitionDraftRepository.findById(draft.getId())).thenReturn(Optional.of(draft));
         when(wargearDefinitionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
-        var result = service.publishWargearDefinitionDraft(draft.getId());
+        var result = service.publishWargearDefinitionDraft(ADMIN, draft.getId());
 
         assertThat(result.getName()).isEqualTo("Shuriken Pistol");
         assertThat(shurikenPistol.getName()).isEqualTo("Shuriken Pistol");
         verify(wargearDefinitionDraftRepository).delete(draft);
+        verify(definitionPublishAuditService)
+                .record(
+                        eq(Definition.WARGEAR),
+                        eq(shurikenPistol.getId()),
+                        eq(ADMIN.id()),
+                        eq(ProposalOrigin.IMPORT),
+                        any(),
+                        any());
+    }
+
+    @Test
+    void anAdminRenameIsStagedRatherThanWrittenThrough() {
+        // A hand rename fans out just as widely as an imported one, so it is held to the same bar.
+        var shurikenPistol = definition("shuriken_pistol", "Shuriken pistol");
+
+        when(wargearDefinitionRepository.findById(shurikenPistol.getId()))
+                .thenReturn(Optional.of(shurikenPistol));
+        when(wargearDefinitionDraftRepository.findByWargearDefinitionId(shurikenPistol.getId()))
+                .thenReturn(Optional.empty());
+        when(wargearDefinitionDraftRepository.save(any())).thenAnswer(WargearDefinitionServiceTest::saveDraft);
+
+        var staged =
+                service.proposeWargearDefinitionRename(shurikenPistol.getId(), "Shuriken Pistol");
+
+        assertThat(staged).isNotNull();
+        assertThat(staged.getProposedName()).isEqualTo("Shuriken Pistol");
+        assertThat(staged.getOrigin())
+                .isEqualTo(com.keith.battlereadyshelf.generated.model.ProposalOrigin.ADMIN);
+        assertThat(shurikenPistol.getName()).isEqualTo("Shuriken pistol");
+        verify(wargearDefinitionRepository, never()).save(any());
+    }
+
+    @Test
+    void proposingTheStoredNameStagesNothingAndClearsAStaleDraft() {
+        var shurikenPistol = definition("shuriken_pistol", "Shuriken Pistol");
+        var stale = draft(shurikenPistol, "Shuriken pistol", ProposalOrigin.IMPORT);
+
+        when(wargearDefinitionRepository.findById(shurikenPistol.getId()))
+                .thenReturn(Optional.of(shurikenPistol));
+        when(wargearDefinitionDraftRepository.findByWargearDefinitionId(shurikenPistol.getId()))
+                .thenReturn(Optional.of(stale));
+
+        var staged =
+                service.proposeWargearDefinitionRename(shurikenPistol.getId(), "Shuriken Pistol");
+
+        assertThat(staged).isNull();
+        verify(wargearDefinitionDraftRepository).delete(stale);
+        verify(wargearDefinitionDraftRepository, never()).save(any());
     }
 
     @Test
@@ -210,6 +264,27 @@ class WargearDefinitionServiceTest {
         assertThatThrownBy(() -> service.importWargearDefinitions(export))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("wargear");
+    }
+
+    private static WargearDefinitionDraftEntity saveDraft(
+            org.mockito.invocation.InvocationOnMock invocation) {
+        // Mirrors persist: an id is assigned, but nothing else is filled in for us.
+        WargearDefinitionDraftEntity draft = invocation.getArgument(0);
+        if (draft.getId() == null) {
+            draft.setId(UUID.randomUUID());
+        }
+        return draft;
+    }
+
+    private static WargearDefinitionDraftEntity draft(
+            WargearDefinitionEntity definition, String proposedName, ProposalOrigin origin) {
+        return WargearDefinitionDraftEntity.builder()
+                .id(UUID.randomUUID())
+                .wargearDefinition(definition)
+                .proposedName(proposedName)
+                .origin(origin)
+                .createdAt(Instant.now())
+                .build();
     }
 
     private static WargearDefinitionEntity definition(String externalId, String name) {

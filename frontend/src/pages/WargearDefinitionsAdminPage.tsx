@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
 import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
 import { DefinitionTransferButtons } from "@/components/admin/DefinitionTransferButtons.tsx";
-import PendingWargearRenames from "@/components/admin/wargear/PendingWargearRenames.tsx";
+import PendingChangesPanel, { type PendingChangeRow } from "@/components/admin/PendingChangesPanel.tsx";
+import PublishHistoryModal from "@/components/admin/PublishHistoryModal.tsx";
+import usePublishHistory from "@/components/admin/usePublishHistory.ts";
 import RenameWargearDefinitionModal from "@/components/admin/wargear/RenameWargearDefinitionModal.tsx";
 import WargearDefinitionTable from "@/components/admin/wargear/WargearDefinitionTable.tsx";
 import type { WargearDefinition, WargearDefinitionDraft, WargearImportResult } from "@/generated";
@@ -13,6 +15,7 @@ import {
   exportWargearDefinitions,
   getWargearDefinitionDrafts,
   getWargearDefinitions,
+  getWargearPublishHistory,
   importWargearDefinitions,
   publishWargearDefinitionDraft,
   updateWargearDefinition,
@@ -21,9 +24,19 @@ import {
 function matchesSearch(definition: WargearDefinition, search: string) {
   const term = search.trim().toLowerCase();
   if (term === "") return true;
-  return (
-    definition.name.toLowerCase().includes(term) || (definition.externalId?.toLowerCase().includes(term) ?? false)
-  );
+  return definition.name.toLowerCase().includes(term) || (definition.externalId?.toLowerCase().includes(term) ?? false);
+}
+
+/** A pending rename shown as the single field it changes. */
+function toPendingRow(draft: WargearDefinitionDraft): PendingChangeRow {
+  return {
+    id: draft.id ?? "",
+    currentName: draft.currentName,
+    externalId: draft.externalId,
+    origin: draft.origin,
+    usageCount: draft.usageCount,
+    fields: [{ label: "Name", before: draft.currentName, after: draft.proposedName }],
+  };
 }
 
 /** Names that more than one definition shares - a hint that two rows should probably be one. */
@@ -85,6 +98,21 @@ export default function WargearDefinitionsAdminPage() {
     [definitions, search],
   );
   const duplicates = useMemo(() => duplicateNames(definitions), [definitions]);
+  const pendingRows = useMemo(() => drafts.map(toPendingRow), [drafts]);
+  const draftById = useMemo(() => new Map(drafts.map((draft) => [draft.id, draft])), [drafts]);
+  const history = usePublishHistory(
+    useCallback(
+      async (definitionId: string) =>
+        (await getWargearPublishHistory({ path: { wargearDefinitionId: definitionId } })).data ?? [],
+      [],
+    ),
+  );
+
+  function handleViewHistory(row: PendingChangeRow) {
+    const draft = draftById.get(row.id);
+    if (draft?.wargearDefinitionId) history.open(draft.wargearDefinitionId, draft.currentName);
+  }
+
   const unusedCount = useMemo(
     () => definitions.filter((definition) => (definition.usageCount ?? 0) === 0).length,
     [definitions],
@@ -95,12 +123,14 @@ export default function WargearDefinitionsAdminPage() {
     setError(null);
     setSaving(true);
     try {
-      const updated = (await updateWargearDefinition({ path: { wargearDefinitionId: definition.id }, body: { name } }))
+      const staged = (await updateWargearDefinition({ path: { wargearDefinitionId: definition.id }, body: { name } }))
         .data;
-      if (!updated) throw new Error("Failed to rename wargear definition");
-      setDefinitions((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
-      // Renaming by hand settles the question, so the backend drops any pending proposal for it.
-      setDrafts((prev) => prev.filter((draft) => draft.wargearDefinitionId !== updated.id));
+      // A hand rename is staged like an imported one, so the published list is untouched until it
+      // is accepted. No body back means the name already matched, which clears any stale proposal.
+      setDrafts((prev) => {
+        const others = prev.filter((draft) => draft.wargearDefinitionId !== definition.id);
+        return staged ? [...others, staged] : others;
+      });
       setRenaming(null);
     } catch (e) {
       setError(String(e));
@@ -109,15 +139,14 @@ export default function WargearDefinitionsAdminPage() {
     }
   }
 
-  async function handleAcceptDraft(draft: WargearDefinitionDraft) {
-    if (!draft.id) return;
+  async function handleAcceptDraft(row: PendingChangeRow) {
     setError(null);
-    setBusyDraftId(draft.id);
+    setBusyDraftId(row.id);
     try {
-      const updated = (await publishWargearDefinitionDraft({ path: { draftId: draft.id } })).data;
+      const updated = (await publishWargearDefinitionDraft({ path: { draftId: row.id } })).data;
       if (!updated) throw new Error("Failed to apply the proposed name");
       setDefinitions((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
-      setDrafts((prev) => prev.filter((d) => d.id !== draft.id));
+      setDrafts((prev) => prev.filter((d) => d.id !== row.id));
     } catch (e) {
       setError(String(e));
     } finally {
@@ -125,13 +154,12 @@ export default function WargearDefinitionsAdminPage() {
     }
   }
 
-  async function handleRejectDraft(draft: WargearDefinitionDraft) {
-    if (!draft.id) return;
+  async function handleRejectDraft(row: PendingChangeRow) {
     setError(null);
-    setBusyDraftId(draft.id);
+    setBusyDraftId(row.id);
     try {
-      await discardWargearDefinitionDraft({ path: { draftId: draft.id } });
-      setDrafts((prev) => prev.filter((d) => d.id !== draft.id));
+      await discardWargearDefinitionDraft({ path: { draftId: row.id } });
+      setDrafts((prev) => prev.filter((d) => d.id !== row.id));
     } catch (e) {
       setError(String(e));
     } finally {
@@ -192,11 +220,15 @@ export default function WargearDefinitionsAdminPage() {
 
       <AdminPageGate isAuthLoading={isAuthLoading} isAuthorised={isAuthenticated && isAdmin} loading={loading}>
         <Stack gap="md">
-          <PendingWargearRenames
-            drafts={drafts}
-            busyDraftId={busyDraftId}
+          <PendingChangesPanel
+            title="Proposed renames"
+            description="Nothing here is in effect yet. Shared wargear is never renamed automatically, whether an import or an admin proposed it — accepting one applies the new name everywhere it is used."
+            usageNoun="model"
+            rows={pendingRows}
+            busyRowId={busyDraftId}
             onAccept={handleAcceptDraft}
             onReject={handleRejectDraft}
+            onViewHistory={handleViewHistory}
           />
 
           {duplicates.length > 0 && (
@@ -231,6 +263,14 @@ export default function WargearDefinitionsAdminPage() {
         saving={saving}
         onClose={() => setRenaming(null)}
         onSave={handleRename}
+      />
+
+      <PublishHistoryModal
+        opened={history.target !== null}
+        definitionName={history.target?.name ?? null}
+        entries={history.entries}
+        loading={history.loading}
+        onClose={history.close}
       />
     </Stack>
   );

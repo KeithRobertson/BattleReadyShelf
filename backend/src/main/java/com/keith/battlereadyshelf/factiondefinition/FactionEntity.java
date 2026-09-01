@@ -21,9 +21,12 @@ import java.util.UUID;
  * forming a simple hierarchy. This carries no army-building rules: no legality, availability,
  * inclusion/exclusion, or points implications of any kind.
  *
- * <p>Unlike model definitions, factions have no draft/publish workflow - they are simple
- * reference data, upserted directly by {@code externalId} when importing a {@code
- * ModelDefinitionExport} document.
+ * <p>Changes to an existing faction are staged as a {@link FactionDraftEntity} rather than applied
+ * in place, because a faction groups every model definition beneath it: reparenting one moves that
+ * whole subtree, and an unattended rename could discard a correction an admin made in the app.
+ * Factions the catalogue does not have yet are still created outright by an import - there is
+ * nothing to review about an addition, and staging one would leave a new faction's parent
+ * unresolvable when that parent is also new.
  */
 @Entity
 @Table(name = "factions")

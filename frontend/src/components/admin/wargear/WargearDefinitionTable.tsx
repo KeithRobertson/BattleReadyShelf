@@ -55,7 +55,7 @@ export default function WargearDefinitionTable({ definitions, onRename }: Wargea
               <UsageCell usageCount={definition.usageCount ?? 0} />
             </Table.Td>
             <Table.Td>
-              <ActionIcon variant="light" onClick={() => onRename(definition)} title="Rename wargear">
+              <ActionIcon variant="light" onClick={() => onRename(definition)} title="Propose a rename">
                 <IconPencil size={16} />
               </ActionIcon>
             </Table.Td>

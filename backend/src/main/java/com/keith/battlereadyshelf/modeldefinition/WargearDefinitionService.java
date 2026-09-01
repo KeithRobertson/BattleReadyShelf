@@ -1,12 +1,17 @@
 package com.keith.battlereadyshelf.modeldefinition;
 
+import com.keith.battlereadyshelf.definitiondraft.Definition;
+import com.keith.battlereadyshelf.definitiondraft.DefinitionPublishAuditService;
+import com.keith.battlereadyshelf.definitiondraft.ProposalOrigin;
 import com.keith.battlereadyshelf.definitionexport.ExportSchema;
 import com.keith.battlereadyshelf.error.NotFoundException;
+import com.keith.battlereadyshelf.generated.model.DefinitionPublishAudit;
 import com.keith.battlereadyshelf.generated.model.WargearDefinition;
 import com.keith.battlereadyshelf.generated.model.WargearDefinitionDraft;
 import com.keith.battlereadyshelf.generated.model.WargearDefinitionExport;
 import com.keith.battlereadyshelf.generated.model.WargearExportItem;
 import com.keith.battlereadyshelf.generated.model.WargearImportResult;
+import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,11 +33,12 @@ import java.util.stream.Collectors;
 
 /**
  * Administration of the shared wargear catalogue. Because a definition is referenced rather than
- * copied, renaming one here immediately renames it on every model definition that uses it, which
- * is the whole point of storing wargear this way.
+ * copied, renaming one renames it on every model definition that uses it, which is the whole point
+ * of storing wargear this way.
  *
- * <p>That fan-out is also why imports do not rename directly: they stage a {@link
- * WargearDefinitionDraftEntity} that an admin accepts or rejects here.
+ * <p>That fan-out is also why nothing renames wargear directly, whether it came from an import or
+ * from an admin typing a new name: the change is staged as a {@link WargearDefinitionDraftEntity}
+ * to be accepted or rejected here.
  */
 @Service
 @RequiredArgsConstructor
@@ -40,6 +46,7 @@ public class WargearDefinitionService {
     private final WargearDefinitionRepository wargearDefinitionRepository;
     private final WargearDefinitionDraftRepository wargearDefinitionDraftRepository;
     private final WargearOptionRepository wargearOptionRepository;
+    private final DefinitionPublishAuditService definitionPublishAuditService;
 
     public List<WargearDefinition> getAllWargearDefinitions() {
         Map<UUID, Long> usageCounts = usageCounts();
@@ -63,8 +70,17 @@ public class WargearDefinitionService {
                 .toList();
     }
 
+    /**
+     * Stages an admin's rename for review, or clears any pending change when the proposal matches
+     * the stored name - re-proposing the current name means there is nothing to decide.
+     *
+     * <p>A hand edit is staged for the same reason an import's is: one definition backs every model
+     * that carries the item, so the rename fans out across the catalogue either way.
+     *
+     * @return the staged rename, or null when the name matched and nothing needed staging
+     */
     @Transactional
-    public WargearDefinition renameWargearDefinition(UUID wargearDefinitionId, String name) {
+    public WargearDefinitionDraft proposeWargearDefinitionRename(UUID wargearDefinitionId, String name) {
         var definition =
                 wargearDefinitionRepository
                         .findById(wargearDefinitionId)
@@ -72,22 +88,25 @@ public class WargearDefinitionService {
                                 () ->
                                         new NotFoundException(
                                                 "Wargear definition not found: " + wargearDefinitionId));
-        definition.setName(name);
-        var saved = wargearDefinitionRepository.save(definition);
 
-        // A pending proposal is moot once an admin has set the name by hand, whether or not they
-        // happened to type the proposed spelling.
-        wargearDefinitionDraftRepository
-                .findAllByDefinitionId(List.of(saved.getId()))
-                .values()
-                .forEach(wargearDefinitionDraftRepository::delete);
+        var pending =
+                reconcileName(
+                        definition,
+                        name,
+                        wargearDefinitionDraftRepository
+                                .findByWargearDefinitionId(wargearDefinitionId)
+                                .orElse(null),
+                        ProposalOrigin.ADMIN);
 
-        return toDto(saved, wargearOptionRepository.countByWargearDefinitionId(saved.getId()));
+        return pending == null
+                ? null
+                : toDraftDto(pending, wargearOptionRepository.countByWargearDefinitionId(wargearDefinitionId));
     }
 
     /** Accepts a proposed rename, applying it to the definition and every model that uses it. */
     @Transactional
-    public WargearDefinition publishWargearDefinitionDraft(UUID draftId) {
+    public WargearDefinition publishWargearDefinitionDraft(
+            CurrentAuthenticatedUser currentUser, UUID draftId) {
         var draft =
                 wargearDefinitionDraftRepository
                         .findById(draftId)
@@ -97,11 +116,23 @@ public class WargearDefinitionService {
                                                 "Wargear definition draft not found: " + draftId));
 
         var definition = draft.getWargearDefinition();
+        var usageCount = wargearOptionRepository.countByWargearDefinitionId(definition.getId());
+        var previous = toDto(definition, usageCount);
+
         definition.setName(draft.getProposedName());
         var saved = wargearDefinitionRepository.save(definition);
         wargearDefinitionDraftRepository.delete(draft);
 
-        return toDto(saved, wargearOptionRepository.countByWargearDefinitionId(saved.getId()));
+        var published = toDto(saved, usageCount);
+        definitionPublishAuditService.record(
+                Definition.WARGEAR,
+                saved.getId(),
+                currentUser.id(),
+                draft.getOrigin(),
+                previous,
+                published);
+
+        return published;
     }
 
     /** Rejects a proposed rename, keeping the stored name. A later import may propose it again. */
@@ -115,6 +146,10 @@ public class WargearDefinitionService {
                                         new NotFoundException(
                                                 "Wargear definition draft not found: " + draftId));
         wargearDefinitionDraftRepository.delete(draft);
+    }
+
+    public List<DefinitionPublishAudit> getPublishHistory(UUID wargearDefinitionId) {
+        return definitionPublishAuditService.getHistory(Definition.WARGEAR, wargearDefinitionId);
     }
 
     /**
@@ -199,7 +234,10 @@ public class WargearDefinitionService {
 
             var pending =
                     reconcileName(
-                            existing, entry.getValue(), existingDrafts.get(existing.getId()));
+                            existing,
+                            entry.getValue(),
+                            existingDrafts.get(existing.getId()),
+                            ProposalOrigin.IMPORT);
             if (pending == null) {
                 unchanged++;
             } else {
@@ -246,13 +284,15 @@ public class WargearDefinitionService {
      * Stages, refreshes or clears the pending rename for one definition, returning the pending
      * change or null when the stored name already matches.
      *
-     * <p>Re-importing an unchanged document must leave no trace, so a proposal matching the stored
-     * name clears any stale pending change rather than raising a new one.
+     * <p>Re-proposing an unchanged name must leave no trace, so a proposal matching the stored name
+     * clears any stale pending change rather than raising a new one. That is what makes importing
+     * the same document twice report nothing to review.
      */
     private WargearDefinitionDraftEntity reconcileName(
             WargearDefinitionEntity existing,
             String proposedName,
-            WargearDefinitionDraftEntity pending) {
+            WargearDefinitionDraftEntity pending,
+            ProposalOrigin origin) {
         if (existing.getName().equals(proposedName)) {
             if (pending != null) {
                 wargearDefinitionDraftRepository.delete(pending);
@@ -261,10 +301,11 @@ public class WargearDefinitionService {
         }
 
         if (pending != null) {
-            if (pending.getProposedName().equals(proposedName)) {
+            if (pending.getProposedName().equals(proposedName) && pending.getOrigin() == origin) {
                 return pending;
             }
             pending.setProposedName(proposedName);
+            pending.setOrigin(origin);
             return wargearDefinitionDraftRepository.save(pending);
         }
 
@@ -272,6 +313,7 @@ public class WargearDefinitionService {
                 WargearDefinitionDraftEntity.builder()
                         .wargearDefinition(existing)
                         .proposedName(proposedName)
+                        .origin(origin)
                         .createdAt(Instant.now())
                         .build());
     }
@@ -313,6 +355,7 @@ public class WargearDefinitionService {
                 .wargearDefinitionId(definition.getId())
                 .externalId(definition.getExternalId())
                 .usageCount(Math.toIntExact(usageCount))
+                .origin(DefinitionPublishAuditService.toDto(entity.getOrigin()))
                 .createdAt(entity.getCreatedAt().atOffset(ZoneOffset.UTC));
     }
 }

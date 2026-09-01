@@ -464,6 +464,56 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiError'
   /api/v1/admin/factions/{factionId}:
+    patch:
+      tags: [ "FactionDefinitionAdmin" ]
+      summary: >-
+        Propose a change to a faction (admin only). The change is staged for review rather than
+        applied: a faction groups every model definition beneath it, so renaming or reparenting
+        one is reviewed before it takes effect. Proposing the values already stored instead
+        clears any pending change and returns 204.
+      operationId: proposeFactionChange
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: factionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFactionRequest'
+      responses:
+        '200':
+          description: The staged change, awaiting review
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FactionDraft'
+        '204':
+          description: The proposal matches what is already stored, so nothing is staged
+        '400':
+          description: The proposed parent is the faction itself or one of its descendants
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Faction not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
     delete:
       tags: [ "FactionDefinitionAdmin" ]
       summary: Delete a faction (admin only)
@@ -488,6 +538,130 @@ paths:
                 $ref: '#/components/schemas/ApiError'
         '404':
           description: Faction not found
+  /api/v1/admin/factions/drafts:
+    get:
+      tags: [ "FactionDefinitionAdmin" ]
+      summary: >-
+        List pending faction changes awaiting review (admin only), each showing the stored state
+        and the proposed state.
+      operationId: getFactionDrafts
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: A list of all pending faction changes, ordered by name
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FactionDraft'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/factions/drafts/{draftId}/publish:
+    post:
+      tags: [ "FactionDefinitionAdmin" ]
+      summary: >-
+        Accept a pending faction change (admin only), applying it and recording an audit entry.
+      operationId: publishFactionDraft
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The updated faction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Faction'
+        '400':
+          description: The proposed parent would create a cycle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Draft not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/factions/drafts/{draftId}:
+    delete:
+      tags: [ "FactionDefinitionAdmin" ]
+      summary: >-
+        Reject a pending faction change (admin only), keeping the stored state. A later import
+        proposing the same change will raise it again.
+      operationId: discardFactionDraft
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The pending change was discarded
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Draft not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/factions/{factionId}/publish-history:
+    get:
+      tags: [ "FactionDefinitionAdmin" ]
+      summary: Accepted changes to this faction, most recent first (admin only)
+      operationId: getFactionPublishHistory
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: factionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The faction's publish history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DefinitionPublishAudit'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/admin/factions/export:
     get:
       tags: [ "FactionDefinitionAdmin" ]
@@ -513,9 +687,10 @@ paths:
       tags: [ "FactionDefinitionAdmin" ]
       summary: >-
         Import a versioned JSON document of factions (admin only). Factions are matched by stable
-        source id and applied directly - they are catalogue organisation with no draft/publish
-        workflow of their own. Factions whose name and parent already match are left alone, so
-        re-importing the same document reports nothing changed.
+        source id. Factions the catalogue does not have are created outright; changes to existing
+        ones are staged for review rather than applied, because a faction groups every model
+        definition beneath it. Factions whose name and parent already match are left alone, so
+        re-importing the same document reports nothing.
       operationId: importFactions
       security:
         - bearerAuth: [ ]
@@ -572,8 +747,10 @@ paths:
     patch:
       tags: [ "WargearDefinitionAdmin" ]
       summary: >-
-        Rename a shared wargear definition (admin only). The new name applies immediately to every
-        model definition that uses it, published or draft.
+        Propose a new name for a shared wargear definition (admin only). The rename is staged for
+        review rather than applied, because one definition backs every model that carries the
+        item, so a rename fans out across the catalogue. Proposing the name already stored
+        instead clears any pending change and returns 204.
       operationId: updateWargearDefinition
       security:
         - bearerAuth: [ ]
@@ -592,11 +769,13 @@ paths:
               $ref: '#/components/schemas/UpdateWargearDefinitionRequest'
       responses:
         '200':
-          description: The updated wargear definition
+          description: The staged rename, awaiting review
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WargearDefinition'
+                $ref: '#/components/schemas/WargearDefinitionDraft'
+        '204':
+          description: The proposed name matches the stored one, so nothing is staged
         '403':
           description: The authenticated user is not an admin
           content:
@@ -609,12 +788,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/wargear-definitions/{wargearDefinitionId}/publish-history:
+    get:
+      tags: [ "WargearDefinitionAdmin" ]
+      summary: Accepted changes to this wargear definition, most recent first (admin only)
+      operationId: getWargearPublishHistory
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: wargearDefinitionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The wargear definition's publish history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DefinitionPublishAudit'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/admin/wargear-definitions/drafts:
     get:
       tags: [ "WargearDefinitionAdmin" ]
       summary: >-
-        List pending wargear name changes proposed by an import (admin only), each showing the
-        stored name and the name the import wants to apply.
+        List pending wargear name changes awaiting review (admin only), each showing the stored
+        name and the name that would be applied. Proposals come from an import or from an admin's
+        own edit.
       operationId: getWargearDefinitionDrafts
       security:
         - bearerAuth: [ ]
@@ -638,7 +847,7 @@ paths:
       tags: [ "WargearDefinitionAdmin" ]
       summary: >-
         Accept a pending wargear name change (admin only), applying it to the shared definition
-        and therefore to every model definition that uses it.
+        and therefore to every model definition that uses it, and recording an audit entry.
       operationId: publishWargearDefinitionDraft
       security:
         - bearerAuth: [ ]
@@ -1770,9 +1979,9 @@ components:
     WargearDefinitionDraft:
       type: object
       description: >-
-        A wargear name change proposed by an import but not yet applied. Imports never rename
-        shared wargear directly, because a rename fans out to every model definition using it -
-        the change is staged here for an admin to accept or reject.
+        A wargear name change that has been proposed but not yet applied. Renames are never
+        applied directly, because one definition backs every model definition using it - the
+        change is staged here for an admin to accept or reject.
       properties:
         id:
           type: string
@@ -1785,7 +1994,7 @@ components:
         externalId:
           type: string
           readOnly: true
-          description: Stable identifier from the reference dataset that proposed the change.
+          description: Stable identifier from the reference dataset, if this wargear came from one.
         currentName:
           type: string
           readOnly: true
@@ -1793,17 +2002,119 @@ components:
         proposedName:
           type: string
           readOnly: true
-          description: The name the import wants to apply.
+          description: The name that would be applied.
         usageCount:
           type: integer
           format: int32
           readOnly: true
           description: How many published model definitions the rename would affect.
+        origin:
+          $ref: '#/components/schemas/ProposalOrigin'
         createdAt:
           type: string
           format: date-time
           readOnly: true
       required: [ currentName, proposedName ]
+    ProposalOrigin:
+      type: string
+      readOnly: true
+      description: Where a pending change came from, so a review can weigh an import against a hand edit.
+      enum: [ IMPORT, ADMIN ]
+    UpdateFactionRequest:
+      type: object
+      description: >-
+        The complete proposed state of a faction. An omitted or null parentFactionId proposes
+        clearing the parent rather than leaving it alone.
+      properties:
+        name:
+          type: string
+        parentFactionId:
+          type: string
+          format: uuid
+          nullable: true
+      required: [ name ]
+    FactionDraft:
+      type: object
+      description: >-
+        A faction change that has been proposed but not yet applied. A faction groups every model
+        definition beneath it, so renaming or reparenting one is staged here for an admin to
+        accept or reject. The draft carries the complete proposed state: a null
+        proposedParentFactionId proposes clearing the parent.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        factionId:
+          type: string
+          format: uuid
+          readOnly: true
+        externalId:
+          type: string
+          readOnly: true
+          description: Stable identifier from the reference dataset, if this faction came from one.
+        currentName:
+          type: string
+          readOnly: true
+          description: The name stored today, which stays in effect unless this change is accepted.
+        proposedName:
+          type: string
+          readOnly: true
+        currentParentFactionId:
+          type: string
+          format: uuid
+          nullable: true
+          readOnly: true
+        proposedParentFactionId:
+          type: string
+          format: uuid
+          nullable: true
+          readOnly: true
+        usageCount:
+          type: integer
+          format: int32
+          readOnly: true
+          description: How many published model definitions sit under this faction.
+        origin:
+          $ref: '#/components/schemas/ProposalOrigin'
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+      required: [ currentName, proposedName ]
+    DefinitionPublishAudit:
+      type: object
+      description: >-
+        An immutable record of one accepted change to a faction or wargear definition, holding
+        the state either side of the publish so the history reads as a diff. Model definitions
+        keep their own richer audit trail.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        definitionId:
+          type: string
+          format: uuid
+          readOnly: true
+        publishedBy:
+          type: string
+          format: uuid
+          readOnly: true
+        publishedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        origin:
+          $ref: '#/components/schemas/ProposalOrigin'
+        previousState:
+          type: string
+          readOnly: true
+          description: A JSON snapshot of the definition immediately before this publish.
+        newState:
+          type: string
+          readOnly: true
+          description: A JSON snapshot of the definition immediately after this publish.
     PublishModelDefinitionDraftRequest:
       type: object
       properties:
@@ -1887,8 +2198,8 @@ components:
     FactionExport:
       type: object
       description: >-
-        A versioned, portable catalogue of factions. Factions are pure catalogue organisation with
-        no draft/publish workflow, so an import applies them directly.
+        A versioned, portable catalogue of factions. New factions are created outright on import;
+        changes to existing ones are staged for review.
       properties:
         schemaVersion:
           type: integer
@@ -1910,21 +2221,25 @@ components:
     FactionImportResult:
       type: object
       description: >-
-        What a faction import changed. Factions already matching the document are counted as
-        unchanged rather than reported, so re-importing the same document reports nothing.
+        What a faction import did. Changes to existing factions are proposed rather than applied,
+        so 'pendingChanges' is the list an admin still has to accept or reject. Factions already
+        matching the document are counted as unchanged, so re-importing the same document reports
+        nothing to review.
       properties:
         created:
           type: array
+          description: Factions the catalogue did not have, added outright.
           items:
             $ref: '#/components/schemas/Faction'
-        updated:
+        pendingChanges:
           type: array
+          description: Changes raised for review because the stored faction differs from the document's.
           items:
-            $ref: '#/components/schemas/Faction'
+            $ref: '#/components/schemas/FactionDraft'
         unchanged:
           type: integer
           format: int32
-      required: [ created, updated, unchanged ]
+      required: [ created, pendingChanges, unchanged ]
     WargearDefinitionExport:
       type: object
       description: >-

@@ -16,14 +16,15 @@ function usageWarning(usageCount: number) {
     return "No model definitions use this wargear yet.";
   }
   if (usageCount === 1) {
-    return "1 model definition uses this wargear and will show the new name.";
+    return "1 model definition uses this wargear and will show the new name once the change is accepted.";
   }
-  return `${usageCount} model definitions use this wargear and will all show the new name.`;
+  return `${usageCount} model definitions use this wargear and will all show the new name once the change is accepted.`;
 }
 
 /**
- * Renames a shared wargear definition. The name lives in one place, so this is the only way to
- * change how a piece of wargear reads - editing a single model definition cannot do it.
+ * Proposes a new name for a shared wargear definition. The name lives in one place, so this is the
+ * only way to change how a piece of wargear reads - editing a single model definition cannot do it.
+ * For that same reason the change is staged for review rather than applied on save.
  */
 export default function RenameWargearDefinitionModal({
   definition,
@@ -49,7 +50,7 @@ export default function RenameWargearDefinitionModal({
   const isUnchanged = trimmedName === (definition?.name ?? "");
 
   return (
-    <Modal opened={definition !== null} onClose={onClose} title="Rename wargear">
+    <Modal opened={definition !== null} onClose={onClose} title="Propose a wargear rename">
       <form onSubmit={handleSubmit}>
         <Stack>
           <Alert color="yellow" icon={<IconAlertTriangle size={16} />}>
@@ -62,8 +63,8 @@ export default function RenameWargearDefinitionModal({
               <Text span ff="monospace">
                 {definition.externalId}
               </Text>{" "}
-              is not changed by renaming, so a future import still matches this wargear and will not overwrite your
-              new name.
+              is not changed by renaming, so a future import still matches this wargear and will not overwrite your new
+              name.
             </Text>
           )}
 
@@ -80,7 +81,7 @@ export default function RenameWargearDefinitionModal({
               Cancel
             </Button>
             <Button type="submit" loading={saving} disabled={trimmedName === "" || isUnchanged}>
-              Save
+              Propose change
             </Button>
           </Group>
         </Stack>

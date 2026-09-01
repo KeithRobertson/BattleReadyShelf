@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -12,6 +13,8 @@ public interface WargearDefinitionDraftRepository extends JpaRepository<WargearD
     List<WargearDefinitionDraftEntity> findAllByOrderByProposedNameAsc();
 
     List<WargearDefinitionDraftEntity> findAllByWargearDefinitionIdIn(List<UUID> wargearDefinitionIds);
+
+    Optional<WargearDefinitionDraftEntity> findByWargearDefinitionId(UUID wargearDefinitionId);
 
     /** Indexes pending changes by the definition they target, which is unique per definition. */
     default Map<UUID, WargearDefinitionDraftEntity> findAllByDefinitionId(List<UUID> wargearDefinitionIds) {
