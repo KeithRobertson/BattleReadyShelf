@@ -1,21 +1,9 @@
-import {
-  ActionIcon,
-  Box,
-  Button,
-  Checkbox,
-  Group,
-  MultiSelect,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
+import { ActionIcon, Box, Button, Checkbox, Group, MultiSelect, Stack, Text, TextInput, Title } from "@mantine/core";
 import { IconTrash } from "@tabler/icons-react";
 import type { Dispatch, SetStateAction } from "react";
-import WargearOptionPicker from "@/components/modeldefinitions/WargearOptionPicker.tsx";
 import type { EditableOption, EditableSlot } from "@/components/modeldefinitions/definitionChildren.ts";
 import { DEFAULT_SLOT_TYPE, newId } from "@/components/modeldefinitions/definitionChildren.ts";
+import WargearOptionPicker from "@/components/modeldefinitions/WargearOptionPicker.tsx";
 import type { WargearDefinition } from "@/generated";
 
 type AttachmentSlotsEditorProps = Readonly<{
@@ -46,38 +34,37 @@ function AttachmentSlotsEditor({ slots, setSlots, onSlotRemoved }: AttachmentSlo
           No attachment slots.
         </Text>
       ) : (
-        <Table verticalSpacing="xs">
-          <Table.Tbody>
-            {slots.map((slot) => (
-              <Table.Tr key={slot.id}>
-                <Table.Td>
-                  <TextInput
-                    value={slot.name}
-                    placeholder="Slot name"
-                    onChange={(e) => updateSlot(slot.id, { name: e.currentTarget.value })}
-                  />
-                </Table.Td>
-                <Table.Td>
-                  <TextInput
-                    value={slot.type}
-                    placeholder="Slot type"
-                    onChange={(e) => updateSlot(slot.id, { type: e.currentTarget.value })}
-                  />
-                </Table.Td>
-                <Table.Td w={40}>
-                  <ActionIcon
-                    color="red"
-                    variant="subtle"
-                    aria-label={`Remove slot ${slot.name || "(unnamed)"}`}
-                    onClick={() => onSlotRemoved(slot.id)}
-                  >
-                    <IconTrash size={16} />
-                  </ActionIcon>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+        <Stack gap="xs">
+          {slots.map((slot) => (
+            // Two inputs plus a delete button will not fit across a phone, so the pair wraps onto
+            // separate lines while the delete button stays tied to the input it removes.
+            <Group key={slot.id} align="flex-end" wrap="wrap" gap="xs">
+              <TextInput
+                flex="1 1 140px"
+                miw={140}
+                value={slot.name}
+                placeholder="Slot name"
+                onChange={(e) => updateSlot(slot.id, { name: e.currentTarget.value })}
+              />
+              <Group gap="xs" wrap="nowrap" flex="1 1 140px" miw={140}>
+                <TextInput
+                  flex={1}
+                  value={slot.type}
+                  placeholder="Slot type"
+                  onChange={(e) => updateSlot(slot.id, { type: e.currentTarget.value })}
+                />
+                <ActionIcon
+                  color="red"
+                  variant="subtle"
+                  aria-label={`Remove slot ${slot.name || "(unnamed)"}`}
+                  onClick={() => onSlotRemoved(slot.id)}
+                >
+                  <IconTrash size={16} />
+                </ActionIcon>
+              </Group>
+            </Group>
+          ))}
+        </Stack>
       )}
     </div>
   );
@@ -118,8 +105,11 @@ function WargearOptionsEditor({ options, setOptions, slots, wargearDefinitions }
       ) : (
         <Stack gap="xs">
           {options.map((option) => (
-            <Group key={option.id} align="flex-start" wrap="nowrap">
-              <Box flex={1}>
+            // Wraps rather than forcing one row: on a phone the picker and slot select each take a
+            // full line, with the default/delete controls staying together beneath them. Without
+            // this the four controls are squeezed onto one row and the last two end up off-screen.
+            <Group key={option.id} align="flex-end" wrap="wrap" gap="xs">
+              <Box flex="1 1 180px" miw={180}>
                 <WargearOptionPicker
                   definitions={wargearDefinitions}
                   value={{ wargearDefinitionId: option.wargearDefinitionId, name: option.name }}
@@ -132,25 +122,28 @@ function WargearOptionsEditor({ options, setOptions, slots, wargearDefinitions }
                 />
               </Box>
               <MultiSelect
-                flex={1}
+                flex="1 1 180px"
+                miw={180}
                 placeholder="Fills slot(s)"
                 data={slotChoices}
                 value={option.attachmentSlotIds}
                 onChange={(value) => updateOption(option.id, { attachmentSlotIds: value })}
               />
-              <Checkbox
-                label="Default"
-                checked={option.isDefault}
-                onChange={(e) => updateOption(option.id, { isDefault: e.currentTarget.checked })}
-              />
-              <ActionIcon
-                color="red"
-                variant="subtle"
-                aria-label={`Remove option ${option.name || "(unnamed)"}`}
-                onClick={() => setOptions((current) => current.filter((o) => o.id !== option.id))}
-              >
-                <IconTrash size={16} />
-              </ActionIcon>
+              <Group gap="xs" wrap="nowrap">
+                <Checkbox
+                  label="Default"
+                  checked={option.isDefault}
+                  onChange={(e) => updateOption(option.id, { isDefault: e.currentTarget.checked })}
+                />
+                <ActionIcon
+                  color="red"
+                  variant="subtle"
+                  aria-label={`Remove option ${option.name || "(unnamed)"}`}
+                  onClick={() => setOptions((current) => current.filter((o) => o.id !== option.id))}
+                >
+                  <IconTrash size={16} />
+                </ActionIcon>
+              </Group>
             </Group>
           ))}
         </Stack>

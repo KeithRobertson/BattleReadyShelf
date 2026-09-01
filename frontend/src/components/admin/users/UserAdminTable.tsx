@@ -1,4 +1,5 @@
 import { Badge, Checkbox, Select, Table, Text } from "@mantine/core";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import type { UserDto, UserRole } from "@/generated";
 import { ASSIGNABLE_ROLES } from "@/pages/UsersAdminPage.tsx";
 
@@ -30,7 +31,7 @@ export function UserAdminTable({
   const allEditableSelected = editableUserIds.length > 0 && editableUserIds.every((id) => selectedIds.has(id));
 
   return (
-    <Table striped highlightOnHover verticalSpacing="sm">
+    <ResponsiveTable striped highlightOnHover verticalSpacing="sm">
       <Table.Thead>
         <Table.Tr>
           <Table.Th w={40}>
@@ -88,6 +89,6 @@ export function UserAdminTable({
           );
         })}
       </Table.Tbody>
-    </Table>
+    </ResponsiveTable>
   );
 }

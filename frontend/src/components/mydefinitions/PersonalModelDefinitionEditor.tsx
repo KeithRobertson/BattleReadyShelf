@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Group, Modal, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Alert, Badge, Button, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { IconInfoCircle } from "@tabler/icons-react";
 import { useState } from "react";
 import DefinitionChildrenEditor from "@/components/modeldefinitions/DefinitionChildrenEditor.tsx";
@@ -8,6 +8,7 @@ import {
   toEditableSlots,
   toUpsertRequest,
 } from "@/components/modeldefinitions/definitionChildren.ts";
+import ResponsiveModal from "@/components/ResponsiveModal.tsx";
 import type { Faction, ModelDefinition, WargearDefinition } from "@/generated";
 import { updateMyModelDefinition } from "@/generated";
 import { factionOptionLabel } from "@/utils/definitionOrigin.ts";
@@ -65,7 +66,7 @@ export default function PersonalModelDefinitionEditor({
   }
 
   return (
-    <Modal opened onClose={onClose} title="Edit your model definition" size="lg">
+    <ResponsiveModal opened onClose={onClose} title="Edit your model definition" size="lg">
       <Stack gap="md">
         {isCustomisation ? (
           <Badge variant="light" w="fit-content">
@@ -122,6 +123,6 @@ export default function PersonalModelDefinitionEditor({
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </ResponsiveModal>
   );
 }

@@ -40,8 +40,14 @@ export default function CollectionCard({ collection, dragHandleProps, showCreato
           onClick={() => collection.id && navigate(`/collections/${collection.id}`)}
           style={{ display: "block", flex: 1, minWidth: 0 }}
         >
-          <Group justify="space-between" wrap="nowrap" align="center">
-            <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
+          {/*
+            Wraps rather than forcing one row: the stats panel has a fixed intrinsic width, so on a
+            narrow screen a non-wrapping row shrinks the title column to nothing and - because it
+            truncates - the collection name disappears entirely. Wrapping drops the stats below the
+            name instead.
+          */}
+          <Group justify="space-between" wrap="wrap" align="center" gap="sm">
+            <Stack gap={4} style={{ flex: "1 1 200px", minWidth: 0 }}>
               <Group gap="xs" align="center" wrap="nowrap">
                 <Text fw={600} size="lg" truncate>
                   {collection.name}

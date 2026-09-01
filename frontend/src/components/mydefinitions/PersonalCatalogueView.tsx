@@ -1,8 +1,9 @@
 import { ActionIcon, Alert, Badge, Button, Group, Stack, Table, Text, TextInput, Title, Tooltip } from "@mantine/core";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import { IconAlertCircle, IconArrowBackUp, IconGitCompare, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { type ReactNode, useMemo, useState } from "react";
-import PageGate from "@/components/PageGate.tsx";
 import type { PersonalDefinition } from "@/components/mydefinitions/usePersonalCatalogue.ts";
+import PageGate from "@/components/PageGate.tsx";
 import type { DraftDiff } from "@/utils/modelDefinitionDraftDiff";
 
 /** One extra column between the name and the origin badges, rendered per row. */
@@ -63,7 +64,7 @@ function MineTable<T extends PersonalDefinition>({
   onRemove,
 }: MineTableProps<T>) {
   return (
-    <Table striped withTableBorder verticalSpacing="xs">
+    <ResponsiveTable striped withTableBorder verticalSpacing="xs">
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Name</Table.Th>
@@ -119,7 +120,7 @@ function MineTable<T extends PersonalDefinition>({
           );
         })}
       </Table.Tbody>
-    </Table>
+    </ResponsiveTable>
   );
 }
 
@@ -144,7 +145,7 @@ function SharedTable<T extends PersonalDefinition>({
     );
   }
   return (
-    <Table striped withTableBorder verticalSpacing="xs">
+    <ResponsiveTable striped withTableBorder verticalSpacing="xs">
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Name</Table.Th>
@@ -176,7 +177,7 @@ function SharedTable<T extends PersonalDefinition>({
           </Table.Tr>
         ))}
       </Table.Tbody>
-    </Table>
+    </ResponsiveTable>
   );
 }
 

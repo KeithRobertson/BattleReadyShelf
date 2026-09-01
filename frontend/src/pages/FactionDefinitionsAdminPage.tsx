@@ -1,15 +1,23 @@
 import { ActionIcon, Alert, Button, Group, Modal, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import { useDisclosure } from "@mantine/hooks";
-import { IconAlertCircle, IconAlertTriangle, IconCircleCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import {
+  IconAlertCircle,
+  IconAlertTriangle,
+  IconCircleCheck,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
 import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
 import { DefinitionTransferButtons } from "@/components/admin/DefinitionTransferButtons.tsx";
-import FactionFormModal from "@/components/definitions/FactionFormModal.tsx";
 import PendingChangesPanel, { type PendingChangeRow } from "@/components/admin/PendingChangesPanel.tsx";
 import PublishHistoryModal from "@/components/admin/PublishHistoryModal.tsx";
 import usePublishHistory from "@/components/admin/usePublishHistory.ts";
+import FactionFormModal from "@/components/definitions/FactionFormModal.tsx";
 import type { Faction, FactionDraft, FactionImportResult } from "@/generated";
 import {
   createFaction,
@@ -278,7 +286,7 @@ export default function FactionDefinitionsAdminPage() {
             {factions.length === 0 ? (
               <Text c="dimmed">No faction definitions exist yet.</Text>
             ) : (
-              <Table>
+              <ResponsiveTable minWidth={520}>
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Name</Table.Th>
@@ -320,7 +328,7 @@ export default function FactionDefinitionsAdminPage() {
                     </Table.Tr>
                   ))}
                 </Table.Tbody>
-              </Table>
+              </ResponsiveTable>
             )}
           </div>
         </Stack>

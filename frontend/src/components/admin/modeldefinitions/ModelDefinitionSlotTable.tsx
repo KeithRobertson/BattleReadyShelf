@@ -1,4 +1,5 @@
 import { Badge, Group, Table, Text } from "@mantine/core";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import type { AttachmentSlot, WargearOption } from "@/generated";
 
 type ModelDefinitionSlotTableProps = Readonly<{
@@ -42,7 +43,7 @@ export default function ModelDefinitionSlotTable({ attachmentSlots, wargearOptio
   }
 
   return (
-    <Table striped withTableBorder verticalSpacing="xs">
+    <ResponsiveTable striped withTableBorder verticalSpacing="xs" minWidth={360}>
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Attachment slot</Table.Th>
@@ -61,6 +62,6 @@ export default function ModelDefinitionSlotTable({ attachmentSlots, wargearOptio
           </Table.Tr>
         ))}
       </Table.Tbody>
-    </Table>
+    </ResponsiveTable>
   );
 }

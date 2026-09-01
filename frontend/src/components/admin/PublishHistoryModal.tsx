@@ -1,5 +1,6 @@
-import { Alert, Badge, Group, Loader, Modal, Stack, Table, Text, Timeline } from "@mantine/core";
+import { Alert, Badge, Group, Loader, Stack, Table, Text, Timeline } from "@mantine/core";
 import { IconArrowRight, IconHistory, IconInfoCircle } from "@tabler/icons-react";
+import ResponsiveModal from "@/components/ResponsiveModal.tsx";
 import type { DefinitionPublishAudit } from "@/generated";
 
 type PublishHistoryModalProps = Readonly<{
@@ -115,8 +116,13 @@ export default function PublishHistoryModal({
   onClose,
 }: PublishHistoryModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title={`Publish history for "${definitionName ?? ""}"`} size="lg">
+    <ResponsiveModal
+      opened={opened}
+      onClose={onClose}
+      title={`Publish history for "${definitionName ?? ""}"`}
+      size="lg"
+    >
       <HistoryBody entries={entries} loading={loading} />
-    </Modal>
+    </ResponsiveModal>
   );
 }

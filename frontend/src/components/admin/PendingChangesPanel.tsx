@@ -1,4 +1,5 @@
 import { Alert, Badge, Button, Card, Group, Stack, Table, Text, Title } from "@mantine/core";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import { IconArrowRight, IconCheck, IconHistory, IconInfoCircle, IconX } from "@tabler/icons-react";
 import type { ProposalOrigin } from "@/generated";
 
@@ -121,7 +122,7 @@ export default function PendingChangesPanel({
           Rejecting keeps what is published today. A later import of the same data will propose it again.
         </Alert>
 
-        <Table highlightOnHover>
+        <ResponsiveTable highlightOnHover minWidth={640}>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Definition</Table.Th>
@@ -188,7 +189,7 @@ export default function PendingChangesPanel({
               </Table.Tr>
             ))}
           </Table.Tbody>
-        </Table>
+        </ResponsiveTable>
       </Stack>
     </Card>
   );

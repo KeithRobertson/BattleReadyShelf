@@ -1,5 +1,7 @@
-import { Alert, Badge, Group, Modal, Stack, Table, Text, Title } from "@mantine/core";
+import { Alert, Badge, Group, Stack, Table, Text, Title } from "@mantine/core";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import { IconInfoCircle } from "@tabler/icons-react";
+import ResponsiveModal from "@/components/ResponsiveModal.tsx";
 import type { ChangeKind, ChildChange, DraftDiff, FieldChange } from "@/utils/modelDefinitionDraftDiff";
 
 const KIND_COLOR: Record<ChangeKind, string> = { added: "green", removed: "red", changed: "blue" };
@@ -61,7 +63,7 @@ function After({ value }: Readonly<{ value: string | null }>) {
 
 function FieldChangeRows({ changes, labels }: Readonly<{ changes: FieldChange[]; labels: DiffLabels }>) {
   return (
-    <Table verticalSpacing="xs" withTableBorder>
+    <ResponsiveTable verticalSpacing="xs" withTableBorder minWidth={420}>
       <Table.Thead>
         <Table.Tr>
           <Table.Th style={{ width: "25%" }}>Field</Table.Th>
@@ -82,7 +84,7 @@ function FieldChangeRows({ changes, labels }: Readonly<{ changes: FieldChange[];
           </Table.Tr>
         ))}
       </Table.Tbody>
-    </Table>
+    </ResponsiveTable>
   );
 }
 
@@ -121,7 +123,7 @@ function ChildChangeSection({
       <Title order={6} mb={4}>
         {title}
       </Title>
-      <Table verticalSpacing="xs" withTableBorder>
+      <ResponsiveTable verticalSpacing="xs" withTableBorder minWidth={420}>
         <Table.Thead>
           <Table.Tr>
             <Table.Th style={{ width: 110 }}>Change</Table.Th>
@@ -144,7 +146,7 @@ function ChildChangeSection({
             </Table.Tr>
           ))}
         </Table.Tbody>
-      </Table>
+      </ResponsiveTable>
     </div>
   );
 }
@@ -217,8 +219,8 @@ export default function DefinitionDiffModal({
   labels,
 }: DefinitionDiffModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title={`Changes to "${definitionName}"`} size="xl">
+    <ResponsiveModal opened={opened} onClose={onClose} title={`Changes to "${definitionName}"`} size="xl">
       <DiffBody diff={diff} labels={labels} />
-    </Modal>
+    </ResponsiveModal>
   );
 }

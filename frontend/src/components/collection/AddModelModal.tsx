@@ -1,6 +1,7 @@
-import { Button, Group, Modal } from "@mantine/core";
+import { Button, Group } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconPlus } from "@tabler/icons-react";
+import ResponsiveModal from "@/components/ResponsiveModal.tsx";
 import { CollectionAddModelForm, type CollectionAddModelFormProps } from "./CollectionAddModelForm";
 
 export function AddModelModal(props: CollectionAddModelFormProps) {
@@ -13,9 +14,9 @@ export function AddModelModal(props: CollectionAddModelFormProps) {
         Add model
       </Button>
 
-      <Modal opened={opened} onClose={close} title="Add model" size="lg" centered>
+      <ResponsiveModal opened={opened} onClose={close} title="Add model" size="lg" centered>
         <CollectionAddModelForm {...props} onSubmitted={close} />
-      </Modal>
+      </ResponsiveModal>
     </Group>
   );
 }

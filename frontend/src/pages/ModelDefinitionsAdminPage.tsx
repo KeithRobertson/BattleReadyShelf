@@ -22,6 +22,7 @@ import { useAuth } from "@/auth/useAuth";
 import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
 import { DefinitionTransferButtons } from "@/components/admin/DefinitionTransferButtons.tsx";
 import ModelDefinitionDraftEditor from "@/components/admin/modeldefinitions/ModelDefinitionDraftEditor.tsx";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import ModelDefinitionSlotTable from "@/components/admin/modeldefinitions/ModelDefinitionSlotTable.tsx";
 import DefinitionDiffModal, { DRAFT_DIFF_LABELS } from "@/components/definitions/DefinitionDiffModal.tsx";
 import type {
@@ -44,8 +45,8 @@ import {
   publishModelDefinitionDraft,
   startModelDefinitionDraft,
 } from "@/generated";
-import { type DraftDiff, diffModelDefinitionDraft } from "@/utils/modelDefinitionDraftDiff";
 import extractErrorMessage from "@/utils/extractErrorMessage.ts";
+import { type DraftDiff, diffModelDefinitionDraft } from "@/utils/modelDefinitionDraftDiff";
 
 interface FactionGroup<T> {
   faction: Faction | null;
@@ -536,7 +537,7 @@ export default function ModelDefinitionsAdminPage() {
                       <Text fw={500} size="sm" c="dimmed" mb={4}>
                         {group.faction?.name ?? UNCATEGORISED_LABEL}
                       </Text>
-                      <Table striped withTableBorder verticalSpacing="xs">
+                      <ResponsiveTable striped withTableBorder verticalSpacing="xs">
                         <Table.Thead>
                           <Table.Tr>
                             <Table.Th style={{ width: 32 }}>
@@ -616,7 +617,7 @@ export default function ModelDefinitionsAdminPage() {
                             );
                           })}
                         </Table.Tbody>
-                      </Table>
+                      </ResponsiveTable>
                     </div>
                   );
                 })}

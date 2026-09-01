@@ -1,4 +1,5 @@
 import { ActionIcon, Badge, Table, Text } from "@mantine/core";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import { IconPencil } from "@tabler/icons-react";
 import type { WargearDefinition } from "@/generated";
 
@@ -35,7 +36,7 @@ function UsageCell({ usageCount }: Readonly<{ usageCount: number }>) {
 
 export default function WargearDefinitionTable({ definitions, onRename }: WargearDefinitionTableProps) {
   return (
-    <Table highlightOnHover>
+    <ResponsiveTable highlightOnHover>
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Name</Table.Th>
@@ -62,6 +63,6 @@ export default function WargearDefinitionTable({ definitions, onRename }: Wargea
           </Table.Tr>
         ))}
       </Table.Tbody>
-    </Table>
+    </ResponsiveTable>
   );
 }

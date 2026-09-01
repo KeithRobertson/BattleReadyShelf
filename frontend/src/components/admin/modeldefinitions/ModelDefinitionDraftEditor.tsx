@@ -1,4 +1,4 @@
-import { Badge, Button, Group, Modal, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Badge, Button, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useState } from "react";
 import DefinitionChildrenEditor from "@/components/modeldefinitions/DefinitionChildrenEditor.tsx";
 import type { EditableOption, EditableSlot } from "@/components/modeldefinitions/definitionChildren.ts";
@@ -7,6 +7,7 @@ import {
   toEditableSlots,
   toUpsertRequest,
 } from "@/components/modeldefinitions/definitionChildren.ts";
+import ResponsiveModal from "@/components/ResponsiveModal.tsx";
 import type { Faction, ModelDefinition, ModelDefinitionDraft, WargearDefinition } from "@/generated";
 import { discardModelDefinitionDraft, publishModelDefinitionDraft, updateModelDefinitionDraft } from "@/generated";
 
@@ -120,7 +121,7 @@ export default function ModelDefinitionDraftEditor({
   }
 
   return (
-    <Modal opened onClose={onClose} title="Edit model definition draft" size="lg">
+    <ResponsiveModal opened onClose={onClose} title="Edit model definition draft" size="lg">
       <Stack gap="md">
         {draft.publishedModelDefinitionId ? (
           <Badge variant="light" w="fit-content">
@@ -209,6 +210,6 @@ export default function ModelDefinitionDraftEditor({
           </Group>
         )}
       </Stack>
-    </Modal>
+    </ResponsiveModal>
   );
 }

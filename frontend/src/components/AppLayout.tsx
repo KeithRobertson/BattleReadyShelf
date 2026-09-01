@@ -49,14 +49,25 @@ export default function AppLayout() {
       }}
     >
       <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
-          <Group>
-            <Burger opened={navOpened} onClick={toggleNav} size="sm" />
-            <Link to="/" style={{ textDecoration: "none", color: "inherit" }}>
-              <Title order={3}>BattleReadyShelf</Title>
+        <Group h="100%" px="md" justify="space-between" wrap="nowrap" gap="sm">
+          {/*
+            "BattleReadyShelf" is one long unbreakable word, so at an h3 size its minimum width
+            alone pushes the header past a narrow phone viewport - which widened the whole document
+            and, in turn, every fixed-position modal. It shrinks a step and truncates instead.
+          */}
+          <Group wrap="nowrap" style={{ minWidth: 0 }}>
+            <Burger opened={navOpened} onClick={toggleNav} size="sm" aria-label="Toggle navigation" />
+            <Link to="/" style={{ textDecoration: "none", color: "inherit", minWidth: 0 }}>
+              <Title
+                order={3}
+                fz={{ base: "h4", sm: "h3" }}
+                style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+              >
+                BattleReadyShelf
+              </Title>
             </Link>
           </Group>
-          <Group>
+          <Group wrap="nowrap" gap="xs">
             {!isLoading &&
               (isAuthenticated ? (
                 <UserMenu user={user} onLogout={logout} onNavigateToSettings={() => navigate("/settings")} />
@@ -64,7 +75,7 @@ export default function AppLayout() {
                 <GoogleLoginButton loginWithGoogleIdToken={loginWithGoogleIdToken} />
               ))}
 
-            <ActionIcon variant="subtle" size="lg" onClick={toggleAside}>
+            <ActionIcon variant="subtle" size="lg" onClick={toggleAside} aria-label="Toggle collection summary">
               <AsideIcon size={20} />
             </ActionIcon>
           </Group>

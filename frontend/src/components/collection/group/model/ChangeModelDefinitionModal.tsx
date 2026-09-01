@@ -1,7 +1,9 @@
-import { Alert, Badge, Button, Group, Loader, Modal, Select, Stack, Table, Text } from "@mantine/core";
+import { Alert, Badge, Button, Group, Loader, Select, Stack, Table, Text } from "@mantine/core";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import { IconAlertTriangle, IconInfoCircle } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useCollectionContext } from "@/components/collection/context/CollectionContext.ts";
+import ResponsiveModal from "@/components/ResponsiveModal.tsx";
 import type { ChangeModelDefinitionPreview, CollectionModel, WargearRemapOutcome } from "@/generated";
 import { previewModelDefinitionChange } from "@/generated";
 import useCollectionMetadata from "@/hooks/collections/useCollectionMetadata.ts";
@@ -36,7 +38,7 @@ function PreviewTable({ preview }: Readonly<{ preview: ChangeModelDefinitionPrev
   }
 
   return (
-    <Table withTableBorder striped>
+    <ResponsiveTable withTableBorder striped minWidth={420}>
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Slot</Table.Th>
@@ -65,7 +67,7 @@ function PreviewTable({ preview }: Readonly<{ preview: ChangeModelDefinitionPrev
           </Table.Tr>
         ))}
       </Table.Tbody>
-    </Table>
+    </ResponsiveTable>
   );
 }
 
@@ -128,7 +130,7 @@ export default function ChangeModelDefinitionModal({
   const droppedCount = preview?.entries.filter((entry) => entry.outcome === "DROPPED").length ?? 0;
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Change model type" size="lg">
+    <ResponsiveModal opened={opened} onClose={onClose} title="Change model type" size="lg">
       <Stack gap="md">
         <Text size="sm" c="dimmed">
           Currently {model.modelDefinition?.name ?? "an unknown type"}. Wargear is carried across to the new type
@@ -186,6 +188,6 @@ export default function ChangeModelDefinitionModal({
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </ResponsiveModal>
   );
 }

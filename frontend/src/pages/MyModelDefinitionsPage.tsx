@@ -21,6 +21,7 @@ import { useAuth } from "@/auth/useAuth";
 import DefinitionDiffModal, { PERSONAL_DIFF_LABELS } from "@/components/definitions/DefinitionDiffModal.tsx";
 import PersonalModelDefinitionEditor from "@/components/mydefinitions/PersonalModelDefinitionEditor.tsx";
 import PageGate from "@/components/PageGate.tsx";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import type { Faction, ModelDefinition, WargearDefinition } from "@/generated";
 import {
   createMyModelDefinition,
@@ -88,7 +89,7 @@ function MyDefinitionsTable({
   onRemove,
 }: MineTableProps) {
   return (
-    <Table striped withTableBorder verticalSpacing="xs">
+    <ResponsiveTable striped withTableBorder verticalSpacing="xs">
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Name</Table.Th>
@@ -144,7 +145,7 @@ function MyDefinitionsTable({
           );
         })}
       </Table.Tbody>
-    </Table>
+    </ResponsiveTable>
   );
 }
 
@@ -164,7 +165,7 @@ function SharedCatalogueTable({ definitions, factionsById, customisingIds, onCus
     );
   }
   return (
-    <Table striped withTableBorder verticalSpacing="xs">
+    <ResponsiveTable striped withTableBorder verticalSpacing="xs">
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Name</Table.Th>
@@ -196,7 +197,7 @@ function SharedCatalogueTable({ definitions, factionsById, customisingIds, onCus
           </Table.Tr>
         ))}
       </Table.Tbody>
-    </Table>
+    </ResponsiveTable>
   );
 }
 
