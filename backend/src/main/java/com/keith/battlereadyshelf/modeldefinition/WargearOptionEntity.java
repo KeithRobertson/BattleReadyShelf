@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import lombok.AllArgsConstructor;
@@ -21,11 +22,14 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * A known wargear item for a {@link ModelDefinitionEntity} (e.g. "Boltgun", "Heavy Plague
- * Weapon") and the attachment slot(s) it fills. An option filling more than one slot (e.g. a
- * two-handed weapon) consumes all of those slots at once. This is not an exhaustive/enforced
- * catalog - it exists to describe common/default loadouts; users remain free to put anything
- * they like into a slot.
+ * One model definition's use of a {@link WargearDefinitionEntity}, and the attachment slot(s) it
+ * fills on that model. An option filling more than one slot (e.g. a two-handed weapon) consumes
+ * all of those slots at once. This is not an exhaustive/enforced catalog - it exists to describe
+ * common/default loadouts; users remain free to put anything they like into a slot.
+ *
+ * <p>The wargear's identity and name live on the shared definition, so the same item used by many
+ * models is named once. Only what varies per model - the slots it fills and whether it is part of
+ * the default loadout - is stored here.
  */
 @Entity
 @Table(name = "wargear_options")
@@ -41,11 +45,13 @@ public class WargearOptionEntity {
     @Column(name = "model_definition_id", nullable = false)
     private UUID modelDefinitionId;
 
-    @Column(name = "external_id")
-    private String externalId;
-
-    @Column(nullable = false)
-    private String name;
+    /**
+     * Eager because callers almost always need the name, and the number of distinct definitions is
+     * small enough that the persistence context absorbs the repeat lookups.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "wargear_definition_id", nullable = false)
+    private WargearDefinitionEntity wargearDefinition;
 
     @Column(name = "is_default", nullable = false)
     private boolean isDefault;

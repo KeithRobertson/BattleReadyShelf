@@ -30,6 +30,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,6 +53,7 @@ public class ModelDefinitionDraftService {
     private final ModelDefinitionRepository modelDefinitionRepository;
     private final AttachmentSlotRepository attachmentSlotRepository;
     private final WargearOptionRepository wargearOptionRepository;
+    private final WargearDefinitionRepository wargearDefinitionRepository;
     private final FactionRepository factionRepository;
     private final ModelDefinitionDraftRepository modelDefinitionDraftRepository;
     private final AttachmentSlotDraftRepository attachmentSlotDraftRepository;
@@ -150,8 +152,7 @@ public class ModelDefinitionDraftService {
                     WargearOptionDraftEntity.builder()
                             .modelDefinitionDraftId(draft.getId())
                             .publishedWargearOptionId(option.getId())
-                            .externalId(option.getExternalId())
-                            .name(option.getName())
+                            .wargearDefinition(option.getWargearDefinition())
                             .isDefault(option.isDefault())
                             .attachmentSlots(
                                     option.getAttachmentSlots().stream()
@@ -276,9 +277,8 @@ public class ModelDefinitionDraftService {
                 publishedOption =
                         WargearOptionEntity.builder().modelDefinitionId(modelDefinitionId).build();
             }
-            publishedOption.setName(draftOption.getName());
+            publishedOption.setWargearDefinition(draftOption.getWargearDefinition());
             publishedOption.setDefault(draftOption.isDefault());
-            publishedOption.setExternalId(draftOption.getExternalId());
             publishedOption.setAttachmentSlots(
                     draftOption.getAttachmentSlots().stream()
                             .map(slot -> publishedSlotByDraftSlotId.get(slot.getId()))
@@ -381,10 +381,9 @@ public class ModelDefinitionDraftService {
                                                             .map(
                                                                     o ->
                                                                             new ModelDefinitionExportItemWargearOptionsInner(
-                                                                                            sourceId(
-                                                                                                    o.getExternalId(),
-                                                                                                    o.getId()),
-                                                                                            o.getName(),
+                                                                                            wargearSourceId(o),
+                                                                                            o.getWargearDefinition()
+                                                                                                    .getName(),
                                                                                             o.isDefault(),
                                                                                             o.getAttachmentSlots().stream()
                                                                                                     .map(
@@ -444,6 +443,8 @@ public class ModelDefinitionDraftService {
 
         warnOnDuplicateNames(export.getModelDefinitions());
 
+        var wargearDefinitions = upsertWargearDefinitions(export.getModelDefinitions());
+
         // Drafts already open for these definitions are the most recent state of record, so they
         // (not the published rows) are what an incoming item is compared against and applied to.
         var existingDrafts = modelDefinitionDraftRepository.findAll();
@@ -501,7 +502,7 @@ public class ModelDefinitionDraftService {
                 continue;
             }
 
-            changed.add(importItem(currentUser, item, existing, draft, faction));
+            changed.add(importItem(currentUser, item, existing, draft, faction, wargearDefinitions));
         }
 
         log.info(
@@ -532,13 +533,7 @@ public class ModelDefinitionDraftService {
                         .sorted()
                         .toList(),
                 item.getWargearOptions().stream()
-                        .map(
-                                o ->
-                                        optionKey(
-                                                o.getId(),
-                                                o.getName(),
-                                                Boolean.TRUE.equals(o.getIsDefault()),
-                                                o.getSlotIds()))
+                        .map(o -> optionKey(o.getId(), Boolean.TRUE.equals(o.getIsDefault()), o.getSlotIds()))
                         .sorted()
                         .toList());
     }
@@ -576,8 +571,7 @@ public class ModelDefinitionDraftService {
                                     .map(
                                             o ->
                                                     optionKey(
-                                                            sourceId(o.getExternalId(), o.getId()),
-                                                            o.getName(),
+                                                            wargearSourceId(o),
                                                             o.isDefault(),
                                                             o.getAttachmentSlots().stream()
                                                                     .map(s -> slotSourceIdById.get(s.getId()))
@@ -621,8 +615,7 @@ public class ModelDefinitionDraftService {
                                     .map(
                                             o ->
                                                     optionKey(
-                                                            sourceId(o.getExternalId(), o.getId()),
-                                                            o.getName(),
+                                                            wargearSourceId(o),
                                                             o.isDefault(),
                                                             o.getAttachmentSlots().stream()
                                                                     .map(s -> slotSourceIdById.get(s.getId()))
@@ -637,18 +630,102 @@ public class ModelDefinitionDraftService {
         return String.join("\u001f", sourceId, name, type == null ? "" : type);
     }
 
-    private static String optionKey(
-            String sourceId, String name, boolean isDefault, List<String> slotSourceIds) {
+    /**
+     * The wargear name is deliberately absent: it belongs to the shared definition, so renaming a
+     * piece of wargear is a change to that definition rather than to every model definition using
+     * it. Including it here would also make import non-idempotent whenever the source dataset
+     * spells the same wargear id differently in different models.
+     */
+    private static String optionKey(String sourceId, boolean isDefault, List<String> slotSourceIds) {
         return String.join(
                 "\u001f",
                 sourceId,
-                name,
                 Boolean.toString(isDefault),
                 slotSourceIds.stream().sorted().collect(Collectors.joining(",")));
     }
 
+    /**
+     * The stable identity of the wargear a usage row points at: its dataset id when it has one,
+     * otherwise the definition's own UUID (never the usage row's, which differs per model and
+     * would stop the same wargear matching across definitions).
+     */
+    private static String wargearSourceId(WargearOptionEntity option) {
+        return wargearSourceId(option.getWargearDefinition());
+    }
+
+    private static String wargearSourceId(WargearOptionDraftEntity option) {
+        return wargearSourceId(option.getWargearDefinition());
+    }
+
+    private static String wargearSourceId(WargearDefinitionEntity definition) {
+        return definition.getExternalId() != null
+                ? definition.getExternalId()
+                : definition.getId().toString();
+    }
+
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    /**
+     * Resolves every wargear id referenced by the import to a shared {@link
+     * WargearDefinitionEntity}, creating the ones that do not exist yet, and returns them keyed by
+     * source id.
+     *
+     * <p>An existing definition is never renamed by an import. The same wargear id often appears in
+     * many models and the source dataset does not always spell it identically in each (e.g.
+     * "Shuriken Pistol" vs "Shuriken pistol"); letting the last model win would make the name
+     * depend on import order and produce an endless stream of "changes" on every re-import.
+     * Conflicts are logged instead, and the canonical name is edited in one place.
+     */
+    private Map<String, WargearDefinitionEntity> upsertWargearDefinitions(
+            List<ModelDefinitionExportItem> items) {
+        // Keep the first spelling seen for each id so a brand-new definition is created
+        // deterministically rather than depending on which model happened to be imported last.
+        Map<String, String> nameBySourceId = new LinkedHashMap<>();
+        Map<String, Set<String>> allNamesBySourceId = new LinkedHashMap<>();
+        for (var item : items) {
+            for (var option : item.getWargearOptions()) {
+                nameBySourceId.putIfAbsent(option.getId(), option.getName());
+                allNamesBySourceId
+                        .computeIfAbsent(option.getId(), id -> new LinkedHashSet<>())
+                        .add(option.getName());
+            }
+        }
+        if (nameBySourceId.isEmpty()) {
+            return Map.of();
+        }
+
+        allNamesBySourceId.forEach(
+                (sourceId, names) -> {
+                    if (names.size() > 1) {
+                        log.warn(
+                                "Wargear '{}' is named inconsistently in the import ({}); keeping '{}'."
+                                        + " Rename it on the wargear definition to change it everywhere.",
+                                sourceId,
+                                String.join("', '", names),
+                                nameBySourceId.get(sourceId));
+                    }
+                });
+
+        Map<String, WargearDefinitionEntity> bySourceId =
+                wargearDefinitionRepository
+                        .findAllByExternalIdIn(List.copyOf(nameBySourceId.keySet()))
+                        .stream()
+                        .collect(Collectors.toMap(WargearDefinitionEntity::getExternalId, d -> d));
+
+        nameBySourceId.forEach(
+                (sourceId, name) ->
+                        bySourceId.computeIfAbsent(
+                                sourceId,
+                                id ->
+                                        wargearDefinitionRepository.save(
+                                                WargearDefinitionEntity.builder()
+                                                        .externalId(id)
+                                                        .name(name)
+                                                        .build())));
+
+        return bySourceId;
     }
 
     /**
@@ -731,7 +808,8 @@ public class ModelDefinitionDraftService {
             ModelDefinitionExportItem item,
             ModelDefinitionEntity existingPublished,
             ModelDefinitionDraftEntity existingDraft,
-            FactionEntity faction) {
+            FactionEntity faction,
+            Map<String, WargearDefinitionEntity> wargearDefinitions) {
         UUID draftId;
         if (existingDraft != null) {
             draftId = existingDraft.getId();
@@ -763,13 +841,16 @@ public class ModelDefinitionDraftService {
         // their many-to-many join rows have no entity cascade.
         var existingOptions =
                 wargearOptionDraftRepository.findAllByModelDefinitionDraftId(draftId);
-        var existingOptionsByExternalId =
+        var existingOptionsByWargearSourceId =
                 existingOptions.stream()
-                        .filter(o -> o.getExternalId() != null)
-                        .collect(Collectors.toMap(WargearOptionDraftEntity::getExternalId, o -> o, (a, b) -> a));
+                        .collect(
+                                Collectors.toMap(
+                                        ModelDefinitionDraftService::wargearSourceId, o -> o, (a, b) -> a));
         var existingOptionsByName =
                 existingOptions.stream()
-                        .collect(Collectors.toMap(WargearOptionDraftEntity::getName, o -> o, (a, b) -> a));
+                        .collect(
+                                Collectors.toMap(
+                                        o -> o.getWargearDefinition().getName(), o -> o, (a, b) -> a));
         wargearOptionDraftRepository.deleteAllByModelDefinitionDraftId(draftId);
 
         var existingSlots = attachmentSlotDraftRepository.findAllByModelDefinitionDraftId(draftId);
@@ -801,7 +882,7 @@ public class ModelDefinitionDraftService {
         }
 
         for (var optionItem : item.getWargearOptions()) {
-            var previous = existingOptionsByExternalId.get(optionItem.getId());
+            var previous = existingOptionsByWargearSourceId.get(optionItem.getId());
             if (previous == null) {
                 previous = existingOptionsByName.get(optionItem.getName());
             }
@@ -828,8 +909,7 @@ public class ModelDefinitionDraftService {
                             .modelDefinitionDraftId(draftId)
                             .publishedWargearOptionId(
                                     previous != null ? previous.getPublishedWargearOptionId() : null)
-                            .externalId(optionItem.getId())
-                            .name(optionItem.getName())
+                            .wargearDefinition(wargearDefinitions.get(optionItem.getId()))
                             .isDefault(Boolean.TRUE.equals(optionItem.getIsDefault()))
                             .attachmentSlots(slots)
                             .build());
@@ -883,8 +963,9 @@ public class ModelDefinitionDraftService {
                             .map(resolvedSlotByRequestId::get)
                             .filter(java.util.Objects::nonNull)
                             .collect(Collectors.toCollection(ArrayList::new));
+            var wargearDefinition = resolveWargearDefinition(optionReq);
             if (existing != null) {
-                existing.setName(optionReq.getName());
+                existing.setWargearDefinition(wargearDefinition);
                 existing.setDefault(Boolean.TRUE.equals(optionReq.getIsDefault()));
                 existing.setAttachmentSlots(slots);
                 wargearOptionDraftRepository.save(existing);
@@ -892,7 +973,7 @@ public class ModelDefinitionDraftService {
                 wargearOptionDraftRepository.save(
                         WargearOptionDraftEntity.builder()
                                 .modelDefinitionDraftId(draftId)
-                                .name(optionReq.getName())
+                                .wargearDefinition(wargearDefinition)
                                 .isDefault(Boolean.TRUE.equals(optionReq.getIsDefault()))
                                 .attachmentSlots(slots)
                                 .build());
@@ -900,6 +981,35 @@ public class ModelDefinitionDraftService {
         }
         // Any option not referenced by the request has been removed.
         wargearOptionDraftRepository.deleteAll(existingOptions.values());
+    }
+
+    /**
+     * Resolves the shared wargear a hand-edited draft option points at: by id when the client sent
+     * one, otherwise by name among the hand-authored definitions, creating one if it is a name we
+     * have not seen before.
+     *
+     * <p>Matching by name deliberately only considers definitions with no dataset id. Attaching a
+     * hand-typed name to a dataset-owned definition would silently couple this model to the
+     * reference data and let a later import change it.
+     */
+    private WargearDefinitionEntity resolveWargearDefinition(UpsertWargearOptionDraftRequest optionReq) {
+        if (optionReq.getWargearDefinitionId() != null) {
+            return wargearDefinitionRepository
+                    .findById(optionReq.getWargearDefinitionId())
+                    .orElseThrow(
+                            () ->
+                                    new NotFoundException(
+                                            "Wargear definition not found: "
+                                                    + optionReq.getWargearDefinitionId()));
+        }
+        return wargearDefinitionRepository
+                .findFirstByExternalIdIsNullAndNameIgnoreCase(optionReq.getName())
+                .orElseGet(
+                        () ->
+                                wargearDefinitionRepository.save(
+                                        WargearDefinitionEntity.builder()
+                                                .name(optionReq.getName())
+                                                .build()));
     }
 
     private ModelDefinitionDraftEntity requireDraft(UUID draftId) {

@@ -26,6 +26,9 @@ public interface ModelDefinitionMapper {
 
     @Mapping(target = "attachmentSlotIds", source = "attachmentSlots")
     @Mapping(target = "isDefault", source = "default")
+    @Mapping(target = "name", source = "wargearDefinition.name")
+    @Mapping(target = "externalId", source = "wargearDefinition.externalId")
+    @Mapping(target = "wargearDefinitionId", source = "wargearDefinition.id")
     WargearOption toDto(WargearOptionEntity entity);
 
     default UUID attachmentSlotToId(AttachmentSlotEntity slot) {
@@ -40,6 +43,9 @@ public interface ModelDefinitionMapper {
 
     @Mapping(target = "attachmentSlotIds", source = "attachmentSlots")
     @Mapping(target = "isDefault", source = "default")
+    @Mapping(target = "name", source = "wargearDefinition.name")
+    @Mapping(target = "externalId", source = "wargearDefinition.externalId")
+    @Mapping(target = "wargearDefinitionId", source = "wargearDefinition.id")
     WargearOptionDraft toDto(WargearOptionDraftEntity entity);
 
     default UUID attachmentSlotDraftToId(AttachmentSlotDraftEntity slot) {

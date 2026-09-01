@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import lombok.AllArgsConstructor;
@@ -24,6 +25,9 @@ import java.util.UUID;
  * A draft edit of a {@link WargearOptionEntity}. If {@code publishedWargearOptionId} is null,
  * this option is new and will be created on publish; otherwise publishing updates the existing
  * published option in place, preserving its id.
+ *
+ * <p>Like the published row, the wargear's name and identity live on the shared
+ * {@link WargearDefinitionEntity} rather than being copied here.
  */
 @Entity
 @Table(name = "wargear_option_drafts")
@@ -42,11 +46,9 @@ public class WargearOptionDraftEntity {
     @Column(name = "published_wargear_option_id")
     private UUID publishedWargearOptionId;
 
-    @Column(name = "external_id")
-    private String externalId;
-
-    @Column(nullable = false)
-    private String name;
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "wargear_definition_id", nullable = false)
+    private WargearDefinitionEntity wargearDefinition;
 
     @Column(name = "is_default", nullable = false)
     private boolean isDefault;

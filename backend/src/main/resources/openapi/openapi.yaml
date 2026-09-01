@@ -488,6 +488,71 @@ paths:
                 $ref: '#/components/schemas/ApiError'
         '404':
           description: Faction not found
+  /api/v1/admin/wargear-definitions:
+    get:
+      tags: [ "WargearDefinitionAdmin" ]
+      summary: >-
+        List all shared wargear definitions (admin only), each with how many published model
+        definitions use it.
+      operationId: getWargearDefinitions
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: A list of all wargear definitions, ordered by name
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WargearDefinition'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/wargear-definitions/{wargearDefinitionId}:
+    patch:
+      tags: [ "WargearDefinitionAdmin" ]
+      summary: >-
+        Rename a shared wargear definition (admin only). The new name applies immediately to every
+        model definition that uses it, published or draft.
+      operationId: updateWargearDefinition
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: wargearDefinitionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWargearDefinitionRequest'
+      responses:
+        '200':
+          description: The updated wargear definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WargearDefinition'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Wargear definition not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/admin/model-definitions/drafts:
     get:
       tags: [ "ModelDefinitionAdmin" ]
@@ -1272,9 +1337,16 @@ components:
         externalId:
           type: string
           readOnly: true
-          description: Stable identifier from an imported reference dataset, if this option was created/matched via import.
+          description: Stable identifier from an imported reference dataset, if this option's wargear came from one.
+        wargearDefinitionId:
+          type: string
+          format: uuid
+          readOnly: true
+          description: The shared wargear definition this option refers to.
         name:
           type: string
+          readOnly: true
+          description: Resolved from the shared wargear definition; edit it there to rename it everywhere.
         isDefault:
           type: boolean
           description: Whether this option is part of the model's default loadout.
@@ -1375,9 +1447,16 @@ components:
         externalId:
           type: string
           readOnly: true
-          description: Stable identifier from an imported reference dataset, if this option was created/matched via import.
+          description: Stable identifier from an imported reference dataset, if this option's wargear came from one.
+        wargearDefinitionId:
+          type: string
+          format: uuid
+          readOnly: true
+          description: The shared wargear definition this option refers to.
         name:
           type: string
+          readOnly: true
+          description: Resolved from the shared wargear definition; edit it there to rename it everywhere.
         isDefault:
           type: boolean
         attachmentSlotIds:
@@ -1433,8 +1512,19 @@ components:
           type: string
           format: uuid
           description: The draft option id (existing, or a freshly client-generated one for a new option).
+        wargearDefinitionId:
+          type: string
+          format: uuid
+          description: >-
+            The shared wargear definition to point at. Takes precedence over 'name' when both are
+            sent; when omitted, the definition is looked up by name and created if it does not
+            exist yet.
         name:
           type: string
+          description: >-
+            Used to resolve or create the shared wargear definition when 'wargearDefinitionId' is
+            not supplied. Renaming here creates/points at a different definition rather than
+            renaming the existing one - rename via the wargear definition itself.
         isDefault:
           type: boolean
         attachmentSlotIds:
@@ -1443,6 +1533,35 @@ components:
             type: string
             format: uuid
       required: [ id, name, isDefault, attachmentSlotIds ]
+    WargearDefinition:
+      type: object
+      description: >-
+        A canonical piece of wargear shared by every model definition that can be equipped with it,
+        so it is named once rather than copied per model. Ids form a single global namespace
+        because the reference dataset already reuses them across factions.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        externalId:
+          type: string
+          readOnly: true
+          description: Stable identifier from the reference dataset; null for wargear created by hand.
+        name:
+          type: string
+        usageCount:
+          type: integer
+          format: int32
+          readOnly: true
+          description: How many published model definitions currently reference this wargear.
+      required: [ name ]
+    UpdateWargearDefinitionRequest:
+      type: object
+      properties:
+        name:
+          type: string
+      required: [ name ]
     PublishModelDefinitionDraftRequest:
       type: object
       properties:

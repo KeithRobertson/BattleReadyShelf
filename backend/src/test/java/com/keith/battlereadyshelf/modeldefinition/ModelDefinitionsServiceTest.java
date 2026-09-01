@@ -100,11 +100,13 @@ class ModelDefinitionsServiceTest {
         when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(plagueMarineId)))
                 .thenReturn(List.of(leftArm, rightArm));
 
+        var boltgunDefinition =
+                WargearDefinitionEntity.builder().id(UUID.randomUUID()).name("Boltgun").build();
         var boltgun =
                 WargearOptionEntity.builder()
                         .id(boltgunId)
                         .modelDefinitionId(plagueMarineId)
-                        .name("Boltgun")
+                        .wargearDefinition(boltgunDefinition)
                         .isDefault(true)
                         .attachmentSlots(List.of(leftArm))
                         .build();
@@ -125,7 +127,8 @@ class ModelDefinitionsServiceTest {
                                 .wargearOptions(
                                         List.of(
                                                 new WargearOption("Boltgun", true, List.of(leftArmId))
-                                                        .id(boltgunId))));
+                                                        .id(boltgunId)
+                                                        .wargearDefinitionId(boltgunDefinition.getId()))));
     }
 
     @Test
