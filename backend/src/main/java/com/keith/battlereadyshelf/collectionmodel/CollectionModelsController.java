@@ -3,6 +3,8 @@ package com.keith.battlereadyshelf.collectionmodel;
 import com.keith.battlereadyshelf.generated.api.CollectionModelsApi;
 import com.keith.battlereadyshelf.generated.model.BulkCreateCollectionModelsRequest;
 import com.keith.battlereadyshelf.generated.model.BulkDeleteCollectionModelsRequest;
+import com.keith.battlereadyshelf.generated.model.ChangeModelDefinitionPreview;
+import com.keith.battlereadyshelf.generated.model.ChangeModelDefinitionPreviewRequest;
 import com.keith.battlereadyshelf.generated.model.CollectionModel;
 import com.keith.battlereadyshelf.generated.model.UpdateCollectionModelRequest;
 import com.keith.battlereadyshelf.security.AuthenticatedUserProvider;
@@ -69,8 +71,22 @@ public class CollectionModelsController implements CollectionModelsApi {
                         updateCollectionModelRequest.getDescription(),
                         updateCollectionModelRequest.getFinishedOn(),
                         updateCollectionModelRequest.getStatus(),
+                        updateCollectionModelRequest.getModelDefinitionId(),
                         updateCollectionModelRequest.getWargearSelections());
         return ResponseEntity.ok(updatedCollectionModel);
+    }
+
+    @Override
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<ChangeModelDefinitionPreview> previewModelDefinitionChange(
+            UUID collectionModelId,
+            ChangeModelDefinitionPreviewRequest changeModelDefinitionPreviewRequest) {
+        var currentUser = authenticatedUserProvider.getCurrentUser();
+        return ResponseEntity.ok(
+                collectionModelsService.previewModelDefinitionChange(
+                        currentUser.id(),
+                        collectionModelId,
+                        changeModelDefinitionPreviewRequest.getModelDefinitionId()));
     }
 
     @Override

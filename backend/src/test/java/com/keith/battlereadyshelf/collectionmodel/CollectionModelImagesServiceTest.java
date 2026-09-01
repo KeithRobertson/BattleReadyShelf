@@ -62,7 +62,8 @@ class CollectionModelImagesServiceTest {
                         new CollectionModelImageMapperImpl(),
                         modelDefinitionsService,
                         presignedUrlService,
-                        new CollectionModelStatusMapperImpl());
+                        new CollectionModelStatusMapperImpl(),
+                        new WargearRemapPlanner());
 
         var storageProperties =
                 new StorageProperties("battlereadyshelf-dev", "keith", true, 10);

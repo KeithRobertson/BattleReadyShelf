@@ -80,9 +80,7 @@ export default function WargearOptionPicker({ definitions, value, onChange }: Wa
           {options}
           {term !== "" && !hasExactMatch && (
             <Combobox.Option value={`new:${search.trim()}`}>
-              <Text size="sm">
-                + Create new wargear &quot;{search.trim()}&quot;
-              </Text>
+              <Text size="sm">+ Create new wargear &quot;{search.trim()}&quot;</Text>
             </Combobox.Option>
           )}
           {options.length === 0 && term === "" && <Combobox.Empty>No wargear definitions yet</Combobox.Empty>}

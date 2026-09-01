@@ -15,24 +15,24 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import {
-  IconAlertCircle,
-  IconCircleCheck,
-  IconGitCompare,
-  IconPencil,
-  IconPlus,
-  IconTrash,
-} from "@tabler/icons-react";
-import { isAxiosError } from "axios";
+import { IconAlertCircle, IconCircleCheck, IconGitCompare, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
 import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
 import { DefinitionTransferButtons } from "@/components/admin/DefinitionTransferButtons.tsx";
-import ModelDefinitionDraftDiffModal from "@/components/admin/modeldefinitions/ModelDefinitionDraftDiffModal.tsx";
 import ModelDefinitionDraftEditor from "@/components/admin/modeldefinitions/ModelDefinitionDraftEditor.tsx";
 import ModelDefinitionSlotTable from "@/components/admin/modeldefinitions/ModelDefinitionSlotTable.tsx";
-import type { Faction, ModelDefinition, ModelDefinitionDraft, ModelDefinitionExport, WargearDefinition } from "@/generated";
+import ModelDefinitionDiffModal, {
+  DRAFT_DIFF_LABELS,
+} from "@/components/modeldefinitions/ModelDefinitionDiffModal.tsx";
+import type {
+  Faction,
+  ModelDefinition,
+  ModelDefinitionDraft,
+  ModelDefinitionExport,
+  WargearDefinition,
+} from "@/generated";
 import {
   createModelDefinitionDraft,
   deleteModelDefinition,
@@ -47,6 +47,7 @@ import {
   startModelDefinitionDraft,
 } from "@/generated";
 import { type DraftDiff, diffModelDefinitionDraft } from "@/utils/modelDefinitionDraftDiff";
+import extractErrorMessage from "@/utils/extractErrorMessage.ts";
 
 interface FactionGroup<T> {
   faction: Faction | null;
@@ -78,13 +79,6 @@ function groupByFaction<T extends { factionId?: string }>(
     return a.faction.name.localeCompare(b.faction.name);
   });
   return groups;
-}
-
-function extractErrorMessage(e: unknown): string {
-  if (isAxiosError(e) && typeof e.response?.data?.message === "string") {
-    return e.response.data.message;
-  }
-  return String(e);
 }
 
 /** Summarises at a glance what publishing a draft would actually do. */
@@ -774,11 +768,12 @@ export default function ModelDefinitionsAdminPage() {
           onDiscarded={handleDraftDiscarded}
         />
       )}
-      <ModelDefinitionDraftDiffModal
+      <ModelDefinitionDiffModal
         opened={diffDraft !== null}
         onClose={() => setDiffDraft(null)}
-        draftName={diffDraft?.name ?? ""}
+        definitionName={diffDraft?.name ?? ""}
         diff={diffDraft ? (diffsByDraftId.get(diffDraft.id ?? "") ?? null) : null}
+        labels={DRAFT_DIFF_LABELS}
       />
     </Stack>
   );

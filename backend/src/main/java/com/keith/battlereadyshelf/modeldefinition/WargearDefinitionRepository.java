@@ -11,5 +11,21 @@ public interface WargearDefinitionRepository extends JpaRepository<WargearDefini
 
     List<WargearDefinitionEntity> findAllByExternalIdIn(List<String> externalIds);
 
-    Optional<WargearDefinitionEntity> findFirstByExternalIdIsNullAndNameIgnoreCase(String name);
+    /**
+     * The shared catalogue: wargear from the reference dataset plus anything an admin authored by
+     * hand. Excludes personal wargear so users' conversions never leak into the admin pages,
+     * exports or another user's picker.
+     */
+    List<WargearDefinitionEntity> findAllByOwnerUserIdIsNull();
+
+    List<WargearDefinitionEntity> findAllByOwnerUserId(UUID ownerUserId);
+
+    /** The shared catalogue plus, when matching by name for a user, the dataset-owned rows too. */
+    Optional<WargearDefinitionEntity> findFirstByOwnerUserIdIsNullAndNameIgnoreCase(String name);
+
+    Optional<WargearDefinitionEntity> findFirstByExternalIdIsNullAndOwnerUserIdIsNullAndNameIgnoreCase(
+            String name);
+
+    Optional<WargearDefinitionEntity> findFirstByOwnerUserIdAndNameIgnoreCase(
+            UUID ownerUserId, String name);
 }

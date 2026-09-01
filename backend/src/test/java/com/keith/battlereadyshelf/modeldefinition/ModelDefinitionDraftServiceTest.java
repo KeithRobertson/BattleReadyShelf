@@ -125,7 +125,7 @@ class ModelDefinitionDraftServiceTest {
                         .build();
 
         when(factionRepository.findAll()).thenReturn(List.of(faction));
-        when(modelDefinitionRepository.findAll()).thenReturn(List.of(model));
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(model));
         when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(modelId)))
                 .thenReturn(List.of(slot));
         when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(modelId)))
@@ -163,7 +163,7 @@ class ModelDefinitionDraftServiceTest {
         var boltgun = wargearDefinition("boltgun", "Boltgun");
 
         when(factionRepository.findAll()).thenReturn(List.of());
-        when(modelDefinitionRepository.findAll())
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull())
                 .thenReturn(
                         List.of(
                                 publishedModel(firstId, "plague_marine", null, "Plague Marine"),
@@ -208,7 +208,7 @@ class ModelDefinitionDraftServiceTest {
                         .build();
 
         when(factionRepository.findAll()).thenReturn(List.of());
-        when(modelDefinitionRepository.findAll()).thenReturn(List.of(model));
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(model));
         when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(modelId)))
                 .thenReturn(List.of(slot));
         when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(modelId)))
@@ -235,7 +235,7 @@ class ModelDefinitionDraftServiceTest {
                                 exportItem("aeldari_fire_dragon", "Fire Dragon"),
                                 exportItem("warcry_fire_dragon", "Fire Dragon")));
 
-        when(modelDefinitionRepository.findAll()).thenReturn(List.of());
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of());
         when(modelDefinitionDraftRepository.save(any()))
                 .thenAnswer(
                         invocation -> {
@@ -304,7 +304,7 @@ class ModelDefinitionDraftServiceTest {
                         .build();
 
         when(factionRepository.findAll()).thenReturn(List.of(faction));
-        when(modelDefinitionRepository.findAll()).thenReturn(List.of(published));
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(published));
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
         when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(modelId)))
                 .thenReturn(List.of(slot));
@@ -343,7 +343,7 @@ class ModelDefinitionDraftServiceTest {
                         .name("Fire Dragon")
                         .build();
 
-        when(modelDefinitionRepository.findAll()).thenReturn(List.of());
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of());
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of(draft));
         when(modelDefinitionDraftRepository.findById(draftId)).thenReturn(Optional.of(draft));
         when(modelDefinitionDraftRepository.save(any()))
@@ -375,7 +375,7 @@ class ModelDefinitionDraftServiceTest {
                         .name("Fire Dragon")
                         .build();
 
-        when(modelDefinitionRepository.findAll()).thenReturn(List.of());
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of());
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of(draft));
 
         var export =
@@ -404,7 +404,7 @@ class ModelDefinitionDraftServiceTest {
         var rangerOption = publishedOption(rangerId, shurikenPistol);
 
         when(factionRepository.findAll()).thenReturn(List.of(faction));
-        when(modelDefinitionRepository.findAll()).thenReturn(List.of(guardian, ranger));
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(guardian, ranger));
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
         when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(guardianId, rangerId)))
                 .thenReturn(List.of());
@@ -433,7 +433,7 @@ class ModelDefinitionDraftServiceTest {
     void importPointsEveryUsageOfAWargearIdAtOneSharedDefinition() {
         var shurikenPistol = wargearDefinition("shuriken_pistol", "Shuriken Pistol");
 
-        when(modelDefinitionRepository.findAll()).thenReturn(List.of());
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of());
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
         when(wargearDefinitionService.findBySourceIds(List.of("shuriken_pistol")))
                 .thenReturn(new LinkedHashMap<>(Map.of("shuriken_pistol", shurikenPistol)));
@@ -491,7 +491,7 @@ class ModelDefinitionDraftServiceTest {
     void importRejectsModelsReferencingWargearThatHasNotBeenImportedYet() {
         // A models-only document carries no name for the item, so the only alternative to failing
         // is a nameless placeholder definition. Point the admin at the page that owns it instead.
-        when(modelDefinitionRepository.findAll()).thenReturn(List.of());
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of());
 
         var export =
                 new ModelDefinitionExport(
@@ -508,7 +508,7 @@ class ModelDefinitionDraftServiceTest {
 
     @Test
     void importRejectsModelsReferencingAFactionThatHasNotBeenImportedYet() {
-        when(modelDefinitionRepository.findAll()).thenReturn(List.of());
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of());
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
         when(factionRepository.findAll()).thenReturn(List.of());
 
@@ -544,7 +544,7 @@ class ModelDefinitionDraftServiceTest {
                                 Map.of("aeldari", faction), List.of(faction), List.of(), 0));
         when(factionRepository.findAll()).thenReturn(List.of(faction));
         when(wargearDefinitionService.upsertWargear(any())).thenReturn(outcomeFor(shurikenPistol));
-        when(modelDefinitionRepository.findAll()).thenReturn(List.of(guardian));
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(guardian));
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
         when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(guardianId)))
                 .thenReturn(List.of());

@@ -1,5 +1,6 @@
 import { Card, Group, Stack } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
+import ChangeModelDefinitionModal from "@/components/collection/group/model/ChangeModelDefinitionModal.tsx";
 import { ModelCardCompletedDate } from "@/components/collection/group/model/ModelCardCompletedDate.tsx";
 import { ModelCardDescription } from "@/components/collection/group/model/ModelCardDescription.tsx";
 import { ModelCardHeader } from "@/components/collection/group/model/ModelCardHeader.tsx";
@@ -28,6 +29,7 @@ export type ModelCardProps = Readonly<{
     update: { wargearOptionId?: string | null; customLabel?: string | null },
   ) => void;
   onUpdateStatus: (status: CollectionModelStatus) => void;
+  onChangeModelDefinition: (modelDefinitionId: string) => void;
 
   isDeleting: boolean;
 
@@ -46,6 +48,7 @@ function ModelCard({
   onUpdateDescription,
   onUpdateWargearSelection,
   onUpdateStatus,
+  onChangeModelDefinition,
   isUploading,
   deletingImageId,
   isDeleting,
@@ -78,6 +81,7 @@ function ModelCard({
   const [isUpdatingDescription, setIsUpdatingDescription] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [updatingWargearSlotId, setUpdatingWargearSlotId] = useState<string | null>(null);
+  const [isChangingModelDefinition, setIsChangingModelDefinition] = useState(false);
 
   // Collapse any open inline editors when the page is switched back to view mode.
   useEffect(() => {
@@ -86,6 +90,7 @@ function ModelCard({
       setIsEditingFinishedOn(false);
       setIsEditingDescription(false);
       setIsEditingWargear(false);
+      setIsChangingModelDefinition(false);
       setCustomWargearModeBySlot({});
       setCustomLabelDraftsBySlot({});
     }
@@ -172,8 +177,16 @@ function ModelCard({
           onToggleSelected={onToggleSelected}
           onUploadImage={onUploadImage}
           onDeleteModel={onDeleteModel}
+          onChangeModelDefinition={() => setIsChangingModelDefinition(true)}
           isDeleting={isDeleting}
           fileInputRef={fileInputRef}
+        />
+
+        <ChangeModelDefinitionModal
+          opened={isChangingModelDefinition}
+          onClose={() => setIsChangingModelDefinition(false)}
+          model={model}
+          onConfirm={onChangeModelDefinition}
         />
 
         <Group align="flex-start" wrap="nowrap" gap="sm">

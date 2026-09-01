@@ -7,6 +7,44 @@ const KIND_LABEL: Record<ChangeKind, string> = { added: "Added", removed: "Remov
 
 const NOT_SET = "—";
 
+/**
+ * The wording for one kind of comparison. The mechanics of a diff are the same whether an admin is
+ * comparing a draft against what is published or a user is comparing their own definition against
+ * the shared one, but calling both sides "Draft" and "Published" would be wrong for the latter.
+ */
+export interface DiffLabels {
+  /** Column header for the definition being compared against. */
+  before: string;
+  /** Column header for the definition being compared. */
+  after: string;
+  /** Shown when there is nothing to compare against. */
+  isNewMessage: string;
+  /** Shown when the two sides are identical. */
+  identicalMessage: string;
+  /** Explains a child row that exists only on the "after" side. */
+  childAdded: string;
+  /** Explains a child row that exists only on the "before" side. */
+  childRemoved: string;
+}
+
+export const DRAFT_DIFF_LABELS: DiffLabels = {
+  before: "Published",
+  after: "Draft",
+  isNewMessage: "This is a brand-new model definition, so everything in it will be added when published.",
+  identicalMessage: "This draft is identical to the published definition — publishing it would change nothing.",
+  childAdded: "Not in the published definition",
+  childRemoved: "No longer in the draft",
+};
+
+export const PERSONAL_DIFF_LABELS: DiffLabels = {
+  before: "Shared",
+  after: "Yours",
+  isNewMessage: "You wrote this model definition yourself, so there is no shared version to compare it against.",
+  identicalMessage: "Your version matches the shared definition exactly — you have not changed anything yet.",
+  childAdded: "You added this",
+  childRemoved: "You removed this",
+};
+
 function Before({ value }: Readonly<{ value: string | null }>) {
   if (value === null) return <Text c="dimmed">{NOT_SET}</Text>;
   return (
@@ -21,14 +59,14 @@ function After({ value }: Readonly<{ value: string | null }>) {
   return <Text fw={500}>{value}</Text>;
 }
 
-function FieldChangeRows({ changes }: Readonly<{ changes: FieldChange[] }>) {
+function FieldChangeRows({ changes, labels }: Readonly<{ changes: FieldChange[]; labels: DiffLabels }>) {
   return (
     <Table verticalSpacing="xs" withTableBorder>
       <Table.Thead>
         <Table.Tr>
           <Table.Th style={{ width: "25%" }}>Field</Table.Th>
-          <Table.Th style={{ width: "37.5%" }}>Published</Table.Th>
-          <Table.Th style={{ width: "37.5%" }}>Draft</Table.Th>
+          <Table.Th style={{ width: "37.5%" }}>{labels.before}</Table.Th>
+          <Table.Th style={{ width: "37.5%" }}>{labels.after}</Table.Th>
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
@@ -48,11 +86,11 @@ function FieldChangeRows({ changes }: Readonly<{ changes: FieldChange[] }>) {
   );
 }
 
-function ChildChangeDetails({ change }: Readonly<{ change: ChildChange }>) {
+function ChildChangeDetails({ change, labels }: Readonly<{ change: ChildChange; labels: DiffLabels }>) {
   if (change.fields.length === 0) {
     return (
       <Text c="dimmed" size="sm">
-        {change.kind === "added" ? "Not in the published definition" : "No longer in the draft"}
+        {change.kind === "added" ? labels.childAdded : labels.childRemoved}
       </Text>
     );
   }
@@ -72,7 +110,11 @@ function ChildChangeDetails({ change }: Readonly<{ change: ChildChange }>) {
   );
 }
 
-function ChildChangeSection({ title, changes }: Readonly<{ title: string; changes: ChildChange[] }>) {
+function ChildChangeSection({
+  title,
+  changes,
+  labels,
+}: Readonly<{ title: string; changes: ChildChange[]; labels: DiffLabels }>) {
   if (changes.length === 0) return null;
   return (
     <div>
@@ -97,7 +139,7 @@ function ChildChangeSection({ title, changes }: Readonly<{ title: string; change
               </Table.Td>
               <Table.Td>{change.label}</Table.Td>
               <Table.Td>
-                <ChildChangeDetails change={change} />
+                <ChildChangeDetails change={change} labels={labels} />
               </Table.Td>
             </Table.Tr>
           ))}
@@ -107,7 +149,7 @@ function ChildChangeSection({ title, changes }: Readonly<{ title: string; change
   );
 }
 
-function DiffSections({ diff }: Readonly<{ diff: DraftDiff }>) {
+function DiffSections({ diff, labels }: Readonly<{ diff: DraftDiff; labels: DiffLabels }>) {
   return (
     <>
       {diff.details.length > 0 && (
@@ -115,26 +157,26 @@ function DiffSections({ diff }: Readonly<{ diff: DraftDiff }>) {
           <Title order={6} mb={4}>
             Details
           </Title>
-          <FieldChangeRows changes={diff.details} />
+          <FieldChangeRows changes={diff.details} labels={labels} />
         </div>
       )}
-      <ChildChangeSection title="Attachment slots" changes={diff.attachmentSlots} />
-      <ChildChangeSection title="Wargear options" changes={diff.wargearOptions} />
+      <ChildChangeSection title="Attachment slots" changes={diff.attachmentSlots} labels={labels} />
+      <ChildChangeSection title="Wargear options" changes={diff.wargearOptions} labels={labels} />
     </>
   );
 }
 
-/** Chooses between the three mutually exclusive ways a draft can differ from what is published. */
-function DraftDiffBody({ diff }: Readonly<{ diff: DraftDiff | null }>) {
+/** Chooses between the three mutually exclusive ways one definition can differ from another. */
+function DiffBody({ diff, labels }: Readonly<{ diff: DraftDiff | null; labels: DiffLabels }>) {
   if (diff === null) return null;
 
   if (diff.isNew) {
     return (
       <Stack gap="md">
         <Alert color="grape" icon={<IconInfoCircle size={16} />}>
-          This is a brand-new model definition, so everything in it will be added when published.
+          {labels.isNewMessage}
         </Alert>
-        <DiffSections diff={diff} />
+        <DiffSections diff={diff} labels={labels} />
       </Stack>
     );
   }
@@ -142,34 +184,36 @@ function DraftDiffBody({ diff }: Readonly<{ diff: DraftDiff | null }>) {
   if (diff.changeCount === 0) {
     return (
       <Alert color="gray" icon={<IconInfoCircle size={16} />}>
-        This draft is identical to the published definition — publishing it would change nothing.
+        {labels.identicalMessage}
       </Alert>
     );
   }
 
   return (
     <Stack gap="md">
-      <DiffSections diff={diff} />
+      <DiffSections diff={diff} labels={labels} />
     </Stack>
   );
 }
 
-type ModelDefinitionDraftDiffModalProps = Readonly<{
+type ModelDefinitionDiffModalProps = Readonly<{
   opened: boolean;
   onClose: () => void;
-  draftName: string;
+  definitionName: string;
   diff: DraftDiff | null;
+  labels: DiffLabels;
 }>;
 
-export default function ModelDefinitionDraftDiffModal({
+export default function ModelDefinitionDiffModal({
   opened,
   onClose,
-  draftName,
+  definitionName,
   diff,
-}: ModelDefinitionDraftDiffModalProps) {
+  labels,
+}: ModelDefinitionDiffModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title={`Changes to "${draftName}"`} size="xl">
-      <DraftDiffBody diff={diff} />
+    <Modal opened={opened} onClose={onClose} title={`Changes to "${definitionName}"`} size="xl">
+      <DiffBody diff={diff} labels={labels} />
     </Modal>
   );
 }

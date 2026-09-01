@@ -35,6 +35,14 @@ public class AttachmentSlotEntity {
     @Column(name = "external_id")
     private String externalId;
 
+    /**
+     * The global slot this one was forked from when its model definition was customised by a
+     * user. Lets the personal-vs-global diff match a renamed slot to its original instead of
+     * reporting an unrelated add plus remove.
+     */
+    @Column(name = "base_attachment_slot_id")
+    private UUID baseAttachmentSlotId;
+
     @Column(nullable = false)
     private String name;
 

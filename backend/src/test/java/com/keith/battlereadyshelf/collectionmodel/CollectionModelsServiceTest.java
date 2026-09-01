@@ -81,7 +81,8 @@ class CollectionModelsServiceTest {
                         new CollectionModelImageMapperImpl(),
                         modelDefinitionsService,
                         presignedUrlService,
-                        new CollectionModelStatusMapperImpl());
+                        new CollectionModelStatusMapperImpl(),
+                        new WargearRemapPlanner());
     }
 
     @Test
@@ -315,6 +316,37 @@ class CollectionModelsServiceTest {
     }
 
     @Test
+    void createCollectionModel_throwsNotFound_whenTheModelDefinitionBelongsToAnotherUser() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var someoneElsesModelDefinitionId = UUID.randomUUID();
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(modelDefinitionRepository.findById(someoneElsesModelDefinitionId))
+                .thenReturn(
+                        Optional.of(
+                                ModelDefinitionEntity.builder()
+                                        .id(someoneElsesModelDefinitionId)
+                                        .name("Someone Else's Poxwalker")
+                                        .ownerUserId(UUID.randomUUID())
+                                        .build()));
+        var collectionModel = new CollectionModel(someoneElsesModelDefinitionId);
+
+        assertThatThrownBy(
+                        () ->
+                                collectionModelsService.createCollectionModel(
+                                        userId, armyCollectionId, collectionModel))
+                .isInstanceOf(NotFoundException.class);
+        verify(collectionModelRepository, never()).save(any());
+    }
+
+    @Test
     void bulkCreateCollectionModels_persistsRequestedCountOfUnnamedModels() {
         var userId = UUID.randomUUID();
         var armyCollectionId = UUID.randomUUID();
@@ -475,7 +507,7 @@ class CollectionModelsServiceTest {
 
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, "Poxwalker #1", "Front rank", null, null, null);
+                        userId, collectionModelId, "Poxwalker #1", "Front rank", null, null, null, null);
 
         assertThat(updated.getName()).isEqualTo("Poxwalker #1");
         assertThat(updated.getDescription()).isEqualTo("Front rank");
@@ -507,7 +539,7 @@ class CollectionModelsServiceTest {
         var finishedOn = LocalDate.of(2025, JUNE, 1);
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, null, null, finishedOn, null, null);
+                        userId, collectionModelId, null, null, finishedOn, null, null, null);
 
         assertThat(updated.getFinishedOn()).isEqualTo(finishedOn);
     }
@@ -544,7 +576,7 @@ class CollectionModelsServiceTest {
 
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, "Poxwalker #1", null, null, null, null);
+                        userId, collectionModelId, "Poxwalker #1", null, null, null, null, null);
 
         assertThat(updated.getName()).isEqualTo("Poxwalker #1");
         assertThat(updated.getDescription()).isEqualTo("Original description");
@@ -587,7 +619,7 @@ class CollectionModelsServiceTest {
                                 .wargearOptionId(boltgunId));
 
         collectionModelsService.updateCollectionModel(
-                userId, collectionModelId, null, null, null, null, wargearSelections);
+                userId, collectionModelId, null, null, null, null, null, wargearSelections);
 
         verify(collectionModelWargearSelectionRepository)
                 .deleteAllByCollectionModelId(collectionModelId);
@@ -638,7 +670,7 @@ class CollectionModelsServiceTest {
                                 .customLabel("  Converted power sword  "));
 
         collectionModelsService.updateCollectionModel(
-                userId, collectionModelId, null, null, null, null, wargearSelections);
+                userId, collectionModelId, null, null, null, null, null, wargearSelections);
 
         verify(collectionModelWargearSelectionRepository).saveAll(selectionCaptor.capture());
         var savedSelections = selectionCaptor.getValue();
@@ -649,6 +681,206 @@ class CollectionModelsServiceTest {
                                 .attachmentSlotId(leftArmId)
                                 .customLabel("Converted power sword")
                                 .build());
+    }
+
+    @Test
+    void updateCollectionModel_movesTheModelOntoANewDefinitionAndCarriesItsLoadoutAcross() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var sharedDefinitionId = UUID.randomUUID();
+        var personalDefinitionId = UUID.randomUUID();
+        var boltgunDefinitionId = UUID.randomUUID();
+        var oldSlotId = UUID.randomUUID();
+        var oldOptionId = UUID.randomUUID();
+        var newSlotId = UUID.randomUUID();
+        var newOptionId = UUID.randomUUID();
+        var droppedSlotId = UUID.randomUUID();
+        var droppedOptionId = UUID.randomUUID();
+
+        var sharedDefinition =
+                ModelDefinitionEntity.builder().id(sharedDefinitionId).name("Plague Marine").build();
+        var personalDefinition =
+                ModelDefinitionEntity.builder()
+                        .id(personalDefinitionId)
+                        .name("Plague Marine")
+                        .ownerUserId(userId)
+                        .baseModelDefinitionId(sharedDefinitionId)
+                        .build();
+
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .modelDefinition(sharedDefinition)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(modelDefinitionRepository.findById(personalDefinitionId))
+                .thenReturn(Optional.of(personalDefinition));
+        when(collectionModelRepository.save(any(CollectionModelEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        when(modelDefinitionsService.toEnrichedDto(sharedDefinition))
+                .thenReturn(
+                        new com.keith.battlereadyshelf.generated.model.ModelDefinition()
+                                .id(sharedDefinitionId)
+                                .attachmentSlots(
+                                        List.of(
+                                                new com.keith.battlereadyshelf.generated.model.AttachmentSlot(
+                                                                "Right arm", "ARM")
+                                                        .id(oldSlotId),
+                                                new com.keith.battlereadyshelf.generated.model.AttachmentSlot(
+                                                                "Backpack", "OTHER")
+                                                        .id(droppedSlotId)))
+                                .wargearOptions(
+                                        List.of(
+                                                new com.keith.battlereadyshelf.generated.model.WargearOption(
+                                                                "Boltgun", false, List.of(oldSlotId))
+                                                        .id(oldOptionId)
+                                                        .wargearDefinitionId(boltgunDefinitionId),
+                                                new com.keith.battlereadyshelf.generated.model.WargearOption(
+                                                                "Jump pack", false, List.of(droppedSlotId))
+                                                        .id(droppedOptionId)
+                                                        .wargearDefinitionId(UUID.randomUUID()))));
+        when(modelDefinitionsService.toEnrichedDto(personalDefinition))
+                .thenReturn(
+                        new com.keith.battlereadyshelf.generated.model.ModelDefinition()
+                                .id(personalDefinitionId)
+                                .attachmentSlots(
+                                        List.of(
+                                                new com.keith.battlereadyshelf.generated.model.AttachmentSlot(
+                                                                "Right arm", "ARM")
+                                                        .id(newSlotId)))
+                                .wargearOptions(
+                                        List.of(
+                                                new com.keith.battlereadyshelf.generated.model.WargearOption(
+                                                                "Boltgun", false, List.of(newSlotId))
+                                                        .id(newOptionId)
+                                                        .wargearDefinitionId(boltgunDefinitionId))));
+        when(collectionModelWargearSelectionRepository.findAllByCollectionModelId(collectionModelId))
+                .thenReturn(
+                        List.of(
+                                CollectionModelWargearSelectionEntity.builder()
+                                        .collectionModelId(collectionModelId)
+                                        .attachmentSlotId(oldSlotId)
+                                        .wargearOptionId(oldOptionId)
+                                        .build(),
+                                CollectionModelWargearSelectionEntity.builder()
+                                        .collectionModelId(collectionModelId)
+                                        .attachmentSlotId(droppedSlotId)
+                                        .wargearOptionId(droppedOptionId)
+                                        .build()));
+
+        collectionModelsService.updateCollectionModel(
+                userId, collectionModelId, null, null, null, null, personalDefinitionId, null);
+
+        verify(collectionModelWargearSelectionRepository)
+                .deleteAllByCollectionModelId(collectionModelId);
+        verify(collectionModelRepository).save(collectionModelEntityCaptor.capture());
+        assertThat(collectionModelEntityCaptor.getValue().getModelDefinition())
+                .isEqualTo(personalDefinition);
+
+        verify(collectionModelWargearSelectionRepository).saveAll(selectionCaptor.capture());
+        // The backpack has no counterpart on the new definition, so its jump pack is gone.
+        assertThat(selectionCaptor.getValue())
+                .containsExactly(
+                        CollectionModelWargearSelectionEntity.builder()
+                                .collectionModelId(collectionModelId)
+                                .attachmentSlotId(newSlotId)
+                                .wargearOptionId(newOptionId)
+                                .build());
+    }
+
+    @Test
+    void previewModelDefinitionChange_reportsWhatWouldHappenWithoutTouchingAnything() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var sharedDefinitionId = UUID.randomUUID();
+        var targetDefinitionId = UUID.randomUUID();
+        var oldSlotId = UUID.randomUUID();
+        var oldOptionId = UUID.randomUUID();
+
+        var sharedDefinition =
+                ModelDefinitionEntity.builder().id(sharedDefinitionId).name("Plague Marine").build();
+        var targetDefinition =
+                ModelDefinitionEntity.builder().id(targetDefinitionId).name("Poxwalker").build();
+
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .modelDefinition(sharedDefinition)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(modelDefinitionRepository.findById(targetDefinitionId))
+                .thenReturn(Optional.of(targetDefinition));
+        when(modelDefinitionsService.toEnrichedDto(sharedDefinition))
+                .thenReturn(
+                        new com.keith.battlereadyshelf.generated.model.ModelDefinition()
+                                .id(sharedDefinitionId)
+                                .attachmentSlots(
+                                        List.of(
+                                                new com.keith.battlereadyshelf.generated.model.AttachmentSlot(
+                                                                "Right arm", "ARM")
+                                                        .id(oldSlotId)))
+                                .wargearOptions(
+                                        List.of(
+                                                new com.keith.battlereadyshelf.generated.model.WargearOption(
+                                                                "Boltgun", false, List.of(oldSlotId))
+                                                        .id(oldOptionId)
+                                                        .wargearDefinitionId(UUID.randomUUID()))));
+        when(modelDefinitionsService.toEnrichedDto(targetDefinition))
+                .thenReturn(
+                        new com.keith.battlereadyshelf.generated.model.ModelDefinition()
+                                .id(targetDefinitionId)
+                                .attachmentSlots(List.of())
+                                .wargearOptions(List.of()));
+        when(collectionModelWargearSelectionRepository.findAllByCollectionModelId(collectionModelId))
+                .thenReturn(
+                        List.of(
+                                CollectionModelWargearSelectionEntity.builder()
+                                        .collectionModelId(collectionModelId)
+                                        .attachmentSlotId(oldSlotId)
+                                        .wargearOptionId(oldOptionId)
+                                        .build()));
+
+        var preview =
+                collectionModelsService.previewModelDefinitionChange(
+                        userId, collectionModelId, targetDefinitionId);
+
+        assertThat(preview.getModelDefinitionName()).isEqualTo("Poxwalker");
+        assertThat(preview.getEntries())
+                .singleElement()
+                .satisfies(
+                        entry -> {
+                            assertThat(entry.getSlotName()).isEqualTo("Right arm");
+                            assertThat(entry.getWargearName()).isEqualTo("Boltgun");
+                            assertThat(entry.getOutcome())
+                                    .isEqualTo(
+                                            com.keith.battlereadyshelf.generated.model
+                                                    .WargearRemapOutcome.DROPPED);
+                        });
+        verify(collectionModelWargearSelectionRepository, never()).deleteAllByCollectionModelId(any());
+        verify(collectionModelRepository, never()).save(any(CollectionModelEntity.class));
     }
 
     @Test
@@ -695,6 +927,7 @@ class CollectionModelsServiceTest {
                                         null,
                                         null,
                                         null,
+                                        null,
                                         wargearSelections))
                 .isInstanceOf(com.keith.battlereadyshelf.error.BadRequestException.class);
         verify(collectionModelWargearSelectionRepository, never()).deleteAllByCollectionModelId(any());
@@ -728,6 +961,7 @@ class CollectionModelsServiceTest {
                                         userId,
                                         collectionModelId,
                                         "New name",
+                                        null,
                                         null,
                                         null,
                                         null,

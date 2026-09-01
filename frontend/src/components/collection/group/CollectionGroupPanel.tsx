@@ -49,6 +49,9 @@ export const CollectionGroupPanel = React.memo(function CollectionGroupPanel({ g
                   update: { wargearOptionId?: string | null; customLabel?: string | null },
                 ) => actions.updateWargearSelection(model, slotId, update)}
                 onUpdateStatus={(status: CollectionModelStatus) => actions.updateStatus(model.id, status)}
+                onChangeModelDefinition={(modelDefinitionId: string) =>
+                  actions.changeModelDefinition(model.id, modelDefinitionId)
+                }
                 isUploading={modelImages.uploadingModelId === model.id}
                 deletingImageId={modelImages.deletingImageId}
                 isDeleting={deletion.pendingDelete?.modelId === model.id}

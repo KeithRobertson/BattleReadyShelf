@@ -2,6 +2,8 @@ package com.keith.battlereadyshelf.modeldefinition;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -12,6 +14,9 @@ import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.AttachmentSlot;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.WargearOption;
+import com.keith.battlereadyshelf.security.AuthenticatedUserProvider;
+import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
+import com.keith.battlereadyshelf.user.Role;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,7 +24,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,6 +35,7 @@ class ModelDefinitionsServiceTest {
     @Mock private AttachmentSlotRepository attachmentSlotRepository;
     @Mock private WargearOptionRepository wargearOptionRepository;
     @Mock private CollectionModelRepository collectionModelRepository;
+    @Mock private AuthenticatedUserProvider authenticatedUserProvider;
 
     private ModelDefinitionsService modelDefinitionsService;
 
@@ -39,13 +47,27 @@ class ModelDefinitionsServiceTest {
                         attachmentSlotRepository,
                         wargearOptionRepository,
                         new ModelDefinitionMapperImpl(),
-                        collectionModelRepository);
+                        collectionModelRepository,
+                        authenticatedUserProvider);
+    }
+
+    private void signedInAs(UUID userId) {
+        when(authenticatedUserProvider.findCurrentUser())
+                .thenReturn(
+                        Optional.of(
+                                new CurrentAuthenticatedUser(
+                                        userId,
+                                        "user@example.com",
+                                        Role.USER,
+                                        Instant.now(),
+                                        Instant.now())));
     }
 
     @Test
     void getAllModelDefinitions_returnsAllModelDefinitions() {
         var poxwalkerId = UUID.randomUUID();
-        when(modelDefinitionRepository.findAll())
+        when(authenticatedUserProvider.findCurrentUser()).thenReturn(Optional.empty());
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull())
                 .thenReturn(
                         List.of(
                                 ModelDefinitionEntity.builder()
@@ -75,7 +97,8 @@ class ModelDefinitionsServiceTest {
         var rightArmId = UUID.randomUUID();
         var boltgunId = UUID.randomUUID();
 
-        when(modelDefinitionRepository.findAll())
+        when(authenticatedUserProvider.findCurrentUser()).thenReturn(Optional.empty());
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull())
                 .thenReturn(
                         List.of(
                                 ModelDefinitionEntity.builder()
@@ -129,6 +152,97 @@ class ModelDefinitionsServiceTest {
                                                 new WargearOption("Boltgun", true, List.of(leftArmId))
                                                         .id(boltgunId)
                                                         .wargearDefinitionId(boltgunDefinition.getId()))));
+    }
+
+    @Test
+    void getAllModelDefinitions_listsACustomisationAlongsideTheSharedDefinitionItCameFrom() {
+        var userId = UUID.randomUUID();
+        var sharedId = UUID.randomUUID();
+        var personalId = UUID.randomUUID();
+        var untouchedId = UUID.randomUUID();
+        signedInAs(userId);
+
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull())
+                .thenReturn(
+                        List.of(
+                                ModelDefinitionEntity.builder().id(sharedId).name("Plague Marine").build(),
+                                ModelDefinitionEntity.builder().id(untouchedId).name("Poxwalker").build()));
+        when(modelDefinitionRepository.findAllByOwnerUserId(userId))
+                .thenReturn(
+                        List.of(
+                                ModelDefinitionEntity.builder()
+                                        .id(personalId)
+                                        .ownerUserId(userId)
+                                        .baseModelDefinitionId(sharedId)
+                                        // Customisations usually keep the original's name, which is
+                                        // why the DTO has to carry the owner and base for callers to
+                                        // tell the two entries apart.
+                                        .name("Plague Marine")
+                                        .build()));
+        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(
+                        List.of(sharedId, untouchedId, personalId)))
+                .thenReturn(List.of());
+        when(wargearOptionRepository.findAllByModelDefinitionIdIn(
+                        List.of(sharedId, untouchedId, personalId)))
+                .thenReturn(List.of());
+
+        var modelDefinitions = modelDefinitionsService.getAllModelDefinitions();
+
+        // The stock Plague Marine stays available: having customised one is not a reason to stop
+        // being able to add the unmodified version to a collection.
+        assertThat(modelDefinitions)
+                .extracting(
+                        ModelDefinition::getId,
+                        ModelDefinition::getName,
+                        ModelDefinition::getOwnerUserId,
+                        ModelDefinition::getBaseModelDefinitionId)
+                .containsExactly(
+                        tuple(sharedId, "Plague Marine", null, null),
+                        tuple(untouchedId, "Poxwalker", null, null),
+                        tuple(personalId, "Plague Marine", userId, sharedId));
+    }
+
+    @Test
+    void getAllModelDefinitions_hidesEveryPersonalDefinitionFromAnonymousCallers() {
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull())
+                .thenReturn(
+                        List.of(ModelDefinitionEntity.builder().id(UUID.randomUUID()).name("Plague Marine").build()));
+
+        var modelDefinitions = modelDefinitionsService.getAllModelDefinitions();
+
+        assertThat(modelDefinitions).extracting(ModelDefinition::getName).containsExactly("Plague Marine");
+        verify(modelDefinitionRepository, never()).findAllByOwnerUserId(any());
+    }
+
+    @Test
+    void getAllModelDefinitions_keepsSharedDefinitionsTheUserHasNotCustomised() {
+        var userId = UUID.randomUUID();
+        var sharedId = UUID.randomUUID();
+        var standaloneId = UUID.randomUUID();
+        signedInAs(userId);
+
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull())
+                .thenReturn(
+                        List.of(ModelDefinitionEntity.builder().id(sharedId).name("Plague Marine").build()));
+        // A definition the user wrote from scratch simply joins the list.
+        when(modelDefinitionRepository.findAllByOwnerUserId(userId))
+                .thenReturn(
+                        List.of(
+                                ModelDefinitionEntity.builder()
+                                        .id(standaloneId)
+                                        .ownerUserId(userId)
+                                        .name("My Kitbash")
+                                        .build()));
+        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(sharedId, standaloneId)))
+                .thenReturn(List.of());
+        when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(sharedId, standaloneId)))
+                .thenReturn(List.of());
+
+        var modelDefinitions = modelDefinitionsService.getAllModelDefinitions();
+
+        assertThat(modelDefinitions)
+                .extracting(ModelDefinition::getId)
+                .containsExactly(sharedId, standaloneId);
     }
 
     @Test

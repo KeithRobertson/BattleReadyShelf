@@ -46,6 +46,13 @@ public class WargearOptionEntity {
     private UUID modelDefinitionId;
 
     /**
+     * The global option this one was forked from when its model definition was customised by a
+     * user, so the personal-vs-global diff can tell an edited option from a newly added one.
+     */
+    @Column(name = "base_wargear_option_id")
+    private UUID baseWargearOptionId;
+
+    /**
      * Eager because callers almost always need the name, and the number of distinct definitions is
      * small enough that the persistence context absorbs the repeat lookups.
      */

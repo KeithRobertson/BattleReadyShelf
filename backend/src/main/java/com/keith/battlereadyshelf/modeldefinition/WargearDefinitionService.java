@@ -51,7 +51,7 @@ public class WargearDefinitionService {
     public List<WargearDefinition> getAllWargearDefinitions() {
         Map<UUID, Long> usageCounts = usageCounts();
 
-        return wargearDefinitionRepository.findAll().stream()
+        return wargearDefinitionRepository.findAllByOwnerUserIdIsNull().stream()
                 .sorted(Comparator.comparing(WargearDefinitionEntity::getName, String.CASE_INSENSITIVE_ORDER))
                 .map(definition -> toDto(definition, usageCounts.getOrDefault(definition.getId(), 0L)))
                 .toList();
@@ -159,7 +159,7 @@ public class WargearDefinitionService {
      */
     public WargearDefinitionExport exportWargearDefinitions() {
         var items =
-                wargearDefinitionRepository.findAll().stream()
+                wargearDefinitionRepository.findAllByOwnerUserIdIsNull().stream()
                         .map(d -> new WargearExportItem(sourceIdOf(d), d.getName()))
                         .sorted(Comparator.comparing(WargearExportItem::getId))
                         .toList();

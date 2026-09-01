@@ -382,6 +382,10 @@ paths:
     get:
       tags: [ "ModelDefinitions" ]
       summary: Get all available model types (e.g. Poxwalker)
+      description: >-
+        Open to anonymous callers for preview mode. When a bearer token is present, any shared
+        definition the user has customised is replaced by their own version and their
+        from-scratch definitions are included, so this is the catalogue as that user sees it.
       operationId: getModelDefinitions
       responses:
         '200':
@@ -392,6 +396,180 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ModelDefinition'
+  /api/v1/wargear-definitions:
+    get:
+      tags: [ "PersonalModelDefinitions" ]
+      summary: List the wargear the signed-in user can attach to a personal model definition
+      description: The shared catalogue plus any wargear this user created for their own definitions.
+      operationId: getAvailableWargearDefinitions
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: The wargear available to this user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WargearDefinition'
+  /api/v1/my/model-definitions:
+    get:
+      tags: [ "PersonalModelDefinitions" ]
+      summary: List the signed-in user's own model definitions
+      description: >-
+        Both kinds of personal definition: customisations of a shared definition (which carry a
+        baseModelDefinitionId) and ones the user wrote from scratch (which do not).
+      operationId: getMyModelDefinitions
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: This user's model definitions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModelDefinition'
+    post:
+      tags: [ "PersonalModelDefinitions" ]
+      summary: Create a model definition of the user's own
+      operationId: createMyModelDefinition
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertModelDefinitionDraftRequest'
+      responses:
+        '201':
+          description: The created definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelDefinition'
+  /api/v1/my/model-definitions/shared:
+    get:
+      tags: [ "PersonalModelDefinitions" ]
+      summary: List the shared catalogue without the signed-in user's customisations substituted in
+      description: >-
+        GET /api/v1/model-definitions hides a shared definition once the user has customised it, so
+        their version is the one that shows up everywhere. The personal definitions page needs the
+        originals themselves: to offer them for customisation, and to diff a personal copy against
+        the definition it was forked from.
+      operationId: getSharedModelDefinitions
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: The shared model definitions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModelDefinition'
+  /api/v1/my/model-definitions/{modelDefinitionId}:
+    put:
+      tags: [ "PersonalModelDefinitions" ]
+      summary: Replace the full contents of one of the user's own model definitions
+      operationId: updateMyModelDefinition
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: modelDefinitionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertModelDefinitionDraftRequest'
+      responses:
+        '200':
+          description: The updated definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelDefinition'
+        '404':
+          description: No such definition belongs to this user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    delete:
+      tags: [ "PersonalModelDefinitions" ]
+      summary: Delete one of the user's own model definitions, reverting to the shared one if it was a customisation
+      operationId: deleteMyModelDefinition
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: modelDefinitionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The definition was deleted
+        '404':
+          description: No such definition belongs to this user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: The user's collection still references this definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/my/model-definitions/from/{modelDefinitionId}:
+    post:
+      tags: [ "PersonalModelDefinitions" ]
+      summary: Start customising a shared model definition
+      description: >-
+        Copies the shared definition, its slots and its wargear options into a personal definition
+        owned by the caller, which then shadows the shared one everywhere they see the catalogue.
+        Idempotent - returns the existing customisation if they already have one.
+      operationId: customiseModelDefinition
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: modelDefinitionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The personal copy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelDefinition'
+        '400':
+          description: The given definition is not a shared one
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Model definition not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/factions:
     get:
       tags: [ "ModelDefinitions" ]
@@ -1498,6 +1676,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /api/v1/collection-models/{collectionModelId}/model-definition-change-preview:
+    post:
+      tags: [ "CollectionModels" ]
+      summary: Preview what changing a collection model's definition would do to its wargear
+      description: >-
+        A read-only dry run. Nothing is persisted; the result describes how each existing wargear
+        assignment would be remapped onto the target definition's slots.
+      operationId: previewModelDefinitionChange
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: collectionModelId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeModelDefinitionPreviewRequest'
+      responses:
+        '200':
+          description: What the change would do
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChangeModelDefinitionPreview'
+        '404':
+          description: Collection model or model definition not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
   /api/v1/collection-models/{collectionModelId}/images:
     post:
       tags: [ "CollectionModelImages" ]
@@ -1678,6 +1893,22 @@ components:
           format: uuid
           readOnly: true
           description: The faction this model belongs to, if any.
+        ownerUserId:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: >-
+            Null for the shared catalogue that admins curate. Set when this is a user's own model
+            definition, which only they can see or edit.
+        baseModelDefinitionId:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: >-
+            The shared definition a personal one was customised from, or null when the user wrote
+            it from scratch. Drives the personal-vs-global diff and the revert action.
         name:
           type: string
         description:
@@ -1735,6 +1966,14 @@ components:
           type: string
           readOnly: true
           description: Stable identifier from an imported reference dataset, if this slot was created/matched via import.
+        baseAttachmentSlotId:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: >-
+            On a personal model definition, the shared slot this one was customised from. Lets a
+            renamed slot read as an edit rather than an unrelated add plus remove.
         name:
           type: string
         type:
@@ -1752,6 +1991,13 @@ components:
           type: string
           readOnly: true
           description: Stable identifier from an imported reference dataset, if this option's wargear came from one.
+        baseWargearOptionId:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: >-
+            On a personal model definition, the shared wargear option this one was customised from.
         wargearDefinitionId:
           type: string
           format: uuid
@@ -1962,6 +2208,14 @@ components:
           type: string
           readOnly: true
           description: Stable identifier from the reference dataset; null for wargear created by hand.
+        ownerUserId:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: >-
+            Null for the shared catalogue. Set when a user named wargear the catalogue doesn't
+            have while building a personal model definition, in which case only they can see it.
         name:
           type: string
         usageCount:
@@ -2535,13 +2789,69 @@ components:
           format: date
         status:
           $ref: '#/components/schemas/CollectionModelStatus'
+        modelDefinitionId:
+          type: string
+          format: uuid
+          description: >-
+            Changes which model definition this model is an instance of (e.g. moving it onto your
+            own customised version). Existing wargear assignments are remapped onto the new
+            definition's slots by name; anything that cannot be matched is kept as a custom label,
+            and anything whose slot no longer exists is discarded. Call the change preview endpoint
+            first to see exactly what will happen. Omit to leave the model definition unchanged.
         wargearSelections:
           type: array
           description: >-
             If present, replaces all of this model's wargear slot assignments. Omit to leave
-            existing assignments unchanged.
+            existing assignments unchanged. Ignored when modelDefinitionId is also supplied, since
+            the assignments are being remapped onto a different definition's slots.
           items:
             $ref: '#/components/schemas/WargearSelection'
+    ChangeModelDefinitionPreviewRequest:
+      type: object
+      properties:
+        modelDefinitionId:
+          type: string
+          format: uuid
+      required: [ modelDefinitionId ]
+    WargearRemapOutcome:
+      type: string
+      description: >-
+        What will happen to one existing wargear assignment if the model definition changes.
+        MATCHED - an equivalent wargear option exists on the new definition and will be used.
+        CUSTOM - the slot survives but nothing matches, so the name is kept as free text.
+        DROPPED - the new definition has no equivalent slot, so the assignment is discarded.
+      enum: [ MATCHED, CUSTOM, DROPPED ]
+    WargearRemapEntry:
+      type: object
+      properties:
+        slotName:
+          type: string
+          description: The attachment slot the wargear is currently assigned to.
+        targetSlotName:
+          type: string
+          description: The matching slot on the new definition, absent when the outcome is DROPPED.
+        wargearName:
+          type: string
+          description: The wargear currently assigned, whether a recognised option or a custom label.
+        outcome:
+          $ref: '#/components/schemas/WargearRemapOutcome'
+      required: [ slotName, wargearName, outcome ]
+    ChangeModelDefinitionPreview:
+      type: object
+      description: >-
+        A dry run of changing a collection model's definition, so the user can see what it will do
+        to their recorded loadout before committing to it.
+      properties:
+        modelDefinitionId:
+          type: string
+          format: uuid
+        modelDefinitionName:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/WargearRemapEntry'
+      required: [ modelDefinitionId, entries ]
     GoogleAuthRequest:
       type: object
       properties:

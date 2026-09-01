@@ -109,6 +109,12 @@ export default function useCollectionModels(collectionId: string | undefined) {
   const updateDescription = (id: string, description: string) => updateModel(id, { description });
   const updateStatus = (id: string, status: CollectionModelStatus) => updateModel(id, { status });
 
+  /**
+   * Moves a model onto a different definition. The backend remaps the loadout onto the new
+   * definition's slots, so the wargear selections are deliberately not sent here.
+   */
+  const changeModelDefinition = (id: string, modelDefinitionId: string) => updateModel(id, { modelDefinitionId });
+
   function updateWargearSelection(
     model: CollectionModel,
     attachmentSlotId: string,
@@ -257,6 +263,7 @@ export default function useCollectionModels(collectionId: string | undefined) {
     updateFinishedOn,
     updateDescription,
     updateStatus,
+    changeModelDefinition,
     updateWargearSelection,
     deleteModel,
     bulkDeleteModels,

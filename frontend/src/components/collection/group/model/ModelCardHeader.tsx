@@ -1,6 +1,7 @@
 import { ActionIcon, Badge, Checkbox, Group, Loader, Text, TextInput } from "@mantine/core";
-import { IconCheck, IconPencil, IconTrash, IconX } from "@tabler/icons-react";
+import { IconCheck, IconExchange, IconPencil, IconTrash, IconX } from "@tabler/icons-react";
 import React from "react";
+import ModelDefinitionOriginBadge from "@/components/modeldefinitions/ModelDefinitionOriginBadge.tsx";
 import type { CollectionModel } from "@/generated";
 
 export type ModelCardHeaderProps = Readonly<{
@@ -17,6 +18,7 @@ export type ModelCardHeaderProps = Readonly<{
   onToggleSelected: (selected: boolean) => void;
   onUploadImage: (file: File) => void;
   onDeleteModel: () => void;
+  onChangeModelDefinition: () => void;
   isDeleting: boolean;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
 }>;
@@ -35,6 +37,7 @@ export const ModelCardHeader = React.memo(function ModelCardHeader({
   onToggleSelected,
   onUploadImage,
   onDeleteModel,
+  onChangeModelDefinition,
   isDeleting,
   fileInputRef,
 }: ModelCardHeaderProps) {
@@ -51,6 +54,12 @@ export const ModelCardHeader = React.memo(function ModelCardHeader({
         )}
 
         <Badge variant="light">{model.modelDefinition?.name ?? "Unknown type"}</Badge>
+        {model.modelDefinition && <ModelDefinitionOriginBadge definition={model.modelDefinition} />}
+        {editMode && !isEditingName && (
+          <ActionIcon size="sm" variant="subtle" title="Change model type" onClick={onChangeModelDefinition}>
+            <IconExchange size={12} />
+          </ActionIcon>
+        )}
 
         {isEditingName ? (
           <Group gap={4} wrap="nowrap" style={{ flex: 1 }}>

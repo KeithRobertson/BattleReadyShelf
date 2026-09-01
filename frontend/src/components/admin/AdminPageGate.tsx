@@ -1,6 +1,5 @@
-import { Alert, Loader } from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import PageGate from "@/components/PageGate.tsx";
 
 type AdminPageGateProps = Readonly<{
   isAuthLoading: boolean;
@@ -9,22 +8,11 @@ type AdminPageGateProps = Readonly<{
   children: ReactNode;
 }>;
 
-/**
- * Renders admin page content only once authentication has resolved, the user is an admin, and the
- * page's data has loaded. Keeps the three "not ready yet" states out of each page's markup.
- */
+/** {@link PageGate} with the wording admin pages want when the visitor is not an admin. */
 export default function AdminPageGate({ isAuthLoading, isAuthorised, loading, children }: AdminPageGateProps) {
-  if (isAuthLoading) return <Loader />;
-
-  if (!isAuthorised) {
-    return (
-      <Alert color="red" icon={<IconAlertCircle size={16} />}>
-        You do not have permission to view this page.
-      </Alert>
-    );
-  }
-
-  if (loading) return <Loader />;
-
-  return <>{children}</>;
+  return (
+    <PageGate isAuthLoading={isAuthLoading} isAuthorised={isAuthorised} loading={loading}>
+      {children}
+    </PageGate>
+  );
 }

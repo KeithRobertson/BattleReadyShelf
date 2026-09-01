@@ -62,7 +62,7 @@ class WargearDefinitionServiceTest {
         var unused = definition("zzz_relic_blade", "Relic Blade");
         var used = definition("boltgun", "Boltgun");
 
-        when(wargearDefinitionRepository.findAll()).thenReturn(List.of(unused, used));
+        when(wargearDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(unused, used));
 
         var result = service.exportWargearDefinitions();
 
@@ -76,7 +76,7 @@ class WargearDefinitionServiceTest {
     void exportFallsBackToTheUuidForHandAuthoredWargear() {
         var handAuthored = definition(null, "Custom Weapon");
 
-        when(wargearDefinitionRepository.findAll()).thenReturn(List.of(handAuthored));
+        when(wargearDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(handAuthored));
 
         assertThat(service.exportWargearDefinitions().getWargear())
                 .singleElement()

@@ -51,6 +51,12 @@ export function useModelActions() {
     [collectionModels],
   );
 
+  const changeModelDefinition = useCallback(
+    (id: string | undefined, modelDefinitionId: string) =>
+      id && collectionModels.changeModelDefinition(id, modelDefinitionId),
+    [collectionModels],
+  );
+
   return {
     rename,
     uploadImage,
@@ -61,5 +67,6 @@ export function useModelActions() {
     updateStatus,
     toggleSelected,
     updateWargearSelection,
+    changeModelDefinition,
   };
 }

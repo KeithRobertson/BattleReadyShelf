@@ -1,75 +1,14 @@
-import {
-  ActionIcon,
-  Badge,
-  Box,
-  Button,
-  Checkbox,
-  Group,
-  Modal,
-  MultiSelect,
-  Select,
-  Stack,
-  Table,
-  Text,
-  Textarea,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { IconTrash } from "@tabler/icons-react";
+import { Badge, Button, Group, Modal, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useState } from "react";
-import WargearOptionPicker from "@/components/admin/modeldefinitions/WargearOptionPicker.tsx";
-import type {
-  Faction,
-  ModelDefinition,
-  ModelDefinitionDraft,
-  UpsertModelDefinitionDraftRequest,
-  WargearDefinition,
-} from "@/generated";
+import DefinitionChildrenEditor from "@/components/modeldefinitions/DefinitionChildrenEditor.tsx";
+import type { EditableOption, EditableSlot } from "@/components/modeldefinitions/definitionChildren.ts";
+import {
+  toEditableOptions,
+  toEditableSlots,
+  toUpsertRequest,
+} from "@/components/modeldefinitions/definitionChildren.ts";
+import type { Faction, ModelDefinition, ModelDefinitionDraft, WargearDefinition } from "@/generated";
 import { discardModelDefinitionDraft, publishModelDefinitionDraft, updateModelDefinitionDraft } from "@/generated";
-
-interface EditableSlot {
-  id: string;
-  name: string;
-  type: string;
-}
-
-interface EditableOption {
-  id: string;
-  wargearDefinitionId?: string;
-  name: string;
-  isDefault: boolean;
-  attachmentSlotIds: string[];
-}
-
-function newId(): string {
-  return crypto.randomUUID();
-}
-
-// Slot types are free-form strings shared with the imported reference dataset (e.g. "arm",
-// "head"), so new hand-authored slots start from a neutral value the admin can overwrite.
-const DEFAULT_SLOT_TYPE = "other";
-
-function toRequest(
-  name: string,
-  faction: string | undefined,
-  description: string,
-  slots: EditableSlot[],
-  options: EditableOption[],
-): UpsertModelDefinitionDraftRequest {
-  return {
-    name,
-    faction_id: faction,
-    description: description || undefined,
-    attachmentSlots: slots.map((slot) => ({ id: slot.id, name: slot.name, type: slot.type })),
-    wargearOptions: options.map((option) => ({
-      id: option.id,
-      wargearDefinitionId: option.wargearDefinitionId,
-      name: option.name,
-      isDefault: option.isDefault,
-      attachmentSlotIds: option.attachmentSlotIds,
-    })),
-  };
-}
 
 export type ModelDefinitionDraftEditorProps = Readonly<{
   draft: ModelDefinitionDraft;
@@ -93,26 +32,14 @@ export default function ModelDefinitionDraftEditor({
   const [name, setName] = useState(draft.name);
   const [faction, setFaction] = useState(draft.factionId);
   const [description, setDescription] = useState(draft.description ?? "");
-  const [slots, setSlots] = useState<EditableSlot[]>(
-    draft.attachmentSlots.map((s) => ({ id: s.id ?? newId(), name: s.name, type: s.type })),
-  );
-  const [options, setOptions] = useState<EditableOption[]>(
-    draft.wargearOptions.map((option) => ({
-      id: option.id ?? newId(),
-      wargearDefinitionId: option.wargearDefinitionId,
-      name: option.name,
-      isDefault: option.isDefault,
-      attachmentSlotIds: option.attachmentSlotIds,
-    })),
-  );
+  const [slots, setSlots] = useState<EditableSlot[]>(toEditableSlots(draft.attachmentSlots));
+  const [options, setOptions] = useState<EditableOption[]>(toEditableOptions(draft.wargearOptions));
   const [changeSummary, setChangeSummary] = useState("");
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const slotOptions = slots.map((slot) => ({ value: slot.id, label: slot.name || "(unnamed slot)" }));
 
   // Replaces local editor state with the server's view of the draft. Needed after
   // save/publish because the backend assigns real ids to newly-added slots/options
@@ -121,38 +48,8 @@ export default function ModelDefinitionDraftEditor({
   function applyServerDraft(serverDraft: ModelDefinitionDraft) {
     setName(serverDraft.name);
     setDescription(serverDraft.description ?? "");
-    setSlots(serverDraft.attachmentSlots.map((slot) => ({ id: slot.id ?? newId(), name: slot.name, type: slot.type })));
-    setOptions(
-      serverDraft.wargearOptions.map((option) => ({
-        id: option.id ?? newId(),
-        wargearDefinitionId: option.wargearDefinitionId,
-        name: option.name,
-        isDefault: option.isDefault,
-        attachmentSlotIds: option.attachmentSlotIds,
-      })),
-    );
-  }
-
-  function addSlot() {
-    setSlots((slots) => [...slots, { id: newId(), name: "", type: DEFAULT_SLOT_TYPE }]);
-  }
-
-  function removeSlot(id: string) {
-    setSlots((slots) => slots.filter((slot) => slot.id !== id));
-    setOptions((options) =>
-      options.map((option) => ({
-        ...option,
-        attachmentSlotIds: option.attachmentSlotIds.filter((slotId) => slotId !== id),
-      })),
-    );
-  }
-
-  function addOption() {
-    setOptions((options) => [...options, { id: newId(), name: "", isDefault: false, attachmentSlotIds: [] }]);
-  }
-
-  function removeOption(id: string) {
-    setOptions((options) => options.filter((option) => option.id !== id));
+    setSlots(toEditableSlots(serverDraft.attachmentSlots));
+    setOptions(toEditableOptions(serverDraft.wargearOptions));
   }
 
   // `closeOnSuccess` is true for the explicit "Save draft" button, but false when this
@@ -165,7 +62,7 @@ export default function ModelDefinitionDraftEditor({
       const updated = (
         await updateModelDefinitionDraft({
           path: { draftId: draft.id ?? "" },
-          body: toRequest(name, faction, description, slots, options),
+          body: toUpsertRequest(name, faction, description, slots, options),
         })
       ).data;
       if (!updated) {
@@ -270,111 +167,13 @@ export default function ModelDefinitionDraftEditor({
           minRows={2}
         />
 
-        <div>
-          <Group justify="space-between" mb="xs">
-            <Title order={5}>Attachment slots</Title>
-            <Button size="xs" variant="light" onClick={addSlot}>
-              Add slot
-            </Button>
-          </Group>
-          {slots.length === 0 ? (
-            <Text c="dimmed" size="sm">
-              No attachment slots.
-            </Text>
-          ) : (
-            <Table verticalSpacing="xs">
-              <Table.Tbody>
-                {slots.map((slot) => (
-                  <Table.Tr key={slot.id}>
-                    <Table.Td>
-                      <TextInput
-                        value={slot.name}
-                        placeholder="Slot name"
-                        onChange={(e) => {
-                          const value = e.currentTarget.value;
-                          setSlots((s) => s.map((sl) => (sl.id === slot.id ? { ...sl, name: value } : sl)));
-                        }}
-                      />
-                    </Table.Td>
-                    <Table.Td>
-                      <TextInput
-                        value={slot.type}
-                        placeholder="Slot type"
-                        onChange={(e) => {
-                          const value = e.currentTarget.value;
-                          setSlots((s) => s.map((sl) => (sl.id === slot.id ? { ...sl, type: value } : sl)));
-                        }}
-                      />
-                    </Table.Td>
-                    <Table.Td w={40}>
-                      <ActionIcon color="red" variant="subtle" onClick={() => removeSlot(slot.id)}>
-                        <IconTrash size={16} />
-                      </ActionIcon>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          )}
-        </div>
-
-        <div>
-          <Group justify="space-between" mb="xs">
-            <Title order={5}>Wargear options</Title>
-            <Button size="xs" variant="light" onClick={addOption}>
-              Add option
-            </Button>
-          </Group>
-          {options.length === 0 ? (
-            <Text c="dimmed" size="sm">
-              No wargear options.
-            </Text>
-          ) : (
-            <Stack gap="xs">
-              {options.map((option) => (
-                <Group key={option.id} align="flex-start" wrap="nowrap">
-                  <Box flex={1}>
-                    <WargearOptionPicker
-                      definitions={wargearDefinitions}
-                      value={{ wargearDefinitionId: option.wargearDefinitionId, name: option.name }}
-                      onChange={(selection) => {
-                        setOptions((o) =>
-                          o.map((opt) =>
-                            opt.id === option.id
-                              ? { ...opt, wargearDefinitionId: selection.wargearDefinitionId, name: selection.name }
-                              : opt,
-                          ),
-                        );
-                      }}
-                    />
-                  </Box>
-                  <MultiSelect
-                    flex={1}
-                    placeholder="Fills slot(s)"
-                    data={slotOptions}
-                    value={option.attachmentSlotIds}
-                    onChange={(value) => {
-                      setOptions((o) =>
-                        o.map((opt) => (opt.id === option.id ? { ...opt, attachmentSlotIds: value } : opt)),
-                      );
-                    }}
-                  />
-                  <Checkbox
-                    label="Default"
-                    checked={option.isDefault}
-                    onChange={(e) => {
-                      const checked = e.currentTarget.checked;
-                      setOptions((o) => o.map((opt) => (opt.id === option.id ? { ...opt, isDefault: checked } : opt)));
-                    }}
-                  />
-                  <ActionIcon color="red" variant="subtle" onClick={() => removeOption(option.id)}>
-                    <IconTrash size={16} />
-                  </ActionIcon>
-                </Group>
-              ))}
-            </Stack>
-          )}
-        </div>
+        <DefinitionChildrenEditor
+          slots={slots}
+          setSlots={setSlots}
+          options={options}
+          setOptions={setOptions}
+          wargearDefinitions={wargearDefinitions}
+        />
 
         {showPublishConfirm ? (
           <Stack gap="xs" p="sm" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 4 }}>

@@ -6,12 +6,15 @@ import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.AttachmentSlot;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.WargearOption;
+import com.keith.battlereadyshelf.security.AuthenticatedUserProvider;
+import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -25,6 +28,7 @@ public class ModelDefinitionsService {
     private final WargearOptionRepository wargearOptionRepository;
     private final ModelDefinitionMapper modelDefinitionMapper;
     private final CollectionModelRepository collectionModelRepository;
+    private final AuthenticatedUserProvider authenticatedUserProvider;
 
     /**
      * Deletes a published model definition and all its attachment slots/wargear options, any open
@@ -47,8 +51,38 @@ public class ModelDefinitionsService {
         modelDefinitionRepository.deleteById(modelDefinitionId);
     }
 
+    /**
+     * The catalogue as the caller should see it: the shared definitions plus anything the signed-in
+     * user has added or customised. Anonymous callers (this endpoint is open for preview mode) get
+     * the shared catalogue alone.
+     *
+     * <p>A customisation is listed <em>alongside</em> the definition it was forked from rather than
+     * replacing it, so a user who has tweaked a model can still add the stock version - the two are
+     * genuinely different things to own. Callers are expected to tell them apart using
+     * {@code ownerUserId} and {@code baseModelDefinitionId}, because a customisation usually keeps
+     * the original's name and is otherwise indistinguishable.
+     */
     public List<ModelDefinition> getAllModelDefinitions() {
-        var modelDefinitionEntities = modelDefinitionRepository.findAll();
+        var ownerUserId =
+                authenticatedUserProvider
+                        .findCurrentUser()
+                        .map(CurrentAuthenticatedUser::id)
+                        .orElse(null);
+        return withChildren(visibleEntities(ownerUserId));
+    }
+
+    private List<ModelDefinitionEntity> visibleEntities(UUID ownerUserId) {
+        var globals = modelDefinitionRepository.findAllByOwnerUserIdIsNull();
+        if (ownerUserId == null) {
+            return globals;
+        }
+
+        List<ModelDefinitionEntity> visible = new ArrayList<>(globals);
+        visible.addAll(modelDefinitionRepository.findAllByOwnerUserId(ownerUserId));
+        return visible;
+    }
+
+    private List<ModelDefinition> withChildren(List<ModelDefinitionEntity> modelDefinitionEntities) {
         var modelDefinitionIds = modelDefinitionEntities.stream().map(ModelDefinitionEntity::getId).toList();
 
         Map<UUID, List<AttachmentSlot>> attachmentSlotsByModelDefinitionId =
@@ -79,6 +113,14 @@ public class ModelDefinitionsService {
                                                 wargearOptionsByModelDefinitionId.getOrDefault(
                                                         entity.getId(), List.of())))
                 .toList();
+    }
+
+    /**
+     * Maps an entity straight to a fully populated DTO, for callers that already hold the entity
+     * and would otherwise have to map it themselves before enriching it.
+     */
+    public ModelDefinition toEnrichedDto(ModelDefinitionEntity modelDefinitionEntity) {
+        return withChildren(List.of(modelDefinitionEntity)).getFirst();
     }
 
     /**

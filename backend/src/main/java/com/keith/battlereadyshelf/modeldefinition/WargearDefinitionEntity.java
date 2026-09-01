@@ -25,6 +25,10 @@ import java.util.UUID;
  * admin created by hand. Ids are a single global namespace rather than being scoped per faction,
  * because the dataset already reuses them across factions (e.g. {@code plasma_pistol} appears in
  * Death Guard, Space Marines and Space Wolves).
+ *
+ * <p>{@code ownerUserId} is null for the shared catalogue. A user who names wargear the catalogue
+ * doesn't have (a conversion, a homebrew loadout) gets their own definition instead, owned by
+ * them and invisible to everyone else, so personal edits never pollute the shared list.
  */
 @Entity
 @Table(name = "wargear_definitions")
@@ -39,6 +43,9 @@ public class WargearDefinitionEntity {
 
     @Column(name = "external_id")
     private String externalId;
+
+    @Column(name = "owner_user_id")
+    private UUID ownerUserId;
 
     @Column(nullable = false)
     private String name;

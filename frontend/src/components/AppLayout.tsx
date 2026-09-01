@@ -5,6 +5,7 @@ import {
   IconShieldLock,
   IconStack2,
   IconSwords,
+  IconTools,
   IconUser,
   IconWorld,
 } from "@tabler/icons-react";
@@ -101,6 +102,16 @@ export default function AppLayout() {
           active={location.pathname === "/army-builder"}
           onClick={toggleNavOnMobile}
         />
+        {isAuthenticated && (
+          <NavLink
+            component={Link}
+            to="/my/model-definitions"
+            label="My Models"
+            leftSection={<IconTools size={18} stroke={1.5} />}
+            active={location.pathname === "/my/model-definitions"}
+            onClick={toggleNavOnMobile}
+          />
+        )}
         {isAdmin && (
           <NavLink
             label="Administration"

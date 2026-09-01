@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { Faction, ModelDefinition } from "@/generated";
 import { getFactionsList, getModelDefinitions } from "@/generated";
+import { modelDefinitionOptionLabel } from "@/utils/modelDefinitionOrigin.ts";
 
 function compareFactionGroups(a: string, b: string): number {
   if (a === "Uncategorised" && b !== "Uncategorised") return 1;
@@ -71,7 +72,7 @@ export default function useCollectionMetadata(collectionId: string | undefined) 
       const items = grouped.get(factionName) ?? [];
       items.push({
         value: modelDefinition.id ?? "",
-        label: modelDefinition.name ?? "",
+        label: modelDefinitionOptionLabel(modelDefinition),
       });
       grouped.set(factionName, items);
     }

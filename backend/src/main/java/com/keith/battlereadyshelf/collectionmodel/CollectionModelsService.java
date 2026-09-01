@@ -3,9 +3,13 @@ package com.keith.battlereadyshelf.collectionmodel;
 import com.keith.battlereadyshelf.armycollection.ArmyCollectionRepository;
 import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.NotFoundException;
+import com.keith.battlereadyshelf.generated.model.ChangeModelDefinitionPreview;
 import com.keith.battlereadyshelf.generated.model.CollectionModel;
 import com.keith.battlereadyshelf.generated.model.CollectionModelImage;
+import com.keith.battlereadyshelf.generated.model.WargearRemapEntry;
+import com.keith.battlereadyshelf.generated.model.WargearRemapOutcome;
 import com.keith.battlereadyshelf.generated.model.WargearSelection;
+import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionEntity;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionRepository;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionsService;
 import com.keith.battlereadyshelf.storage.PresignedUrlService;
@@ -38,6 +42,7 @@ public class CollectionModelsService {
     private final ModelDefinitionsService modelDefinitionsService;
     private final PresignedUrlService presignedUrlService;
     private final CollectionModelStatusMapper collectionModelStatusMapper;
+    private final WargearRemapPlanner wargearRemapPlanner;
 
     public List<CollectionModel> getCollectionModels(UUID userId, UUID armyCollectionId) {
         requireViewableArmyCollection(userId, armyCollectionId);
@@ -51,13 +56,7 @@ public class CollectionModelsService {
         requireOwnedArmyCollection(userId, armyCollectionId);
 
         var modelDefinition =
-                modelDefinitionRepository
-                        .findById(collectionModel.getModelDefinitionId())
-                        .orElseThrow(
-                                () ->
-                                        new NotFoundException(
-                                                "Model definition not found: "
-                                                        + collectionModel.getModelDefinitionId()));
+                requireUsableModelDefinition(userId, collectionModel.getModelDefinitionId());
 
         var savedCollectionModel =
                 collectionModelRepository.save(
@@ -75,14 +74,7 @@ public class CollectionModelsService {
             UUID userId, UUID armyCollectionId, UUID modelDefinitionId, int count, @Nullable com.keith.battlereadyshelf.generated.model.CollectionModelStatus status) {
         requireOwnedArmyCollection(userId, armyCollectionId);
 
-        var modelDefinition =
-                modelDefinitionRepository
-                        .findById(modelDefinitionId)
-                        .orElseThrow(
-                                () ->
-                                        new NotFoundException(
-                                                "Model definition not found: "
-                                                        + modelDefinitionId));
+        var modelDefinition = requireUsableModelDefinition(userId, modelDefinitionId);
 
         var newEntities =
                 Stream.generate(
@@ -110,6 +102,7 @@ public class CollectionModelsService {
             String description,
             LocalDate finishedOn,
             com.keith.battlereadyshelf.generated.model.CollectionModelStatus status,
+            UUID modelDefinitionId,
             List<WargearSelection> wargearSelections) {
         var collectionModel = requireOwnedCollectionModel(userId, collectionModelId);
 
@@ -125,11 +118,80 @@ public class CollectionModelsService {
         if (status != null) {
             collectionModel.setStatus(CollectionModelStatus.valueOf(status.name()));
         }
-        if (wargearSelections != null) {
+
+        var isMovingToAnotherDefinition =
+                modelDefinitionId != null
+                        && !modelDefinitionId.equals(collectionModel.getModelDefinition().getId());
+        if (isMovingToAnotherDefinition) {
+            changeModelDefinition(userId, collectionModel, modelDefinitionId);
+        } else if (wargearSelections != null) {
             replaceWargearSelections(collectionModelId, wargearSelections);
         }
 
         return toDtoWithImages(collectionModelRepository.save(collectionModel));
+    }
+
+    /**
+     * Previews moving a collection model onto a different definition without persisting anything,
+     * so the user can be shown what it would do to their recorded loadout first.
+     */
+    public ChangeModelDefinitionPreview previewModelDefinitionChange(
+            UUID userId, UUID collectionModelId, UUID modelDefinitionId) {
+        var collectionModel = requireOwnedCollectionModel(userId, collectionModelId);
+        var target = requireUsableModelDefinition(userId, modelDefinitionId);
+
+        var entries = planRemap(collectionModel, target);
+        return new ChangeModelDefinitionPreview(
+                modelDefinitionId, entries.stream().map(this::toPreviewEntry).toList())
+                .modelDefinitionName(target.getName());
+    }
+
+    private WargearRemapEntry toPreviewEntry(WargearRemapPlanner.RemapEntry entry) {
+        return new WargearRemapEntry(entry.slotName(), entry.wargearName(), entry.outcome())
+                .targetSlotName(entry.targetSlotName());
+    }
+
+    private List<WargearRemapPlanner.RemapEntry> planRemap(
+            CollectionModelEntity collectionModel, ModelDefinitionEntity target) {
+        var current =
+                modelDefinitionsService.toEnrichedDto(collectionModel.getModelDefinition());
+        var selections =
+                collectionModelWargearSelectionRepository.findAllByCollectionModelId(
+                        collectionModel.getId());
+
+        return wargearRemapPlanner.plan(
+                current, modelDefinitionsService.toEnrichedDto(target), selections);
+    }
+
+    /**
+     * Repoints a model at a different definition, carrying its loadout across as far as the slots
+     * and wargear line up. The old selections are all removed first because they reference the old
+     * definition's slots, which no longer apply.
+     */
+    private void changeModelDefinition(
+            UUID userId, CollectionModelEntity collectionModel, UUID modelDefinitionId) {
+        var target = requireUsableModelDefinition(userId, modelDefinitionId);
+        var plan = planRemap(collectionModel, target);
+
+        collectionModelWargearSelectionRepository.deleteAllByCollectionModelId(
+                collectionModel.getId());
+        collectionModelWargearSelectionRepository.flush();
+
+        var carriedOver =
+                plan.stream()
+                        .filter(entry -> entry.outcome() != WargearRemapOutcome.DROPPED)
+                        .map(
+                                entry ->
+                                        CollectionModelWargearSelectionEntity.builder()
+                                                .collectionModelId(collectionModel.getId())
+                                                .attachmentSlotId(entry.targetSlotId())
+                                                .wargearOptionId(entry.targetWargearOptionId())
+                                                .customLabel(entry.customLabel())
+                                                .build())
+                        .toList();
+        collectionModelWargearSelectionRepository.saveAll(carriedOver);
+
+        collectionModel.setModelDefinition(target);
     }
 
     private void replaceWargearSelections(
@@ -302,6 +364,27 @@ public class CollectionModelsService {
         return variant == null || variant.getStorageKey() == null
                 ? null
                 : presignedUrlService.presignDownload(variant.getStorageKey());
+    }
+
+    /**
+     * Resolves a model definition the user is allowed to build models from: a shared one, or one of
+     * their own. Another user's personal definition is reported as not found rather than forbidden,
+     * so this cannot be used to probe for the existence of definitions belonging to someone else.
+     */
+    private ModelDefinitionEntity requireUsableModelDefinition(UUID userId, UUID modelDefinitionId) {
+        var modelDefinition =
+                modelDefinitionRepository
+                        .findById(modelDefinitionId)
+                        .orElseThrow(
+                                () ->
+                                        new NotFoundException(
+                                                "Model definition not found: " + modelDefinitionId));
+
+        var ownerUserId = modelDefinition.getOwnerUserId();
+        if (ownerUserId != null && !ownerUserId.equals(userId)) {
+            throw new NotFoundException("Model definition not found: " + modelDefinitionId);
+        }
+        return modelDefinition;
     }
 
     private void requireOwnedArmyCollection(UUID userId, UUID armyCollectionId) {

@@ -337,7 +337,7 @@ public class ModelDefinitionDraftService {
                 factionRepository.findAll().stream()
                         .collect(Collectors.toMap(FactionEntity::getId, FactionEntity::getExternalId));
 
-        var modelDefinitions = modelDefinitionRepository.findAll();
+        var modelDefinitions = modelDefinitionRepository.findAllByOwnerUserIdIsNull();
         var modelDefinitionIds = modelDefinitions.stream().map(ModelDefinitionEntity::getId).toList();
 
         Map<UUID, List<AttachmentSlotEntity>> slotsByModelDefinitionId =
@@ -425,7 +425,7 @@ public class ModelDefinitionDraftService {
                 factionRepository.findAll().stream()
                         .collect(Collectors.toMap(FactionEntity::getExternalId, f -> f, (a, b) -> a));
 
-        var existingDefinitions = modelDefinitionRepository.findAll();
+        var existingDefinitions = modelDefinitionRepository.findAllByOwnerUserIdIsNull();
         var existingByExternalId =
                 existingDefinitions.stream()
                         .filter(md -> md.getExternalId() != null)
@@ -960,9 +960,10 @@ public class ModelDefinitionDraftService {
      * one, otherwise by name among the hand-authored definitions, creating one if it is a name we
      * have not seen before.
      *
-     * <p>Matching by name deliberately only considers definitions with no dataset id. Attaching a
-     * hand-typed name to a dataset-owned definition would silently couple this model to the
-     * reference data and let a later import change it.
+     * <p>Matching by name deliberately only considers definitions with no dataset id and no owner.
+     * Attaching a hand-typed name to a dataset-owned definition would silently couple this model to
+     * the reference data and let a later import change it, and attaching it to some user's personal
+     * wargear would pull their private row into the shared catalogue.
      */
     private WargearDefinitionEntity resolveWargearDefinition(UpsertWargearOptionDraftRequest optionReq) {
         if (optionReq.getWargearDefinitionId() != null) {
@@ -975,7 +976,7 @@ public class ModelDefinitionDraftService {
                                                     + optionReq.getWargearDefinitionId()));
         }
         return wargearDefinitionRepository
-                .findFirstByExternalIdIsNullAndNameIgnoreCase(optionReq.getName())
+                .findFirstByExternalIdIsNullAndOwnerUserIdIsNullAndNameIgnoreCase(optionReq.getName())
                 .orElseGet(
                         () ->
                                 wargearDefinitionRepository.save(
