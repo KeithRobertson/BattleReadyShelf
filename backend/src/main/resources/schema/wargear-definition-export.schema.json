@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/keithrobertson/battlereadyshelf/schema/wargear-definition-export.schema.json",
+  "title": "BattleReadyShelf Wargear Definition Export",
+  "description": "The authoritative contract for the JSON document accepted by POST /api/v1/admin/wargear-definitions/import (and produced by GET /api/v1/admin/wargear-definitions/export). This is the canonical source of truth for this contract - other repositories producing an import document (e.g. battlereadyshelf-dataset) must conform to it. It mirrors the 'WargearDefinitionExport' schema in backend/src/main/resources/openapi/openapi.yaml; if the two ever disagree, the OpenAPI spec wins and this file should be updated to match.\n\nWargear is the second of the three definition documents to import: model definitions reference wargear by the ids named here, so importing models before wargear is rejected.\n\nEach item is named once. A model definition that carries the item references it by id and does not repeat the name, which is what makes renaming an item update every model that uses it.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "description": "The version of this export document's schema. Must be within the backend's supported range (see ExportSchema) or the import is rejected. All three definition documents share one version.",
+      "const": 4
+    },
+    "exportedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Set by the backend on export; ignored if present on import."
+    },
+    "datasetVersion": {
+      "type": "integer",
+      "description": "Optional version of the source dataset assembled into this document."
+    },
+    "wargear": {
+      "type": "array",
+      "description": "The shared wargear catalogue. New ids are created on import; an id whose name differs from the stored one is staged as a proposed rename for an admin to accept or reject, because one definition backs every model carrying that item and an unattended rename would fan out across the catalogue.",
+      "items": { "$ref": "#/$defs/wargearExportItem" }
+    }
+  },
+  "required": ["schemaVersion", "wargear"],
+  "$defs": {
+    "wargearExportItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable identifier used to match this wargear across imports and referenced by model definitions. Sourced from the reference dataset; exports of hand-authored wargear emit the persisted UUID instead."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["id", "name"]
+    }
+  }
+}

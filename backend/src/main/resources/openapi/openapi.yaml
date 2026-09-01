@@ -488,6 +488,62 @@ paths:
                 $ref: '#/components/schemas/ApiError'
         '404':
           description: Faction not found
+  /api/v1/admin/factions/export:
+    get:
+      tags: [ "FactionDefinitionAdmin" ]
+      summary: Export all factions as a versioned JSON document (admin only)
+      operationId: exportFactions
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: The exported factions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FactionExport'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/factions/import:
+    post:
+      tags: [ "FactionDefinitionAdmin" ]
+      summary: >-
+        Import a versioned JSON document of factions (admin only). Factions are matched by stable
+        source id and applied directly - they are catalogue organisation with no draft/publish
+        workflow of their own. Factions whose name and parent already match are left alone, so
+        re-importing the same document reports nothing changed.
+      operationId: importFactions
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FactionExport'
+      responses:
+        '200':
+          description: What the import changed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FactionImportResult'
+        '400':
+          description: The document's schemaVersion is not supported, or it references an unknown parent faction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/admin/wargear-definitions:
     get:
       tags: [ "WargearDefinitionAdmin" ]
@@ -639,6 +695,65 @@ paths:
                 $ref: '#/components/schemas/ApiError'
         '404':
           description: Draft not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/wargear-definitions/export:
+    get:
+      tags: [ "WargearDefinitionAdmin" ]
+      summary: >-
+        Export the whole shared wargear catalogue as a versioned JSON document (admin only),
+        including entries no model definition currently uses.
+      operationId: exportWargearDefinitions
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: The exported wargear definitions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WargearDefinitionExport'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/wargear-definitions/import:
+    post:
+      tags: [ "WargearDefinitionAdmin" ]
+      summary: >-
+        Import a versioned JSON document of wargear definitions (admin only), matched by stable
+        source id. Wargear the catalogue does not have yet is created outright, but an entry whose
+        name differs from the stored one raises a pending change for review rather than being
+        renamed - one definition backs every model that carries the item, so an unattended rename
+        fans out across the catalogue.
+      operationId: importWargearDefinitions
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WargearDefinitionExport'
+      responses:
+        '200':
+          description: What the import created and what it wants an admin to review
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WargearImportResult'
+        '400':
+          description: The document's schemaVersion is not supported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: The authenticated user is not an admin
           content:
             application/json:
               schema:
@@ -1728,8 +1843,11 @@ components:
     ModelDefinitionExport:
       type: object
       description: >-
-        A versioned, portable catalogue. Its faction and model definition items use the same
-        field names and shapes as the source JSON files assembled by battlereadyshelf-dataset.
+        A versioned, portable catalogue of model definitions. Its items use the same field names
+        and shapes as the source JSON files assembled by battlereadyshelf-dataset.
+
+        Factions and wargear are exported and imported separately, from their own admin pages,
+        so this document references them by id and does not define them.
       properties:
         schemaVersion:
           type: integer
@@ -1745,27 +1863,111 @@ components:
           description: Optional version of the source dataset assembled into this document.
         factions:
           type: array
+          deprecated: true
           description: >-
-            The complete set of factions referenced by 'modelDefinitions' in this document.
-            Factions are upserted by source 'id' on import (created if new, updated in place if
-            already known) - they carry no army-building rules, purely catalogue organisation.
+            Deprecated: import factions from the Manage Factions page instead. Older combined
+            catalogues carry them here, and those are still upserted on import so an existing
+            document keeps working. Exports no longer emit this.
           items:
             $ref: '#/components/schemas/FactionExportItem'
         wargear:
           type: array
+          deprecated: true
           description: >-
-            The shared wargear catalogue, naming each item once for every model definition that
-            references it. Added in schemaVersion 4; omitted by older documents, which instead
-            repeat the name inline on every wargear option. A name here that differs from the
-            stored one raises a pending change for an admin to review rather than overwriting it,
-            so a correction in the source dataset never silently discards an edit made in the app.
+            Deprecated: import wargear from the Manage Wargear Definitions page instead. Older
+            combined catalogues carry them here, and those are still honoured on import so an
+            existing document keeps working. Exports no longer emit this.
           items:
             $ref: '#/components/schemas/WargearExportItem'
         modelDefinitions:
           type: array
           items:
             $ref: '#/components/schemas/ModelDefinitionExportItem'
-      required: [ schemaVersion, factions, modelDefinitions ]
+      required: [ schemaVersion, modelDefinitions ]
+    FactionExport:
+      type: object
+      description: >-
+        A versioned, portable catalogue of factions. Factions are pure catalogue organisation with
+        no draft/publish workflow, so an import applies them directly.
+      properties:
+        schemaVersion:
+          type: integer
+          format: int32
+          description: The version of this export document's schema, incremented on breaking changes.
+        exportedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        datasetVersion:
+          type: integer
+          format: int32
+          description: Optional version of the source dataset assembled into this document.
+        factions:
+          type: array
+          items:
+            $ref: '#/components/schemas/FactionExportItem'
+      required: [ schemaVersion, factions ]
+    FactionImportResult:
+      type: object
+      description: >-
+        What a faction import changed. Factions already matching the document are counted as
+        unchanged rather than reported, so re-importing the same document reports nothing.
+      properties:
+        created:
+          type: array
+          items:
+            $ref: '#/components/schemas/Faction'
+        updated:
+          type: array
+          items:
+            $ref: '#/components/schemas/Faction'
+        unchanged:
+          type: integer
+          format: int32
+      required: [ created, updated, unchanged ]
+    WargearDefinitionExport:
+      type: object
+      description: >-
+        A versioned, portable catalogue of shared wargear, naming each item once for every model
+        definition that references it.
+      properties:
+        schemaVersion:
+          type: integer
+          format: int32
+          description: The version of this export document's schema, incremented on breaking changes.
+        exportedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        datasetVersion:
+          type: integer
+          format: int32
+          description: Optional version of the source dataset assembled into this document.
+        wargear:
+          type: array
+          items:
+            $ref: '#/components/schemas/WargearExportItem'
+      required: [ schemaVersion, wargear ]
+    WargearImportResult:
+      type: object
+      description: >-
+        What a wargear import did. Renames are proposed rather than applied, so 'pendingChanges'
+        is the list an admin still has to accept or reject.
+      properties:
+        created:
+          type: array
+          description: Wargear the catalogue did not have, added outright.
+          items:
+            $ref: '#/components/schemas/WargearDefinition'
+        pendingChanges:
+          type: array
+          description: Renames raised for review because the stored name differs from the document's.
+          items:
+            $ref: '#/components/schemas/WargearDefinitionDraft'
+        unchanged:
+          type: integer
+          format: int32
+      required: [ created, pendingChanges, unchanged ]
     WargearExportItem:
       type: object
       properties:

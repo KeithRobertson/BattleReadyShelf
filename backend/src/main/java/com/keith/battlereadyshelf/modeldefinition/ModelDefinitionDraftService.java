@@ -1,8 +1,10 @@
 package com.keith.battlereadyshelf.modeldefinition;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.keith.battlereadyshelf.definitionexport.ExportSchema;
 import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.NotFoundException;
+import com.keith.battlereadyshelf.factiondefinition.FactionDefinitionService;
 import com.keith.battlereadyshelf.factiondefinition.FactionEntity;
 import com.keith.battlereadyshelf.factiondefinition.FactionRepository;
 import com.keith.battlereadyshelf.generated.model.FactionExportItem;
@@ -51,21 +53,13 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class ModelDefinitionDraftService {
-    /** The current version of the {@link ModelDefinitionExport} document schema. */
-    private static final int CURRENT_EXPORT_SCHEMA_VERSION = 4;
-
-    /**
-     * The oldest document schema still accepted on import. Version 3 repeats each wargear name
-     * inline on every option; version 4 moved them into a shared top-level catalogue.
-     */
-    private static final int MINIMUM_SUPPORTED_EXPORT_SCHEMA_VERSION = 3;
-
     private final ModelDefinitionRepository modelDefinitionRepository;
     private final AttachmentSlotRepository attachmentSlotRepository;
     private final WargearOptionRepository wargearOptionRepository;
     private final WargearDefinitionRepository wargearDefinitionRepository;
-    private final WargearDefinitionDraftRepository wargearDefinitionDraftRepository;
+    private final WargearDefinitionService wargearDefinitionService;
     private final FactionRepository factionRepository;
+    private final FactionDefinitionService factionDefinitionService;
     private final ModelDefinitionDraftRepository modelDefinitionDraftRepository;
     private final AttachmentSlotDraftRepository attachmentSlotDraftRepository;
     private final WargearOptionDraftRepository wargearOptionDraftRepository;
@@ -333,21 +327,15 @@ public class ModelDefinitionDraftService {
                 .toList();
     }
 
+    /**
+     * Exports the model definitions only. The factions and wargear they reference are exported
+     * from their own admin pages, so this document names neither - it carries their stable ids and
+     * expects them to already exist when it is imported.
+     */
     public ModelDefinitionExport exportModelDefinitions() {
-        var factions = factionRepository.findAll();
         Map<UUID, String> factionSourceIdById =
-                factions.stream().collect(Collectors.toMap(FactionEntity::getId, FactionEntity::getExternalId));
-
-        var factionItems =
-                factions.stream()
-                        .map(
-                                f ->
-                                        new FactionExportItem(f.getExternalId(), f.getName())
-                                                .parentFactionId(
-                                                        f.getParentFactionId() != null
-                                                                ? factionSourceIdById.get(f.getParentFactionId())
-                                                                : null))
-                        .toList();
+                factionRepository.findAll().stream()
+                        .collect(Collectors.toMap(FactionEntity::getId, FactionEntity::getExternalId));
 
         var modelDefinitions = modelDefinitionRepository.findAll();
         var modelDefinitionIds = modelDefinitions.stream().map(ModelDefinitionEntity::getId).toList();
@@ -405,26 +393,7 @@ public class ModelDefinitionDraftService {
                                 })
                         .toList();
 
-        // Every wargear the exported models reference, named once. Emitted in id order so an
-        // unchanged catalogue always produces a byte-identical document.
-        var wargearItems =
-                optionsByModelDefinitionId.values().stream()
-                        .flatMap(List::stream)
-                        .map(WargearOptionEntity::getWargearDefinition)
-                        .collect(
-                                Collectors.toMap(
-                                        WargearDefinitionEntity::getId, d -> d, (a, b) -> a))
-                        .values()
-                        .stream()
-                        .map(
-                                d ->
-                                        new WargearExportItem(
-                                                sourceId(d.getExternalId(), d.getId()), d.getName()))
-                        .sorted(Comparator.comparing(WargearExportItem::getId))
-                        .toList();
-
-        return new ModelDefinitionExport(CURRENT_EXPORT_SCHEMA_VERSION, factionItems, items)
-                .wargear(wargearItems)
+        return new ModelDefinitionExport(ExportSchema.CURRENT_VERSION, items)
                 .exportedAt(OffsetDateTime.now(ZoneOffset.UTC));
     }
 
@@ -432,9 +401,12 @@ public class ModelDefinitionDraftService {
      * Imports a versioned export document as drafts: an item is matched first by source 'id'
      * (when present) then by name to an existing published model definition (seeding the draft
      * from its current state, same as {@link #startDraft}, then overlaying the imported fields)
-     * where possible, otherwise a brand-new draft is created. Referenced factions are upserted by
-     * source id directly onto the published faction table (factions have no draft/publish
-     * workflow of their own). Nothing is published automatically.
+     * where possible, otherwise a brand-new draft is created. Nothing is published automatically.
+     *
+     * <p>The factions and wargear an item references are looked up by stable source id and must
+     * already exist - they are imported from their own admin pages, so an unknown id fails the
+     * import rather than inventing a nameless placeholder. Older combined catalogues that define
+     * them inline are still accepted, and their definitions are upserted first.
      *
      * <p>Importing is idempotent: an item whose content already matches what is stored is skipped
      * rather than turned into an empty draft edit, so re-importing the same catalogue twice leaves
@@ -445,20 +417,13 @@ public class ModelDefinitionDraftService {
     @Transactional
     public List<ModelDefinitionDraft> importModelDefinitions(
             CurrentAuthenticatedUser currentUser, ModelDefinitionExport export) {
-        if (export.getSchemaVersion() == null
-                || export.getSchemaVersion() < MINIMUM_SUPPORTED_EXPORT_SCHEMA_VERSION
-                || export.getSchemaVersion() > CURRENT_EXPORT_SCHEMA_VERSION) {
-            throw new BadRequestException(
-                    "Unsupported model definition export schemaVersion: " + export.getSchemaVersion());
-        }
+        ExportSchema.requireSupported(export.getSchemaVersion(), "model definition");
 
-        // Note: faction ids are resolved only from this document's own 'factions' list, so an
-        // import must be self-contained - a model-definitions-only document fails for every model
-        // that declares a factionId. Future work, if partial/per-faction imports are wanted: make
-        // both sections optional and resolve factionId against persisted factions by external_id
-        // first, falling back to the document. That keeps one endpoint and one schema, and would
-        // let the dataset builder additionally emit factions-only and per-faction model files.
-        var factionBySourceId = upsertFactions(export.getFactions());
+        // Deprecated, for older combined catalogues only: current documents carry no factions.
+        factionDefinitionService.upsertFactions(export.getFactions());
+        var factionBySourceId =
+                factionRepository.findAll().stream()
+                        .collect(Collectors.toMap(FactionEntity::getExternalId, f -> f, (a, b) -> a));
 
         var existingDefinitions = modelDefinitionRepository.findAll();
         var existingByExternalId =
@@ -473,7 +438,7 @@ public class ModelDefinitionDraftService {
 
         warnOnDuplicateNames(export.getModelDefinitions());
 
-        var wargearDefinitions = upsertWargearDefinitions(export);
+        var wargearDefinitions = resolveWargear(export);
 
         // Drafts already open for these definitions are the most recent state of record, so they
         // (not the published rows) are what an incoming item is compared against and applied to.
@@ -514,7 +479,7 @@ public class ModelDefinitionDraftService {
                                     + item.getName()
                                     + "' references unknown faction id '"
                                     + item.getFactionId()
-                                    + "'");
+                                    + "'. Import the factions from the Manage Factions page first.");
                 }
             }
 
@@ -698,111 +663,58 @@ public class ModelDefinitionDraftService {
     }
 
     /**
-     * Resolves every wargear id referenced by the import to a shared {@link
-     * WargearDefinitionEntity}, creating the ones that do not exist yet, and returns them keyed by
-     * source id.
+     * Resolves every wargear id the document's models reference to a shared {@link
+     * WargearDefinitionEntity}, keyed by source id.
      *
-     * <p>An existing definition is never renamed in place by an import. One definition backs every
-     * model that carries that item, so an unattended rename fans out across the catalogue and could
-     * discard a correction an admin made in the app. A differing name is staged as a {@link
-     * WargearDefinitionDraftEntity} for review instead, which is what lets the reference dataset
-     * propose spelling fixes while leaving the final say with a human.
+     * <p>Wargear is imported from its own admin page, so this document is expected to reference
+     * wargear that already exists. An id that cannot be resolved fails the import: a models-only
+     * document carries no name for it, so the alternative is a nameless placeholder definition.
      */
-    private Map<String, WargearDefinitionEntity> upsertWargearDefinitions(ModelDefinitionExport export) {
-        Map<String, String> nameBySourceId = wargearNamesBySourceId(export);
-        if (nameBySourceId.isEmpty()) {
+    private Map<String, WargearDefinitionEntity> resolveWargear(ModelDefinitionExport export) {
+        var referencedIds =
+                export.getModelDefinitions().stream()
+                        .flatMap(item -> item.getWargearOptions().stream())
+                        .map(ModelDefinitionExportItemWargearOptionsInner::getId)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (referencedIds.isEmpty()) {
             return Map.of();
         }
 
+        // Deprecated, for older combined catalogues only: anything they name is upserted first.
         Map<String, WargearDefinitionEntity> bySourceId =
-                wargearDefinitionRepository
-                        .findAllByExternalIdIn(List.copyOf(nameBySourceId.keySet()))
-                        .stream()
-                        .collect(Collectors.toMap(WargearDefinitionEntity::getExternalId, d -> d));
+                new LinkedHashMap<>(
+                        wargearDefinitionService
+                                .upsertWargear(wargearNamesInDocument(export))
+                                .bySourceId());
 
-        // Hand-authored wargear has no dataset id, so exporting it emits its UUID. Re-importing
-        // that document must find the original rather than create a definition keyed by a UUID.
-        nameBySourceId.keySet().stream()
-                .filter(sourceId -> !bySourceId.containsKey(sourceId))
-                .toList()
-                .forEach(
-                        sourceId ->
-                                parseUuid(sourceId)
-                                        .flatMap(wargearDefinitionRepository::findById)
-                                        .ifPresent(existing -> bySourceId.put(sourceId, existing)));
+        var unresolved = referencedIds.stream().filter(id -> !bySourceId.containsKey(id)).toList();
+        bySourceId.putAll(wargearDefinitionService.findBySourceIds(unresolved));
 
-        var existingDrafts =
-                wargearDefinitionDraftRepository.findAllByDefinitionId(
-                        bySourceId.values().stream().map(WargearDefinitionEntity::getId).toList());
-
-        nameBySourceId.forEach(
-                (sourceId, name) -> {
-                    var existing = bySourceId.get(sourceId);
-                    if (existing == null) {
-                        bySourceId.put(
-                                sourceId,
-                                wargearDefinitionRepository.save(
-                                        WargearDefinitionEntity.builder()
-                                                .externalId(sourceId)
-                                                .name(name)
-                                                .build()));
-                        return;
-                    }
-                    reconcileWargearName(existing, name, existingDrafts.get(existing.getId()));
-                });
+        var missing = referencedIds.stream().filter(id -> !bySourceId.containsKey(id)).sorted().toList();
+        if (!missing.isEmpty()) {
+            throw new BadRequestException(
+                    "Import references wargear that does not exist: "
+                            + String.join(", ", missing)
+                            + ". Import the wargear from the Manage Wargear Definitions page first.");
+        }
 
         return bySourceId;
     }
 
     /**
-     * Stages, refreshes or clears the pending rename for one definition.
+     * Collects the wargear names an older combined catalogue defines inline. Current documents
+     * define none, and return an empty map.
      *
-     * <p>Re-importing an unchanged document must leave no trace, so a proposal matching the stored
-     * name clears any stale pending change rather than raising a new one.
+     * <p>Schema version 4 combined catalogues carry a top-level 'wargear' section naming each item
+     * once. Version 3 repeats the name inline on every option and does not always spell it
+     * identically (e.g. "Shuriken Pistol" vs "Shuriken pistol"), so the first spelling seen wins
+     * and the rest are logged - letting the last model win would make the name depend on order.
      */
-    private void reconcileWargearName(
-            WargearDefinitionEntity existing,
-            String proposedName,
-            WargearDefinitionDraftEntity pending) {
-        if (existing.getName().equals(proposedName)) {
-            if (pending != null) {
-                wargearDefinitionDraftRepository.delete(pending);
-            }
-            return;
-        }
-
-        if (pending != null) {
-            if (!pending.getProposedName().equals(proposedName)) {
-                pending.setProposedName(proposedName);
-                wargearDefinitionDraftRepository.save(pending);
-            }
-            return;
-        }
-
-        wargearDefinitionDraftRepository.save(
-                WargearDefinitionDraftEntity.builder()
-                        .wargearDefinition(existing)
-                        .proposedName(proposedName)
-                        .createdAt(Instant.now())
-                        .build());
-    }
-
-    /**
-     * Collects the canonical name for each wargear id in the import.
-     *
-     * <p>Schema version 4 documents carry a top-level 'wargear' catalogue naming each item once.
-     * Older documents repeat the name inline on every option and do not always spell it identically
-     * (e.g. "Shuriken Pistol" vs "Shuriken pistol"), so the first spelling seen wins and the rest
-     * are logged - letting the last model win would make the name depend on import order.
-     */
-    private Map<String, String> wargearNamesBySourceId(ModelDefinitionExport export) {
+    private Map<String, String> wargearNamesInDocument(ModelDefinitionExport export) {
         Map<String, String> nameBySourceId = new LinkedHashMap<>();
 
         if (export.getWargear() != null && !export.getWargear().isEmpty()) {
-            for (var item : export.getWargear()) {
-                nameBySourceId.putIfAbsent(item.getId(), item.getName());
-            }
-            validateWargearReferences(export, nameBySourceId.keySet());
+            export.getWargear().forEach(item -> nameBySourceId.putIfAbsent(item.getId(), item.getName()));
             return nameBySourceId;
         }
 
@@ -810,11 +722,7 @@ public class ModelDefinitionDraftService {
         for (var item : export.getModelDefinitions()) {
             for (var option : item.getWargearOptions()) {
                 if (option.getName() == null) {
-                    throw new BadRequestException(
-                            "Wargear option '"
-                                    + option.getId()
-                                    + "' has no name and the document has no 'wargear' catalogue to"
-                                    + " resolve it from");
+                    continue;
                 }
                 nameBySourceId.putIfAbsent(option.getId(), option.getName());
                 allNamesBySourceId
@@ -836,80 +744,6 @@ public class ModelDefinitionDraftService {
                 });
 
         return nameBySourceId;
-    }
-
-    /**
-     * Fails an import whose models reference wargear its own catalogue does not define, rather than
-     * silently creating an unnamed definition.
-     */
-    private void validateWargearReferences(ModelDefinitionExport export, Set<String> definedIds) {
-        var missing =
-                export.getModelDefinitions().stream()
-                        .flatMap(item -> item.getWargearOptions().stream())
-                        .map(ModelDefinitionExportItemWargearOptionsInner::getId)
-                        .filter(id -> !definedIds.contains(id))
-                        .distinct()
-                        .sorted()
-                        .toList();
-        if (!missing.isEmpty()) {
-            throw new BadRequestException(
-                    "Import references wargear not defined in its 'wargear' catalogue: "
-                            + String.join(", ", missing));
-        }
-    }
-
-    private static Optional<UUID> parseUuid(String value) {
-        try {
-            return Optional.of(UUID.fromString(value));
-        } catch (IllegalArgumentException e) {
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * Upserts factions (matched by source 'id') directly onto the published table - factions
-     * are simple reference/categorisation data with no draft/publish workflow. Parent links are
-     * resolved in a second pass so ordering within the import document does not matter.
-     */
-    private Map<String, FactionEntity> upsertFactions(List<FactionExportItem> factionItems) {
-        if (factionItems == null || factionItems.isEmpty()) {
-            return Map.of();
-        }
-
-        var existingByExternalId =
-                factionRepository.findAll().stream()
-                        .collect(Collectors.toMap(FactionEntity::getExternalId, f -> f, (a, b) -> a));
-
-        Map<String, FactionEntity> byExternalId = new HashMap<>();
-        for (var item : factionItems) {
-            var existing = existingByExternalId.get(item.getId());
-            var faction =
-                    existing != null
-                            ? existing
-                            : FactionEntity.builder().externalId(item.getId()).build();
-            faction.setName(item.getName());
-            byExternalId.put(item.getId(), factionRepository.save(faction));
-        }
-
-        for (var item : factionItems) {
-            if (item.getParentFactionId() == null) {
-                continue;
-            }
-            var parent = byExternalId.get(item.getParentFactionId());
-            if (parent == null) {
-                throw new BadRequestException(
-                        "Faction '"
-                                + item.getId()
-                                + "' references unknown parent faction id '"
-                                + item.getParentFactionId()
-                                + "'");
-            }
-            var faction = byExternalId.get(item.getId());
-            faction.setParentFactionId(parent.getId());
-            byExternalId.put(item.getId(), factionRepository.save(faction));
-        }
-
-        return byExternalId;
     }
 
     /**

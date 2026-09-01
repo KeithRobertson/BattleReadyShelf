@@ -2,6 +2,8 @@ package com.keith.battlereadyshelf.factiondefinition;
 
 import com.keith.battlereadyshelf.generated.api.FactionDefinitionAdminApi;
 import com.keith.battlereadyshelf.generated.model.Faction;
+import com.keith.battlereadyshelf.generated.model.FactionExport;
+import com.keith.battlereadyshelf.generated.model.FactionImportResult;
 
 import lombok.RequiredArgsConstructor;
 
@@ -34,5 +36,15 @@ public class FactionDefinitionAdminController implements FactionDefinitionAdminA
     public ResponseEntity<Void> deleteFaction(UUID factionId) {
         factionDefinitionService.deleteFaction(factionId);
         return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<FactionExport> exportFactions() {
+        return ResponseEntity.ok(factionDefinitionService.exportFactions());
+    }
+
+    @Override
+    public ResponseEntity<FactionImportResult> importFactions(FactionExport factionExport) {
+        return ResponseEntity.ok(factionDefinitionService.importFactions(factionExport));
     }
 }

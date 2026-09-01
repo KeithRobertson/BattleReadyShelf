@@ -5,7 +5,6 @@ import {
   Badge,
   Button,
   Checkbox,
-  FileButton,
   Group,
   Modal,
   Stack,
@@ -19,18 +18,17 @@ import { useDisclosure } from "@mantine/hooks";
 import {
   IconAlertCircle,
   IconCircleCheck,
-  IconDownload,
   IconGitCompare,
   IconPencil,
   IconPlus,
   IconTrash,
-  IconUpload,
 } from "@tabler/icons-react";
 import { isAxiosError } from "axios";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
 import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
+import { DefinitionTransferButtons } from "@/components/admin/DefinitionTransferButtons.tsx";
 import ModelDefinitionDraftDiffModal from "@/components/admin/modeldefinitions/ModelDefinitionDraftDiffModal.tsx";
 import ModelDefinitionDraftEditor from "@/components/admin/modeldefinitions/ModelDefinitionDraftEditor.tsx";
 import ModelDefinitionSlotTable from "@/components/admin/modeldefinitions/ModelDefinitionSlotTable.tsx";
@@ -127,7 +125,6 @@ export default function ModelDefinitionsAdminPage() {
   const [editingDraft, setEditingDraft] = useState<ModelDefinitionDraft | null>(null);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [newName, setNewName] = useState("");
-  const [importing, setImporting] = useState(false);
   const [importSummary, setImportSummary] = useState<string | null>(null);
   const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(new Set());
   const [discarding, setDiscarding] = useState(false);
@@ -425,56 +422,21 @@ export default function ModelDefinitionsAdminPage() {
     }
   }
 
-  async function handleExport() {
-    setError(null);
-    try {
-      const exportData = (await exportModelDefinitions()).data;
-      if (!exportData) {
-        setError("Failed to export model definitions");
-        return;
+  async function handleImported(importedDrafts: ModelDefinitionDraft[], parsed: ModelDefinitionExport) {
+    setDrafts((drafts) => {
+      const byId = new Map(drafts.map((draft) => [draft.id, draft]));
+      for (const draft of importedDrafts) {
+        byId.set(draft.id, draft);
       }
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `model-definitions-export-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      setError(String(e));
-    }
-  }
-
-  async function handleImportFile(file: File | null) {
-    if (!file) return;
-    setError(null);
-    setImportSummary(null);
-    setImporting(true);
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text) as ModelDefinitionExport;
-      const importedDrafts = (await importModelDefinitions({ body: parsed })).data;
-      if (importedDrafts) {
-        setDrafts((drafts) => {
-          const byId = new Map(drafts.map((draft) => [draft.id, draft]));
-          for (const draft of importedDrafts) {
-            byId.set(draft.id, draft);
-          }
-          return [...byId.values()];
-        });
-        const total = parsed.modelDefinitions?.length ?? 0;
-        const changed = importedDrafts.length;
-        setImportSummary(
-          changed === 0
-            ? `Imported ${total} model definition(s) — everything was already up to date, so there is nothing to review.`
-            : `Imported ${total} model definition(s) — ${changed} with changes to review, ${total - changed} already up to date.`,
-        );
-      }
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setImporting(false);
-    }
+      return [...byId.values()];
+    });
+    const total = parsed.modelDefinitions?.length ?? 0;
+    const changed = importedDrafts.length;
+    setImportSummary(
+      changed === 0
+        ? `Imported ${total} model definition(s) — everything was already up to date, so there is nothing to review.`
+        : `Imported ${total} model definition(s) — ${changed} with changes to review, ${total - changed} already up to date.`,
+    );
   }
 
   const factionsById = useMemo(() => new Map(factions.map((faction) => [faction.id ?? "", faction])), [factions]);
@@ -516,16 +478,17 @@ export default function ModelDefinitionsAdminPage() {
             <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
               Create new
             </Button>
-            <Button leftSection={<IconDownload size={16} />} variant="default" onClick={handleExport}>
-              Export
-            </Button>
-            <FileButton onChange={handleImportFile} accept="application/json">
-              {(props) => (
-                <Button leftSection={<IconUpload size={16} />} variant="default" loading={importing} {...props}>
-                  Import
-                </Button>
-              )}
-            </FileButton>
+            <DefinitionTransferButtons
+              fileNamePrefix="model-definitions"
+              onStart={() => {
+                setError(null);
+                setImportSummary(null);
+              }}
+              onError={setError}
+              onExport={async () => (await exportModelDefinitions()).data}
+              onImport={async (document) => (await importModelDefinitions({ body: document })).data}
+              onImported={handleImported}
+            />
           </Group>
         )}
       </Group>

@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/keithrobertson/battlereadyshelf/schema/faction-export.schema.json",
+  "title": "BattleReadyShelf Faction Export",
+  "description": "The authoritative contract for the JSON document accepted by POST /api/v1/admin/factions/import (and produced by GET /api/v1/admin/factions/export). This is the canonical source of truth for this contract - other repositories producing an import document (e.g. battlereadyshelf-dataset) must conform to it. It mirrors the 'FactionExport' schema in backend/src/main/resources/openapi/openapi.yaml; if the two ever disagree, the OpenAPI spec wins and this file should be updated to match.\n\nFactions are the first of the three definition documents to import: model definitions reference factions by the ids named here, so importing models before factions is rejected.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "description": "The version of this export document's schema. Must be within the backend's supported range (see ExportSchema) or the import is rejected. All three definition documents share one version.",
+      "const": 4
+    },
+    "exportedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Set by the backend on export; ignored if present on import."
+    },
+    "datasetVersion": {
+      "type": "integer",
+      "description": "Optional version of the source dataset assembled into this document."
+    },
+    "factions": {
+      "type": "array",
+      "description": "Upserted by stable source id directly (no draft/publish workflow - factions carry no army-building rules, purely catalogue organisation/filtering). The document is authoritative for a faction it names: a parentFactionId it omits is cleared.",
+      "items": { "$ref": "#/$defs/factionExportItem" }
+    }
+  },
+  "required": ["schemaVersion", "factions"],
+  "$defs": {
+    "factionExportItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable identifier used to match this faction across imports."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parentFactionId": {
+          "type": ["string", "null"],
+          "description": "The id of the parent faction, which must be defined in this same 'factions' list. Null/absent for a top-level faction."
+        }
+      },
+      "required": ["id", "name"]
+    }
+  }
+}

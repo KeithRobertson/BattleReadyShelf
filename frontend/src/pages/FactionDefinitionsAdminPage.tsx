@@ -1,18 +1,20 @@
 import { ActionIcon, Alert, Button, Group, Modal, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconAlertCircle, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconAlertCircle, IconCircleCheck, IconPlus, IconTrash } from "@tabler/icons-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
 import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
-import type { Faction } from "@/generated";
-import { createFaction, deleteFaction, getFactions } from "@/generated";
+import { DefinitionTransferButtons } from "@/components/admin/DefinitionTransferButtons.tsx";
+import type { Faction, FactionImportResult } from "@/generated";
+import { createFaction, deleteFaction, exportFactions, getFactions, importFactions } from "@/generated";
 
 export default function FactionDefinitionsAdminPage() {
   const { isAuthenticated, isLoading: isAuthLoading, isAdmin } = useAuth();
   const [factions, setFactions] = useState<Faction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [importSummary, setImportSummary] = useState<string | null>(null);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [newName, setNewName] = useState("");
   const [newExternalId, setNewExternalId] = useState("");
@@ -85,6 +87,23 @@ export default function FactionDefinitionsAdminPage() {
     }
   }
 
+  function handleImported(result: FactionImportResult) {
+    const created = result.created ?? [];
+    const updated = result.updated ?? [];
+    // Updated factions are the same rows with new values, so replace by id rather than append.
+    setFactions((prev) => {
+      const byId = new Map(prev.map((faction) => [faction.id, faction]));
+      for (const faction of [...created, ...updated]) {
+        byId.set(faction.id, faction);
+      }
+      return [...byId.values()];
+    });
+    setImportSummary(
+      `Imported ${created.length + updated.length + result.unchanged} faction(s) — ` +
+        `${created.length} created, ${updated.length} updated, ${result.unchanged} already up to date.`,
+    );
+  }
+
   return (
     <Stack gap="md">
       <Group justify="space-between">
@@ -100,6 +119,17 @@ export default function FactionDefinitionsAdminPage() {
             <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
               Create new
             </Button>
+            <DefinitionTransferButtons
+              fileNamePrefix="factions"
+              onStart={() => {
+                setError(null);
+                setImportSummary(null);
+              }}
+              onError={setError}
+              onExport={async () => (await exportFactions()).data}
+              onImport={async (document) => (await importFactions({ body: document })).data}
+              onImported={handleImported}
+            />
           </Group>
         )}
       </Group>
@@ -107,6 +137,12 @@ export default function FactionDefinitionsAdminPage() {
       {error && (
         <Alert color="red" icon={<IconAlertCircle size={16} />} style={{ whiteSpace: "pre-line" }}>
           {error}
+        </Alert>
+      )}
+
+      {importSummary && (
+        <Alert color="blue" icon={<IconCircleCheck size={16} />} withCloseButton onClose={() => setImportSummary(null)}>
+          {importSummary}
         </Alert>
       )}
 

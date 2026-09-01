@@ -1,19 +1,28 @@
 package com.keith.battlereadyshelf.modeldefinition;
 
+import com.keith.battlereadyshelf.definitionexport.ExportSchema;
 import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.WargearDefinition;
 import com.keith.battlereadyshelf.generated.model.WargearDefinitionDraft;
+import com.keith.battlereadyshelf.generated.model.WargearDefinitionExport;
+import com.keith.battlereadyshelf.generated.model.WargearExportItem;
+import com.keith.battlereadyshelf.generated.model.WargearImportResult;
 
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -106,6 +115,183 @@ public class WargearDefinitionService {
                                         new NotFoundException(
                                                 "Wargear definition draft not found: " + draftId));
         wargearDefinitionDraftRepository.delete(draft);
+    }
+
+    /**
+     * Exports the whole catalogue, including wargear no model definition currently uses - this is
+     * the wargear page's own document, so it is not narrowed to what some other export references.
+     * Emitted in source id order so an unchanged catalogue produces a byte-identical file.
+     */
+    public WargearDefinitionExport exportWargearDefinitions() {
+        var items =
+                wargearDefinitionRepository.findAll().stream()
+                        .map(d -> new WargearExportItem(sourceIdOf(d), d.getName()))
+                        .sorted(Comparator.comparing(WargearExportItem::getId))
+                        .toList();
+
+        return new WargearDefinitionExport(ExportSchema.CURRENT_VERSION, items)
+                .exportedAt(OffsetDateTime.now(ZoneOffset.UTC));
+    }
+
+    @Transactional
+    public WargearImportResult importWargearDefinitions(WargearDefinitionExport export) {
+        ExportSchema.requireSupported(export.getSchemaVersion(), "wargear");
+
+        Map<String, String> nameBySourceId = new LinkedHashMap<>();
+        export.getWargear().forEach(item -> nameBySourceId.putIfAbsent(item.getId(), item.getName()));
+
+        var outcome = upsertWargear(nameBySourceId);
+        var usageCounts = usageCounts();
+
+        return new WargearImportResult(
+                outcome.created().stream()
+                        .map(d -> toDto(d, usageCounts.getOrDefault(d.getId(), 0L)))
+                        .toList(),
+                outcome.pendingChanges().stream()
+                        .map(
+                                draft ->
+                                        toDraftDto(
+                                                draft,
+                                                usageCounts.getOrDefault(
+                                                        draft.getWargearDefinition().getId(), 0L)))
+                        .toList(),
+                outcome.unchanged());
+    }
+
+    /**
+     * Resolves every named wargear id to a shared definition, creating the ones the catalogue does
+     * not have yet.
+     *
+     * <p>An existing definition is never renamed in place by an import. One definition backs every
+     * model that carries that item, so an unattended rename fans out across the catalogue and could
+     * discard a correction an admin made in the app. A differing name is staged as a {@link
+     * WargearDefinitionDraftEntity} for review instead, which is what lets the reference dataset
+     * propose spelling fixes while leaving the final say with a human.
+     */
+    @Transactional
+    public WargearUpsertOutcome upsertWargear(Map<String, String> nameBySourceId) {
+        if (nameBySourceId.isEmpty()) {
+            return WargearUpsertOutcome.empty();
+        }
+
+        var bySourceId = findBySourceIds(nameBySourceId.keySet());
+        var existingDrafts =
+                wargearDefinitionDraftRepository.findAllByDefinitionId(
+                        bySourceId.values().stream().map(WargearDefinitionEntity::getId).toList());
+
+        List<WargearDefinitionEntity> created = new ArrayList<>();
+        List<WargearDefinitionDraftEntity> pendingChanges = new ArrayList<>();
+        int unchanged = 0;
+
+        for (var entry : nameBySourceId.entrySet()) {
+            var existing = bySourceId.get(entry.getKey());
+            if (existing == null) {
+                var definition =
+                        wargearDefinitionRepository.save(
+                                WargearDefinitionEntity.builder()
+                                        .externalId(entry.getKey())
+                                        .name(entry.getValue())
+                                        .build());
+                bySourceId.put(entry.getKey(), definition);
+                created.add(definition);
+                continue;
+            }
+
+            var pending =
+                    reconcileName(
+                            existing, entry.getValue(), existingDrafts.get(existing.getId()));
+            if (pending == null) {
+                unchanged++;
+            } else {
+                pendingChanges.add(pending);
+            }
+        }
+
+        return new WargearUpsertOutcome(bySourceId, created, pendingChanges, unchanged);
+    }
+
+    /**
+     * Looks up wargear by stable source id without creating anything, so a document that only
+     * references wargear can tell what is missing.
+     *
+     * <p>Hand-authored wargear has no dataset id, so exporting it emits its UUID. Re-importing that
+     * document must find the original rather than treat the UUID as an unknown dataset id.
+     */
+    public Map<String, WargearDefinitionEntity> findBySourceIds(Collection<String> sourceIds) {
+        if (sourceIds.isEmpty()) {
+            return new LinkedHashMap<>();
+        }
+
+        Map<String, WargearDefinitionEntity> bySourceId =
+                wargearDefinitionRepository.findAllByExternalIdIn(List.copyOf(sourceIds)).stream()
+                        .collect(
+                                Collectors.toMap(
+                                        WargearDefinitionEntity::getExternalId,
+                                        d -> d,
+                                        (a, b) -> a,
+                                        LinkedHashMap::new));
+
+        sourceIds.stream()
+                .filter(sourceId -> !bySourceId.containsKey(sourceId))
+                .forEach(
+                        sourceId ->
+                                parseUuid(sourceId)
+                                        .flatMap(wargearDefinitionRepository::findById)
+                                        .ifPresent(existing -> bySourceId.put(sourceId, existing)));
+
+        return bySourceId;
+    }
+
+    /**
+     * Stages, refreshes or clears the pending rename for one definition, returning the pending
+     * change or null when the stored name already matches.
+     *
+     * <p>Re-importing an unchanged document must leave no trace, so a proposal matching the stored
+     * name clears any stale pending change rather than raising a new one.
+     */
+    private WargearDefinitionDraftEntity reconcileName(
+            WargearDefinitionEntity existing,
+            String proposedName,
+            WargearDefinitionDraftEntity pending) {
+        if (existing.getName().equals(proposedName)) {
+            if (pending != null) {
+                wargearDefinitionDraftRepository.delete(pending);
+            }
+            return null;
+        }
+
+        if (pending != null) {
+            if (pending.getProposedName().equals(proposedName)) {
+                return pending;
+            }
+            pending.setProposedName(proposedName);
+            return wargearDefinitionDraftRepository.save(pending);
+        }
+
+        return wargearDefinitionDraftRepository.save(
+                WargearDefinitionDraftEntity.builder()
+                        .wargearDefinition(existing)
+                        .proposedName(proposedName)
+                        .createdAt(Instant.now())
+                        .build());
+    }
+
+    /**
+     * The stable identity of a definition: its dataset id when it has one, otherwise its own UUID
+     * so hand-authored wargear still round-trips through an export.
+     */
+    static String sourceIdOf(WargearDefinitionEntity definition) {
+        return definition.getExternalId() != null
+                ? definition.getExternalId()
+                : definition.getId().toString();
+    }
+
+    private static Optional<UUID> parseUuid(String value) {
+        try {
+            return Optional.of(UUID.fromString(value));
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
     }
 
     private Map<UUID, Long> usageCounts() {

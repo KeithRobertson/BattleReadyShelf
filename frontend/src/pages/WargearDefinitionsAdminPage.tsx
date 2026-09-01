@@ -1,16 +1,19 @@
 import { Alert, Group, Stack, Text, TextInput, Title } from "@mantine/core";
-import { IconAlertCircle, IconSearch } from "@tabler/icons-react";
+import { IconAlertCircle, IconCircleCheck, IconSearch } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
 import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
+import { DefinitionTransferButtons } from "@/components/admin/DefinitionTransferButtons.tsx";
 import PendingWargearRenames from "@/components/admin/wargear/PendingWargearRenames.tsx";
 import RenameWargearDefinitionModal from "@/components/admin/wargear/RenameWargearDefinitionModal.tsx";
 import WargearDefinitionTable from "@/components/admin/wargear/WargearDefinitionTable.tsx";
-import type { WargearDefinition, WargearDefinitionDraft } from "@/generated";
+import type { WargearDefinition, WargearDefinitionDraft, WargearImportResult } from "@/generated";
 import {
   discardWargearDefinitionDraft,
+  exportWargearDefinitions,
   getWargearDefinitionDrafts,
   getWargearDefinitions,
+  importWargearDefinitions,
   publishWargearDefinitionDraft,
   updateWargearDefinition,
 } from "@/generated";
@@ -42,6 +45,7 @@ export default function WargearDefinitionsAdminPage() {
   const [drafts, setDrafts] = useState<WargearDefinitionDraft[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [importSummary, setImportSummary] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [renaming, setRenaming] = useState<WargearDefinition | null>(null);
   const [saving, setSaving] = useState(false);
@@ -135,6 +139,19 @@ export default function WargearDefinitionsAdminPage() {
     }
   }
 
+  function handleImported(result: WargearImportResult) {
+    const created = result.created ?? [];
+    const pending = result.pendingChanges ?? [];
+    setDefinitions((prev) => [...prev, ...created]);
+    // A re-import can clear proposals as well as raise them, so replace rather than merge.
+    setDrafts(pending);
+    setImportSummary(
+      `Imported ${created.length + pending.length + result.unchanged} wargear definition(s) — ` +
+        `${created.length} created, ${pending.length} name change(s) to review, ` +
+        `${result.unchanged} already up to date.`,
+    );
+  }
+
   return (
     <Stack gap="md">
       <Group justify="space-between">
@@ -146,11 +163,30 @@ export default function WargearDefinitionsAdminPage() {
             definition.
           </Text>
         </div>
+        {isAdmin && (
+          <DefinitionTransferButtons
+            fileNamePrefix="wargear-definitions"
+            onStart={() => {
+              setError(null);
+              setImportSummary(null);
+            }}
+            onError={setError}
+            onExport={async () => (await exportWargearDefinitions()).data}
+            onImport={async (document) => (await importWargearDefinitions({ body: document })).data}
+            onImported={handleImported}
+          />
+        )}
       </Group>
 
       {error && (
         <Alert color="red" icon={<IconAlertCircle size={16} />} style={{ whiteSpace: "pre-line" }}>
           {error}
+        </Alert>
+      )}
+
+      {importSummary && (
+        <Alert color="blue" icon={<IconCircleCheck size={16} />} withCloseButton onClose={() => setImportSummary(null)}>
+          {importSummary}
         </Alert>
       )}
 

@@ -4,6 +4,8 @@ import com.keith.battlereadyshelf.generated.api.WargearDefinitionAdminApi;
 import com.keith.battlereadyshelf.generated.model.UpdateWargearDefinitionRequest;
 import com.keith.battlereadyshelf.generated.model.WargearDefinition;
 import com.keith.battlereadyshelf.generated.model.WargearDefinitionDraft;
+import com.keith.battlereadyshelf.generated.model.WargearDefinitionExport;
+import com.keith.battlereadyshelf.generated.model.WargearImportResult;
 
 import lombok.RequiredArgsConstructor;
 
@@ -47,5 +49,17 @@ public class WargearDefinitionAdminController implements WargearDefinitionAdminA
     public ResponseEntity<Void> discardWargearDefinitionDraft(UUID draftId) {
         wargearDefinitionService.discardWargearDefinitionDraft(draftId);
         return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<WargearDefinitionExport> exportWargearDefinitions() {
+        return ResponseEntity.ok(wargearDefinitionService.exportWargearDefinitions());
+    }
+
+    @Override
+    public ResponseEntity<WargearImportResult> importWargearDefinitions(
+            WargearDefinitionExport wargearDefinitionExport) {
+        return ResponseEntity.ok(
+                wargearDefinitionService.importWargearDefinitions(wargearDefinitionExport));
     }
 }

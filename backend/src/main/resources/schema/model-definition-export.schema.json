@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/keithrobertson/battlereadyshelf/schema/model-definition-export.schema.json",
   "title": "BattleReadyShelf Model Definition Export",
-  "description": "The authoritative contract for the JSON document accepted by POST /api/v1/admin/model-definitions/import (and produced by GET /api/v1/admin/model-definitions/export). This is the canonical source of truth for this contract - other repositories producing an import document (e.g. battlereadyshelf-data / battlereadyshelf-dataset) must conform to it. It mirrors the 'ModelDefinitionExport' schema in backend/src/main/resources/openapi/openapi.yaml; if the two ever disagree, the OpenAPI spec wins and this file should be updated to match.",
+  "description": "The authoritative contract for the JSON document accepted by POST /api/v1/admin/model-definitions/import (and produced by GET /api/v1/admin/model-definitions/export). This is the canonical source of truth for this contract - other repositories producing an import document (e.g. battlereadyshelf-dataset) must conform to it. It mirrors the 'ModelDefinitionExport' schema in backend/src/main/resources/openapi/openapi.yaml; if the two ever disagree, the OpenAPI spec wins and this file should be updated to match.\n\nThis is the last of the three definition documents to import. It only references factions and wargear by their stable ids - see faction-export.schema.json and wargear-definition-export.schema.json, which are imported from their own admin pages first. An id this document references that does not exist yet fails the import, naming the page to import it from.",
   "type": "object",
   "properties": {
     "schemaVersion": {
       "type": "integer",
-      "description": "The version of this export document's schema. Must equal the backend's currently supported version (see CURRENT_EXPORT_SCHEMA_VERSION in ModelDefinitionDraftService) or the import is rejected.",
-      "const": 3
+      "description": "The version of this export document's schema. Must be within the backend's supported range (see ExportSchema) or the import is rejected. All three definition documents share one version.",
+      "const": 4
     },
     "exportedAt": {
       "type": "string",
@@ -20,47 +20,35 @@
       "description": "Optional version of the source dataset assembled into this document."
     },
     "factions": {
+      "deprecated": true,
       "type": "array",
-      "description": "Factions referenced by 'modelDefinitions' below. Upserted by stable source id directly (no draft/publish workflow - factions carry no army-building rules, purely catalogue organisation/filtering).",
-      "items": { "$ref": "#/$defs/factionExportItem" }
+      "description": "DEPRECATED - import factions from the Manage Factions page instead. Still accepted so an older combined catalogue keeps working; never emitted by an export.",
+      "items": { "$ref": "faction-export.schema.json#/$defs/factionExportItem" }
+    },
+    "wargear": {
+      "deprecated": true,
+      "type": "array",
+      "description": "DEPRECATED - import wargear from the Manage Wargear Definitions page instead. Still accepted so an older combined catalogue keeps working; never emitted by an export.",
+      "items": { "$ref": "wargear-definition-export.schema.json#/$defs/wargearExportItem" }
     },
     "modelDefinitions": {
       "type": "array",
       "items": { "$ref": "#/$defs/modelDefinitionExportItem" }
     }
   },
-  "required": ["schemaVersion", "factions", "modelDefinitions"],
+  "required": ["schemaVersion", "modelDefinitions"],
   "$defs": {
-    "factionExportItem": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Stable identifier used to match this faction across imports."
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "parentFactionId": {
-          "type": ["string", "null"],
-          "description": "The id of the parent faction (from this same 'factions' list), if any. Null/absent for a top-level faction."
-        }
-      },
-      "required": ["id", "name"]
-    },
     "modelDefinitionExportItem": {
       "type": "object",
       "properties": {
         "id": {
           "type": "string",
           "minLength": 1,
-          "description": "Stable identifier used to match this model definition across imports instead of by name. Sourced from the reference dataset; exports of hand-authored definitions emit the persisted UUID instead."
+          "description": "Stable identifier used to match this model definition across imports instead of by name. Sourced from the reference dataset; exports of hand-authored definitions emit the persisted UUID instead. Names need not be unique - different games may reuse a model name."
         },
         "factionId": {
           "type": ["string", "null"],
-          "description": "The id of the faction (from this document's 'factions' list) this model belongs to. Null if uncategorised."
+          "description": "The stable id of the faction this model belongs to. It must already exist (import the faction document first). Null if uncategorised."
         },
         "name": {
           "type": "string",
@@ -102,15 +90,18 @@
     },
     "wargearOptionExportItem": {
       "type": "object",
+      "description": "One model's use of a shared wargear definition: which slot(s) it fills on this model and whether it is part of the default loadout. The item's name lives on the wargear definition, not here.",
       "properties": {
         "id": {
           "type": "string",
           "minLength": 1,
-          "description": "Stable identifier used to match this option across imports. Sourced from the reference dataset; exports of hand-authored options emit the persisted UUID instead."
+          "description": "The stable id of the wargear definition this option uses. It must already exist (import the wargear document first)."
         },
         "name": {
+          "deprecated": true,
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "DEPRECATED - the name lives on the wargear definition. Only read from an older combined catalogue that defines wargear inline; never emitted by an export."
         },
         "isDefault": {
           "type": "boolean",
@@ -122,7 +113,7 @@
           "items": { "type": "string" }
         }
       },
-      "required": ["id", "name", "isDefault", "slotIds"]
+      "required": ["id", "isDefault", "slotIds"]
     }
   }
 }
