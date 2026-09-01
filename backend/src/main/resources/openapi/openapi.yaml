@@ -800,9 +800,10 @@ paths:
     post:
       tags: [ "ModelDefinitionAdmin" ]
       summary: >-
-        Import a versioned JSON document of model definitions as drafts (matching by name to
-        existing published model definitions where possible). Imported data is never published
-        automatically - each imported definition must still be reviewed and published (admin only)
+        Import a versioned JSON document of model definitions as drafts (matching by stable source
+        id, with name fallback for legacy hand-authored definitions). Imported data is never
+        published automatically - each imported definition must still be reviewed and published
+        (admin only)
       operationId: importModelDefinitions
       security:
         - bearerAuth: [ ]
@@ -1254,7 +1255,10 @@ components:
           description: Stable identifier from an imported reference dataset, if this slot was created/matched via import.
         name:
           type: string
-      required: [ name ]
+        type:
+          type: string
+          description: Stable machine-readable category for this physical attachment slot.
+      required: [ name, type ]
     WargearOption:
       type: object
       properties:
@@ -1349,7 +1353,10 @@ components:
           description: Stable identifier from an imported reference dataset, if this slot was created/matched via import.
         name:
           type: string
-      required: [ name ]
+        type:
+          type: string
+          description: Stable machine-readable category for this physical attachment slot.
+      required: [ name, type ]
     WargearOptionDraft:
       type: object
       properties:
@@ -1412,7 +1419,10 @@ components:
           description: The draft slot id (existing, or a freshly client-generated one for a new slot).
         name:
           type: string
-      required: [ id, name ]
+        type:
+          type: string
+          description: Stable machine-readable category for this physical attachment slot.
+      required: [ id, name, type ]
     UpsertWargearOptionDraftRequest:
       type: object
       properties:
@@ -1468,7 +1478,9 @@ components:
           description: A JSON snapshot of the published model definition immediately after this publish.
     ModelDefinitionExport:
       type: object
-      description: A versioned, portable document of published model definitions for backup/migration.
+      description: >-
+        A versioned, portable catalogue. Its faction and model definition items use the same
+        field names and shapes as the source JSON files assembled by battlereadyshelf-dataset.
       properties:
         schemaVersion:
           type: integer
@@ -1478,11 +1490,15 @@ components:
           type: string
           format: date-time
           readOnly: true
+        datasetVersion:
+          type: integer
+          format: int32
+          description: Optional version of the source dataset assembled into this document.
         factions:
           type: array
           description: >-
             The complete set of factions referenced by 'modelDefinitions' in this document.
-            Factions are upserted by 'externalId' on import (created if new, updated in place if
+            Factions are upserted by source 'id' on import (created if new, updated in place if
             already known) - they carry no army-building rules, purely catalogue organisation.
           items:
             $ref: '#/components/schemas/FactionExportItem'
@@ -1494,28 +1510,29 @@ components:
     FactionExportItem:
       type: object
       properties:
-        externalId:
+        id:
           type: string
           description: Stable identifier used to match this faction across imports.
         name:
           type: string
-        parentFactionExternalId:
+        parentFactionId:
           type: string
-          description: The externalId of the parent faction (from this same 'factions' list), if any.
-      required: [ externalId, name ]
+          description: The id of the parent faction (from this same 'factions' list), if any.
+      required: [ id, name ]
     ModelDefinitionExportItem:
       type: object
       properties:
-        externalId:
+        id:
           type: string
           description: >-
-            Optional stable identifier used to match this model definition across imports (e.g.
-            from the battlereadyshelf-data reference dataset repository), instead of matching by
-            name. Null for hand-authored definitions with no external source.
-        factionExternalId:
+            Stable identifier used to match this model definition across imports (e.g. from the
+            battlereadyshelf-dataset reference repository), instead of matching by name.
+            Exports of hand-authored definitions emit the persisted UUID instead.
+        factionId:
           type: string
+          nullable: true
           description: >-
-            The externalId of the faction (from this document's 'factions' list) this model
+            The id of the faction (from this document's 'factions' list) this model
             belongs to. Optional - null if this model is not categorised under any faction.
         name:
           type: string
@@ -1526,35 +1543,38 @@ components:
           items:
             type: object
             properties:
-              externalId:
+              id:
                 type: string
                 description: >-
-                  Optional stable identifier for this slot, used to prefer matching it across
-                  imports by id rather than by name. Slot-to-option relationships within this
-                  item are still keyed by 'name' (see 'attachmentSlotNames' below), so slot names
-                  must be unique within a single model definition.
+                  Stable identifier used to match this slot across imports.
+                  Exports of hand-authored slots emit the persisted UUID instead.
               name:
                 type: string
-            required: [ name ]
+              type:
+                type: string
+                description: Stable machine-readable category for this physical attachment slot.
+            required: [ id, name, type ]
         wargearOptions:
           type: array
           items:
             type: object
             properties:
-              externalId:
+              id:
                 type: string
-                description: Optional stable identifier used to prefer matching this option across imports by id.
+                description: >-
+                  Stable identifier used to match this option across imports.
+                  Exports of hand-authored options emit the persisted UUID instead.
               name:
                 type: string
               isDefault:
                 type: boolean
-              attachmentSlotNames:
+              slotIds:
                 type: array
-                description: The name(s) of the attachment slot(s), from this same item, this option fills.
+                description: The id(s) of the attachment slot(s), from this same item, this option fills.
                 items:
                   type: string
-            required: [ name, isDefault, attachmentSlotNames ]
-      required: [ name, attachmentSlots, wargearOptions ]
+            required: [ id, name, isDefault, slotIds ]
+      required: [ id, factionId, name, attachmentSlots, wargearOptions ]
     CollectionModelImage:
       type: object
       properties:

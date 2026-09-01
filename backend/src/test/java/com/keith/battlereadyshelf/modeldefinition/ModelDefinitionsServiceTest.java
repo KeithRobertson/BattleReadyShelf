@@ -88,12 +88,14 @@ class ModelDefinitionsServiceTest {
                         .id(leftArmId)
                         .modelDefinitionId(plagueMarineId)
                         .name("Left Arm")
+                        .type("arm")
                         .build();
         var rightArm =
                 AttachmentSlotEntity.builder()
                         .id(rightArmId)
                         .modelDefinitionId(plagueMarineId)
                         .name("Right Arm")
+                        .type("arm")
                         .build();
         when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(plagueMarineId)))
                 .thenReturn(List.of(leftArm, rightArm));
@@ -118,8 +120,8 @@ class ModelDefinitionsServiceTest {
                                 .version(1)
                                 .attachmentSlots(
                                         List.of(
-                                                new AttachmentSlot("Left Arm").id(leftArmId),
-                                                new AttachmentSlot("Right Arm").id(rightArmId)))
+                                                new AttachmentSlot("Left Arm", "arm").id(leftArmId),
+                                                new AttachmentSlot("Right Arm", "arm").id(rightArmId)))
                                 .wargearOptions(
                                         List.of(
                                                 new WargearOption("Boltgun", true, List.of(leftArmId))

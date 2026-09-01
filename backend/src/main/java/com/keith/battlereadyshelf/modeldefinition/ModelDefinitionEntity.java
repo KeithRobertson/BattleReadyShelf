@@ -30,7 +30,7 @@ public class ModelDefinitionEntity {
     @Column(name = "faction_id")
     private UUID factionId;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String name;
 
     @Column(columnDefinition = "text")

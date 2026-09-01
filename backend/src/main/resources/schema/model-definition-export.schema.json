@@ -8,16 +8,20 @@
     "schemaVersion": {
       "type": "integer",
       "description": "The version of this export document's schema. Must equal the backend's currently supported version (see CURRENT_EXPORT_SCHEMA_VERSION in ModelDefinitionDraftService) or the import is rejected.",
-      "const": 2
+      "const": 3
     },
     "exportedAt": {
       "type": "string",
       "format": "date-time",
       "description": "Set by the backend on export; ignored if present on import."
     },
+    "datasetVersion": {
+      "type": "integer",
+      "description": "Optional version of the source dataset assembled into this document."
+    },
     "factions": {
       "type": "array",
-      "description": "Factions referenced by 'modelDefinitions' below. Upserted by 'externalId' directly (no draft/publish workflow - factions carry no army-building rules, purely catalogue organisation/filtering).",
+      "description": "Factions referenced by 'modelDefinitions' below. Upserted by stable source id directly (no draft/publish workflow - factions carry no army-building rules, purely catalogue organisation/filtering).",
       "items": { "$ref": "#/$defs/factionExportItem" }
     },
     "modelDefinitions": {
@@ -30,7 +34,7 @@
     "factionExportItem": {
       "type": "object",
       "properties": {
-        "externalId": {
+        "id": {
           "type": "string",
           "minLength": 1,
           "description": "Stable identifier used to match this faction across imports."
@@ -39,23 +43,24 @@
           "type": "string",
           "minLength": 1
         },
-        "parentFactionExternalId": {
+        "parentFactionId": {
           "type": ["string", "null"],
-          "description": "The externalId of the parent faction (from this same 'factions' list), if any. Null/absent for a top-level faction."
+          "description": "The id of the parent faction (from this same 'factions' list), if any. Null/absent for a top-level faction."
         }
       },
-      "required": ["externalId", "name"]
+      "required": ["id", "name"]
     },
     "modelDefinitionExportItem": {
       "type": "object",
       "properties": {
-        "externalId": {
-          "type": ["string", "null"],
-          "description": "Optional stable identifier used to match this model definition across imports instead of by name. Null for hand-authored definitions with no external source."
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable identifier used to match this model definition across imports instead of by name. Sourced from the reference dataset; exports of hand-authored definitions emit the persisted UUID instead."
         },
-        "factionExternalId": {
+        "factionId": {
           "type": ["string", "null"],
-          "description": "The externalId of the faction (from this document's 'factions' list) this model belongs to. Null if uncategorised."
+          "description": "The id of the faction (from this document's 'factions' list) this model belongs to. Null if uncategorised."
         },
         "name": {
           "type": "string",
@@ -73,29 +78,35 @@
           "items": { "$ref": "#/$defs/wargearOptionExportItem" }
         }
       },
-      "required": ["name", "attachmentSlots", "wargearOptions"]
+      "required": ["id", "factionId", "name", "attachmentSlots", "wargearOptions"]
     },
     "attachmentSlotExportItem": {
       "type": "object",
       "properties": {
-        "externalId": {
-          "type": ["string", "null"],
-          "description": "Optional stable identifier for this slot, used to prefer matching it across imports by id rather than by name."
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable identifier for this slot, used to match it across imports and by wargear slot references. Sourced from the reference dataset; exports of hand-authored slots emit the persisted UUID instead."
         },
         "name": {
           "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
           "minLength": 1,
-          "description": "Must be unique among attachmentSlots within the same modelDefinitionExportItem - wargearOptions reference slots by this name, and the backend enforces uniqueness per model definition."
+          "description": "Stable machine-readable category for this physical attachment slot."
         }
       },
-      "required": ["name"]
+      "required": ["id", "name", "type"]
     },
     "wargearOptionExportItem": {
       "type": "object",
       "properties": {
-        "externalId": {
-          "type": ["string", "null"],
-          "description": "Optional stable identifier used to prefer matching this option across imports by id."
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable identifier used to match this option across imports. Sourced from the reference dataset; exports of hand-authored options emit the persisted UUID instead."
         },
         "name": {
           "type": "string",
@@ -105,13 +116,13 @@
           "type": "boolean",
           "description": "Whether this option is part of the model's default loadout."
         },
-        "attachmentSlotNames": {
+        "slotIds": {
           "type": "array",
-          "description": "The name(s) of the attachment slot(s), from this same modelDefinitionExportItem's 'attachmentSlots', this option fills.",
+          "description": "The id(s) of the attachment slot(s), from this same modelDefinitionExportItem's 'attachmentSlots', this option fills.",
           "items": { "type": "string" }
         }
       },
-      "required": ["name", "isDefault", "attachmentSlotNames"]
+      "required": ["id", "name", "isDefault", "slotIds"]
     }
   }
 }

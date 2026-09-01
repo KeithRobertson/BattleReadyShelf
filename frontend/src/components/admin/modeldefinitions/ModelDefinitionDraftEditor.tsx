@@ -22,6 +22,7 @@ import { discardModelDefinitionDraft, publishModelDefinitionDraft, updateModelDe
 interface EditableSlot {
   id: string;
   name: string;
+  type: string;
 }
 
 interface EditableOption {
@@ -35,6 +36,10 @@ function newId(): string {
   return crypto.randomUUID();
 }
 
+// Slot types are free-form strings shared with the imported reference dataset (e.g. "arm",
+// "head"), so new hand-authored slots start from a neutral value the admin can overwrite.
+const DEFAULT_SLOT_TYPE = "other";
+
 function toRequest(
   name: string,
   faction: string | undefined,
@@ -46,7 +51,7 @@ function toRequest(
     name,
     faction_id: faction,
     description: description || undefined,
-    attachmentSlots: slots.map((slot) => ({ id: slot.id, name: slot.name })),
+    attachmentSlots: slots.map((slot) => ({ id: slot.id, name: slot.name, type: slot.type })),
     wargearOptions: options.map((option) => ({
       id: option.id,
       name: option.name,
@@ -77,7 +82,7 @@ export default function ModelDefinitionDraftEditor({
   const [faction, setFaction] = useState(draft.factionId);
   const [description, setDescription] = useState(draft.description ?? "");
   const [slots, setSlots] = useState<EditableSlot[]>(
-    draft.attachmentSlots.map((s) => ({ id: s.id ?? newId(), name: s.name })),
+    draft.attachmentSlots.map((s) => ({ id: s.id ?? newId(), name: s.name, type: s.type })),
   );
   const [options, setOptions] = useState<EditableOption[]>(
     draft.wargearOptions.map((option) => ({
@@ -103,7 +108,7 @@ export default function ModelDefinitionDraftEditor({
   function applyServerDraft(serverDraft: ModelDefinitionDraft) {
     setName(serverDraft.name);
     setDescription(serverDraft.description ?? "");
-    setSlots(serverDraft.attachmentSlots.map((slot) => ({ id: slot.id ?? newId(), name: slot.name })));
+    setSlots(serverDraft.attachmentSlots.map((slot) => ({ id: slot.id ?? newId(), name: slot.name, type: slot.type })));
     setOptions(
       serverDraft.wargearOptions.map((option) => ({
         id: option.id ?? newId(),
@@ -115,7 +120,7 @@ export default function ModelDefinitionDraftEditor({
   }
 
   function addSlot() {
-    setSlots((slots) => [...slots, { id: newId(), name: "" }]);
+    setSlots((slots) => [...slots, { id: newId(), name: "", type: DEFAULT_SLOT_TYPE }]);
   }
 
   function removeSlot(id: string) {
@@ -274,6 +279,16 @@ export default function ModelDefinitionDraftEditor({
                         onChange={(e) => {
                           const value = e.currentTarget.value;
                           setSlots((s) => s.map((sl) => (sl.id === slot.id ? { ...sl, name: value } : sl)));
+                        }}
+                      />
+                    </Table.Td>
+                    <Table.Td>
+                      <TextInput
+                        value={slot.type}
+                        placeholder="Slot type"
+                        onChange={(e) => {
+                          const value = e.currentTarget.value;
+                          setSlots((s) => s.map((sl) => (sl.id === slot.id ? { ...sl, type: value } : sl)));
                         }}
                       />
                     </Table.Td>
