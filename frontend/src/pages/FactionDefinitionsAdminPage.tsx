@@ -1,22 +1,10 @@
-import {
-  ActionIcon,
-  Alert,
-  Button,
-  Group,
-  Loader,
-  Modal,
-  Select,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
+import { ActionIcon, Alert, Button, Group, Modal, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconAlertCircle, IconPlus, IconTrash } from "@tabler/icons-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
+import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
 import type { Faction } from "@/generated";
 import { createFaction, deleteFaction, getFactions } from "@/generated";
 
@@ -122,15 +110,7 @@ export default function FactionDefinitionsAdminPage() {
         </Alert>
       )}
 
-      {isAuthLoading ? (
-        <Loader />
-      ) : !isAuthenticated || !isAdmin ? (
-        <Alert color="red" icon={<IconAlertCircle size={16} />}>
-          You do not have permission to view this page.
-        </Alert>
-      ) : loading ? (
-        <Loader />
-      ) : (
+      <AdminPageGate isAuthLoading={isAuthLoading} isAuthorised={isAuthenticated && isAdmin} loading={loading}>
         <Stack gap="lg">
           <div>
             {factions.length === 0 ? (
@@ -178,7 +158,7 @@ export default function FactionDefinitionsAdminPage() {
             )}
           </div>
         </Stack>
-      )}
+      </AdminPageGate>
 
       <Modal opened={createOpened} onClose={closeCreate} title="Create new faction definition">
         <form onSubmit={handleCreateNew}>

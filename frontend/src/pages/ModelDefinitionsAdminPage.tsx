@@ -7,7 +7,6 @@ import {
   Checkbox,
   FileButton,
   Group,
-  Loader,
   Modal,
   Stack,
   Table,
@@ -21,6 +20,7 @@ import {
   IconAlertCircle,
   IconCircleCheck,
   IconDownload,
+  IconGitCompare,
   IconPencil,
   IconPlus,
   IconTrash,
@@ -30,7 +30,10 @@ import { isAxiosError } from "axios";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
+import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
+import ModelDefinitionDraftDiffModal from "@/components/admin/modeldefinitions/ModelDefinitionDraftDiffModal.tsx";
 import ModelDefinitionDraftEditor from "@/components/admin/modeldefinitions/ModelDefinitionDraftEditor.tsx";
+import ModelDefinitionSlotTable from "@/components/admin/modeldefinitions/ModelDefinitionSlotTable.tsx";
 import type { Faction, ModelDefinition, ModelDefinitionDraft, ModelDefinitionExport } from "@/generated";
 import {
   createModelDefinitionDraft,
@@ -44,6 +47,7 @@ import {
   publishModelDefinitionDraft,
   startModelDefinitionDraft,
 } from "@/generated";
+import { type DraftDiff, diffModelDefinitionDraft } from "@/utils/modelDefinitionDraftDiff";
 
 interface FactionGroup<T> {
   faction: Faction | null;
@@ -84,6 +88,33 @@ function extractErrorMessage(e: unknown): string {
   return String(e);
 }
 
+/** Summarises at a glance what publishing a draft would actually do. */
+function DraftStatusBadge({ diff }: Readonly<{ diff: DraftDiff | undefined }>) {
+  if (!diff) return null;
+
+  if (diff.isNew) {
+    return (
+      <Badge variant="light" color="grape">
+        New
+      </Badge>
+    );
+  }
+
+  if (diff.changeCount === 0) {
+    return (
+      <Badge variant="light" color="gray">
+        No changes
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge variant="light" color="blue">
+      {diff.changeCount === 1 ? "1 change" : `${diff.changeCount} changes`}
+    </Badge>
+  );
+}
+
 export default function ModelDefinitionsAdminPage() {
   const { isAuthenticated, isLoading: isAuthLoading, isAdmin } = useAuth();
   const [modelDefinitions, setModelDefinitions] = useState<ModelDefinition[]>([]);
@@ -102,6 +133,7 @@ export default function ModelDefinitionsAdminPage() {
   const [publishingSelected, setPublishingSelected] = useState(false);
   const [selectedModelDefinitionIds, setSelectedModelDefinitionIds] = useState<Set<string>>(new Set());
   const [deletingSelectedModelDefinitions, setDeletingSelectedModelDefinitions] = useState(false);
+  const [diffDraft, setDiffDraft] = useState<ModelDefinitionDraft | null>(null);
 
   const loadAll = useCallback(
     (signal?: AbortSignal) => {
@@ -438,6 +470,24 @@ export default function ModelDefinitionsAdminPage() {
   }
 
   const factionsById = useMemo(() => new Map(factions.map((faction) => [faction.id ?? "", faction])), [factions]);
+  const modelDefinitionsById = useMemo(
+    () => new Map(modelDefinitions.map((definition) => [definition.id ?? "", definition])),
+    [modelDefinitions],
+  );
+  const diffsByDraftId = useMemo(
+    () =>
+      new Map(
+        drafts.map((draft) => [
+          draft.id ?? "",
+          diffModelDefinitionDraft(
+            draft,
+            draft.publishedModelDefinitionId ? modelDefinitionsById.get(draft.publishedModelDefinitionId) : undefined,
+            factionsById,
+          ),
+        ]),
+      ),
+    [drafts, modelDefinitionsById, factionsById],
+  );
   const draftGroups = useMemo(() => groupByFaction(drafts, factionsById), [drafts, factionsById]);
   const modelDefinitionGroups = useMemo(
     () => groupByFaction(modelDefinitions, factionsById),
@@ -484,15 +534,7 @@ export default function ModelDefinitionsAdminPage() {
         </Alert>
       )}
 
-      {isAuthLoading ? (
-        <Loader />
-      ) : !isAuthenticated || !isAdmin ? (
-        <Alert color="red" icon={<IconAlertCircle size={16} />}>
-          You do not have permission to view this page.
-        </Alert>
-      ) : loading ? (
-        <Loader />
-      ) : (
+      <AdminPageGate isAuthLoading={isAuthLoading} isAuthorised={isAuthenticated && isAdmin} loading={loading}>
         <Stack gap="lg">
           {drafts.length > 0 && (
             <div>
@@ -550,6 +592,7 @@ export default function ModelDefinitionsAdminPage() {
                         <Table.Tbody>
                           {group.items.map((draft) => {
                             const draftId = draft.id ?? "";
+                            const diff = diffsByDraftId.get(draftId);
                             return (
                               <Table.Tr key={draft.id}>
                                 <Table.Td>
@@ -561,12 +604,19 @@ export default function ModelDefinitionsAdminPage() {
                                 </Table.Td>
                                 <Table.Td>{draft.name}</Table.Td>
                                 <Table.Td>
-                                  <Badge variant="light" color={draft.publishedModelDefinitionId ? "blue" : "grape"}>
-                                    {draft.publishedModelDefinitionId ? "Edit" : "New"}
-                                  </Badge>
+                                  <DraftStatusBadge diff={diff} />
                                 </Table.Td>
                                 <Table.Td>
                                   <Group gap="xs" justify="flex-end" wrap="nowrap">
+                                    <Tooltip label="View changes">
+                                      <ActionIcon
+                                        variant="subtle"
+                                        aria-label="View changes"
+                                        onClick={() => setDiffDraft(draft)}
+                                      >
+                                        <IconGitCompare size={16} />
+                                      </ActionIcon>
+                                    </Tooltip>
                                     <Tooltip label="Publish">
                                       <ActionIcon
                                         color="green"
@@ -713,52 +763,10 @@ export default function ModelDefinitionsAdminPage() {
                                     {md.description}
                                   </Text>
                                 )}
-                                {attachmentSlots.length === 0 ? (
-                                  <Text c="dimmed" size="sm">
-                                    No attachment slots defined for this model.
-                                  </Text>
-                                ) : (
-                                  <Table striped withTableBorder verticalSpacing="xs">
-                                    <Table.Thead>
-                                      <Table.Tr>
-                                        <Table.Th>Attachment slot</Table.Th>
-                                        <Table.Th>Wargear options</Table.Th>
-                                      </Table.Tr>
-                                    </Table.Thead>
-                                    <Table.Tbody>
-                                      {attachmentSlots.map((slot) => {
-                                        const optionsForSlot = wargearOptions.filter((option) =>
-                                          option.attachmentSlotIds?.includes(slot.id ?? ""),
-                                        );
-                                        return (
-                                          <Table.Tr key={slot.id}>
-                                            <Table.Td>{slot.name}</Table.Td>
-                                            <Table.Td>
-                                              {optionsForSlot.length === 0 ? (
-                                                <Text c="dimmed" size="sm">
-                                                  None
-                                                </Text>
-                                              ) : (
-                                                <Group gap={4}>
-                                                  {optionsForSlot.map((option) => (
-                                                    <Badge
-                                                      key={option.id}
-                                                      variant={option.isDefault ? "filled" : "light"}
-                                                      size="sm"
-                                                      title={option.isDefault ? "Default" : undefined}
-                                                    >
-                                                      {option.name}
-                                                    </Badge>
-                                                  ))}
-                                                </Group>
-                                              )}
-                                            </Table.Td>
-                                          </Table.Tr>
-                                        );
-                                      })}
-                                    </Table.Tbody>
-                                  </Table>
-                                )}
+                                <ModelDefinitionSlotTable
+                                  attachmentSlots={attachmentSlots}
+                                  wargearOptions={wargearOptions}
+                                />
                               </Accordion.Panel>
                             </Accordion.Item>
                           );
@@ -771,7 +779,7 @@ export default function ModelDefinitionsAdminPage() {
             )}
           </div>
         </Stack>
-      )}
+      </AdminPageGate>
 
       <Modal opened={createOpened} onClose={closeCreate} title="Create new model definition">
         <form onSubmit={handleCreateNew}>
@@ -794,6 +802,12 @@ export default function ModelDefinitionsAdminPage() {
           onDiscarded={handleDraftDiscarded}
         />
       )}
+      <ModelDefinitionDraftDiffModal
+        opened={diffDraft !== null}
+        onClose={() => setDiffDraft(null)}
+        draftName={diffDraft?.name ?? ""}
+        diff={diffDraft ? (diffsByDraftId.get(diffDraft.id ?? "") ?? null) : null}
+      />
     </Stack>
   );
 }

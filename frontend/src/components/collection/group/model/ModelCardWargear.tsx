@@ -20,6 +20,12 @@ export type ModelCardWargearProps = Readonly<{
 
 const CUSTOM_WARGEAR_VALUE = "__custom__";
 
+function wargearBadgeColor(optionName: string | undefined, customLabel: string | null | undefined): string {
+  if (optionName) return "blue";
+  if (customLabel) return "grape";
+  return "gray";
+}
+
 export const ModelCardWargear = React.memo(function ModelCardWargear({
   model,
   editMode,
@@ -129,7 +135,7 @@ export const ModelCardWargear = React.memo(function ModelCardWargear({
               <Badge
                 key={slot.id}
                 variant="light"
-                color={optionName ? "blue" : currentSelection?.customLabel ? "grape" : "gray"}
+                color={wargearBadgeColor(optionName, currentSelection?.customLabel)}
                 size="sm"
                 title={currentSelection?.customLabel ? "Custom..." : undefined}
               >
