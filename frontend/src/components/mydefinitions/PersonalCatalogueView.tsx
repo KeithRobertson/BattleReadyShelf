@@ -64,14 +64,16 @@ function MineTable<T extends PersonalDefinition>({
   onRemove,
 }: MineTableProps<T>) {
   return (
-    <ResponsiveTable striped withTableBorder verticalSpacing="xs">
+    <ResponsiveTable striped withTableBorder verticalSpacing="xs" fitOnMobile>
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Name</Table.Th>
           {columns.map((column) => (
-            <Table.Th key={column.header}>{column.header}</Table.Th>
+            <Table.Th key={column.header} visibleFrom="sm">
+              {column.header}
+            </Table.Th>
           ))}
-          <Table.Th>Origin</Table.Th>
+          <Table.Th visibleFrom="sm">Origin</Table.Th>
           <Table.Th />
         </Table.Tr>
       </Table.Thead>
@@ -81,17 +83,30 @@ function MineTable<T extends PersonalDefinition>({
           const isCustomisation = baseIdOf(item) != null;
           return (
             <Table.Tr key={id}>
-              <Table.Td>{item.name}</Table.Td>
+              <Table.Td style={{ wordBreak: "break-word" }}>
+                {item.name}
+                {/* The columns dropped on a phone reappear here, so narrowing the table never
+                    costs information - it only stops the row's buttons scrolling out of reach. */}
+                <Group gap="xs" mt={4} hiddenFrom="sm">
+                  <OriginBadge isCustomisation={isCustomisation} />
+                  <ChangeCountBadge diff={diffsById.get(id)} />
+                  {columns.map((column) => (
+                    <div key={column.header}>{column.render(item)}</div>
+                  ))}
+                </Group>
+              </Table.Td>
               {columns.map((column) => (
-                <Table.Td key={column.header}>{column.render(item)}</Table.Td>
+                <Table.Td key={column.header} visibleFrom="sm">
+                  {column.render(item)}
+                </Table.Td>
               ))}
-              <Table.Td>
+              <Table.Td visibleFrom="sm">
                 <Group gap="xs">
                   <OriginBadge isCustomisation={isCustomisation} />
                   <ChangeCountBadge diff={diffsById.get(id)} />
                 </Group>
               </Table.Td>
-              <Table.Td>
+              <Table.Td w={1} style={{ whiteSpace: "nowrap" }}>
                 <Group gap="xs" justify="flex-end" wrap="nowrap">
                   <Tooltip label="Compare with the shared version">
                     <ActionIcon variant="subtle" aria-label="Compare with shared" onClick={() => onDiff(item)}>
@@ -145,12 +160,14 @@ function SharedTable<T extends PersonalDefinition>({
     );
   }
   return (
-    <ResponsiveTable striped withTableBorder verticalSpacing="xs">
+    <ResponsiveTable striped withTableBorder verticalSpacing="xs" fitOnMobile>
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Name</Table.Th>
           {columns.map((column) => (
-            <Table.Th key={column.header}>{column.header}</Table.Th>
+            <Table.Th key={column.header} visibleFrom="sm">
+              {column.header}
+            </Table.Th>
           ))}
           <Table.Th />
         </Table.Tr>
@@ -158,11 +175,20 @@ function SharedTable<T extends PersonalDefinition>({
       <Table.Tbody>
         {items.map((item) => (
           <Table.Tr key={item.id}>
-            <Table.Td>{item.name}</Table.Td>
+            <Table.Td style={{ wordBreak: "break-word" }}>
+              {item.name}
+              <Group gap="xs" mt={4} hiddenFrom="sm">
+                {columns.map((column) => (
+                  <div key={column.header}>{column.render(item)}</div>
+                ))}
+              </Group>
+            </Table.Td>
             {columns.map((column) => (
-              <Table.Td key={column.header}>{column.render(item)}</Table.Td>
+              <Table.Td key={column.header} visibleFrom="sm">
+                {column.render(item)}
+              </Table.Td>
             ))}
-            <Table.Td>
+            <Table.Td w={1} style={{ whiteSpace: "nowrap" }}>
               <Group justify="flex-end">
                 <Button
                   size="xs"

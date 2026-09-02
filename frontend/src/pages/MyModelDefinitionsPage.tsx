@@ -89,12 +89,12 @@ function MyDefinitionsTable({
   onRemove,
 }: MineTableProps) {
   return (
-    <ResponsiveTable striped withTableBorder verticalSpacing="xs">
+    <ResponsiveTable striped withTableBorder verticalSpacing="xs" fitOnMobile>
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Name</Table.Th>
-          <Table.Th>Faction</Table.Th>
-          <Table.Th>Origin</Table.Th>
+          <Table.Th visibleFrom="sm">Faction</Table.Th>
+          <Table.Th visibleFrom="sm">Origin</Table.Th>
           <Table.Th />
         </Table.Tr>
       </Table.Thead>
@@ -104,19 +104,30 @@ function MyDefinitionsTable({
           const isCustomisation = definition.baseModelDefinitionId != null;
           return (
             <Table.Tr key={id}>
-              <Table.Td>{definition.name}</Table.Td>
-              <Table.Td>
+              <Table.Td style={{ wordBreak: "break-word" }}>
+                {definition.name}
+                {/* The columns dropped on a phone reappear here, so narrowing the table never
+                    costs information - it only stops the row's buttons scrolling out of reach. */}
+                <Group gap="xs" mt={4} hiddenFrom="sm">
+                  <OriginBadge definition={definition} />
+                  <ChangeCountBadge diff={diffsById.get(id)} />
+                  <Text size="sm" c="dimmed">
+                    {factionLabel(definition, factionsById)}
+                  </Text>
+                </Group>
+              </Table.Td>
+              <Table.Td visibleFrom="sm">
                 <Text size="sm" c="dimmed">
                   {factionLabel(definition, factionsById)}
                 </Text>
               </Table.Td>
-              <Table.Td>
+              <Table.Td visibleFrom="sm">
                 <Group gap="xs">
                   <OriginBadge definition={definition} />
                   <ChangeCountBadge diff={diffsById.get(id)} />
                 </Group>
               </Table.Td>
-              <Table.Td>
+              <Table.Td w={1} style={{ whiteSpace: "nowrap" }}>
                 <Group gap="xs" justify="flex-end" wrap="nowrap">
                   <Tooltip label="Compare with the shared version">
                     <ActionIcon variant="subtle" aria-label="Compare with shared" onClick={() => onDiff(definition)}>
@@ -165,24 +176,29 @@ function SharedCatalogueTable({ definitions, factionsById, customisingIds, onCus
     );
   }
   return (
-    <ResponsiveTable striped withTableBorder verticalSpacing="xs">
+    <ResponsiveTable striped withTableBorder verticalSpacing="xs" fitOnMobile>
       <Table.Thead>
         <Table.Tr>
           <Table.Th>Name</Table.Th>
-          <Table.Th>Faction</Table.Th>
+          <Table.Th visibleFrom="sm">Faction</Table.Th>
           <Table.Th />
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
         {definitions.map((definition) => (
           <Table.Tr key={definition.id}>
-            <Table.Td>{definition.name}</Table.Td>
-            <Table.Td>
+            <Table.Td style={{ wordBreak: "break-word" }}>
+              {definition.name}
+              <Text size="sm" c="dimmed" hiddenFrom="sm">
+                {factionLabel(definition, factionsById)}
+              </Text>
+            </Table.Td>
+            <Table.Td visibleFrom="sm">
               <Text size="sm" c="dimmed">
                 {factionLabel(definition, factionsById)}
               </Text>
             </Table.Td>
-            <Table.Td>
+            <Table.Td w={1} style={{ whiteSpace: "nowrap" }}>
               <Group justify="flex-end">
                 <Button
                   size="xs"
