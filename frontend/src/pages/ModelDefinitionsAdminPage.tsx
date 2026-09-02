@@ -676,17 +676,15 @@ export default function ModelDefinitionsAdminPage() {
                           const wargearOptions = md.wargearOptions ?? [];
                           return (
                             <Accordion.Item key={md.id} value={md.id ?? ""}>
-                              <Accordion.Control>
-                                <Group gap="xs" justify="space-between" pr="md">
+                              <Group gap="xs" wrap="nowrap" pr="xs">
+                                <Checkbox
+                                  ml="md"
+                                  aria-label={`Select ${md.name}`}
+                                  checked={selectedModelDefinitionIds.has(md.id ?? "")}
+                                  onChange={(e) => toggleModelDefinitionSelected(md.id ?? "", e.currentTarget.checked)}
+                                />
+                                <Accordion.Control flex={1}>
                                   <Group gap="xs">
-                                    <Checkbox
-                                      aria-label={`Select ${md.name}`}
-                                      checked={selectedModelDefinitionIds.has(md.id ?? "")}
-                                      onClick={(e) => e.stopPropagation()}
-                                      onChange={(e) =>
-                                        toggleModelDefinitionSelected(md.id ?? "", e.currentTarget.checked)
-                                      }
-                                    />
                                     <Text fw={500}>{md.name}</Text>
                                     <Badge variant="outline" size="sm">
                                       v{md.version}
@@ -697,33 +695,31 @@ export default function ModelDefinitionsAdminPage() {
                                       </Badge>
                                     )}
                                   </Group>
-                                  <Group gap="xs" wrap="nowrap">
-                                    <Button
-                                      size="xs"
-                                      variant="light"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (md.id) handleStartEditing(md.id);
+                                </Accordion.Control>
+                                <Group gap="xs" wrap="nowrap">
+                                  <Button
+                                    size="xs"
+                                    variant="light"
+                                    onClick={() => {
+                                      if (md.id) handleStartEditing(md.id);
+                                    }}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Tooltip label="Delete model definition">
+                                    <ActionIcon
+                                      color="red"
+                                      variant="subtle"
+                                      aria-label="Delete model definition"
+                                      onClick={() => {
+                                        if (md.id) handleDeleteModelDefinition(md.id);
                                       }}
                                     >
-                                      Edit
-                                    </Button>
-                                    <Tooltip label="Delete model definition">
-                                      <ActionIcon
-                                        color="red"
-                                        variant="subtle"
-                                        aria-label="Delete model definition"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          if (md.id) handleDeleteModelDefinition(md.id);
-                                        }}
-                                      >
-                                        <IconTrash size={16} />
-                                      </ActionIcon>
-                                    </Tooltip>
-                                  </Group>
+                                      <IconTrash size={16} />
+                                    </ActionIcon>
+                                  </Tooltip>
                                 </Group>
-                              </Accordion.Control>
+                              </Group>
                               <Accordion.Panel>
                                 {md.description && (
                                   <Text size="sm" c="dimmed" mb="sm">
