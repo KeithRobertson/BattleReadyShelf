@@ -1,5 +1,5 @@
-import { Modal, type ModalProps, useMantineTheme } from "@mantine/core";
-import { useMediaQuery } from "@mantine/hooks";
+import { Modal, type ModalProps } from "@mantine/core";
+import useIsMobile from "@/hooks/useIsMobile.ts";
 
 /**
  * A Mantine Modal that becomes a full-screen sheet on small viewports.
@@ -12,8 +12,7 @@ import { useMediaQuery } from "@mantine/hooks";
  * `size` is still honoured above the breakpoint, so desktop layout is unchanged.
  */
 export default function ResponsiveModal({ children, ...props }: Readonly<ModalProps>) {
-  const theme = useMantineTheme();
-  const isMobile = useMediaQuery(`(max-width: ${theme.breakpoints.sm})`);
+  const isMobile = useIsMobile();
 
   return (
     <Modal

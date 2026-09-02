@@ -5,6 +5,7 @@ import type { EditableOption, EditableSlot } from "@/components/modeldefinitions
 import { DEFAULT_SLOT_TYPE, newId } from "@/components/modeldefinitions/definitionChildren.ts";
 import WargearOptionPicker from "@/components/modeldefinitions/WargearOptionPicker.tsx";
 import type { WargearDefinition } from "@/generated";
+import useIsMobile from "@/hooks/useIsMobile.ts";
 
 type AttachmentSlotsEditorProps = Readonly<{
   slots: EditableSlot[];
@@ -13,6 +14,8 @@ type AttachmentSlotsEditorProps = Readonly<{
 }>;
 
 function AttachmentSlotsEditor({ slots, setSlots, onSlotRemoved }: AttachmentSlotsEditorProps) {
+  const isMobile = useIsMobile();
+
   function updateSlot(slotId: string, changes: Partial<EditableSlot>) {
     setSlots((current) => current.map((slot) => (slot.id === slotId ? { ...slot, ...changes } : slot)));
   }
@@ -36,17 +39,18 @@ function AttachmentSlotsEditor({ slots, setSlots, onSlotRemoved }: AttachmentSlo
       ) : (
         <Stack gap="xs">
           {slots.map((slot) => (
-            // Two inputs plus a delete button will not fit across a phone, so the pair wraps onto
-            // separate lines while the delete button stays tied to the input it removes.
+            // Two inputs plus a delete button will not fit across a phone, so below `sm` each input
+            // takes a full line. Relying on flex wrapping alone is not enough: a phone viewport is
+            // wide enough for both bases to fit, so the row would never actually wrap.
             <Group key={slot.id} align="flex-end" wrap="wrap" gap="xs">
               <TextInput
-                flex="1 1 140px"
-                miw={140}
+                flex={isMobile ? "1 1 100%" : "1 1 140px"}
+                miw={isMobile ? 0 : 140}
                 value={slot.name}
                 placeholder="Slot name"
                 onChange={(e) => updateSlot(slot.id, { name: e.currentTarget.value })}
               />
-              <Group gap="xs" wrap="nowrap" flex="1 1 140px" miw={140}>
+              <Group gap="xs" wrap="nowrap" flex={isMobile ? "1 1 100%" : "1 1 140px"} miw={isMobile ? 0 : 140}>
                 <TextInput
                   flex={1}
                   value={slot.type}
@@ -78,6 +82,7 @@ type WargearOptionsEditorProps = Readonly<{
 }>;
 
 function WargearOptionsEditor({ options, setOptions, slots, wargearDefinitions }: WargearOptionsEditorProps) {
+  const isMobile = useIsMobile();
   const slotChoices = slots.map((slot) => ({ value: slot.id, label: slot.name || "(unnamed slot)" }));
 
   function updateOption(optionId: string, changes: Partial<EditableOption>) {
@@ -105,11 +110,12 @@ function WargearOptionsEditor({ options, setOptions, slots, wargearDefinitions }
       ) : (
         <Stack gap="xs">
           {options.map((option) => (
-            // Wraps rather than forcing one row: on a phone the picker and slot select each take a
-            // full line, with the default/delete controls staying together beneath them. Without
-            // this the four controls are squeezed onto one row and the last two end up off-screen.
+            // Below `sm` the picker and slot select each take a full line, with the default/delete
+            // controls beneath them. Flex wrapping alone does not achieve this: a phone viewport is
+            // ~400-500px CSS pixels, so both ~180px bases fit on one row and the row never wraps,
+            // leaving the four controls squeezed together as they are on desktop.
             <Group key={option.id} align="flex-end" wrap="wrap" gap="xs">
-              <Box flex="1 1 180px" miw={180}>
+              <Box flex={isMobile ? "1 1 100%" : "1 1 180px"} miw={isMobile ? 0 : 180}>
                 <WargearOptionPicker
                   definitions={wargearDefinitions}
                   value={{ wargearDefinitionId: option.wargearDefinitionId, name: option.name }}
@@ -122,8 +128,8 @@ function WargearOptionsEditor({ options, setOptions, slots, wargearDefinitions }
                 />
               </Box>
               <MultiSelect
-                flex="1 1 180px"
-                miw={180}
+                flex={isMobile ? "1 1 100%" : "1 1 180px"}
+                miw={isMobile ? 0 : 180}
                 placeholder="Fills slot(s)"
                 data={slotChoices}
                 value={option.attachmentSlotIds}
