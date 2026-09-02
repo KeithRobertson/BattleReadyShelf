@@ -71,6 +71,15 @@ public class ModelDefinitionsService {
         return withChildren(visibleEntities(ownerUserId));
     }
 
+    /**
+     * The shared catalogue alone, never a caller's personal definitions. This is what admins curate:
+     * personal definitions belong to their owner, are not editable here, and carry personal factions
+     * that the shared faction list deliberately omits.
+     */
+    public List<ModelDefinition> getSharedModelDefinitions() {
+        return withChildren(modelDefinitionRepository.findAllByOwnerUserIdIsNull());
+    }
+
     private List<ModelDefinitionEntity> visibleEntities(UUID ownerUserId) {
         var globals = modelDefinitionRepository.findAllByOwnerUserIdIsNull();
         if (ownerUserId == null) {

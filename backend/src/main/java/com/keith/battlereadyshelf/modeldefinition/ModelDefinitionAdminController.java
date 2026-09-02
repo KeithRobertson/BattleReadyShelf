@@ -29,6 +29,11 @@ public class ModelDefinitionAdminController implements ModelDefinitionAdminApi {
     private final ModelDefinitionsService modelDefinitionsService;
 
     @Override
+    public ResponseEntity<List<ModelDefinition>> getAdminModelDefinitions() {
+        return ResponseEntity.ok(modelDefinitionsService.getSharedModelDefinitions());
+    }
+
+    @Override
     public ResponseEntity<Void> deleteModelDefinition(UUID modelDefinitionId) {
         modelDefinitionsService.deleteModelDefinition(modelDefinitionId);
         return ResponseEntity.noContent().build();

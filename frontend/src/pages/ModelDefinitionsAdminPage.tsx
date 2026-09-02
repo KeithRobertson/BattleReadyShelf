@@ -37,9 +37,9 @@ import {
   deleteModelDefinition,
   discardModelDefinitionDraft,
   exportModelDefinitions,
+  getAdminModelDefinitions,
   getFactions,
   getModelDefinitionDrafts,
-  getModelDefinitions,
   getWargearDefinitions,
   importModelDefinitions,
   publishModelDefinitionDraft,
@@ -49,6 +49,8 @@ import extractErrorMessage from "@/utils/extractErrorMessage.ts";
 import { type DraftDiff, diffModelDefinitionDraft } from "@/utils/modelDefinitionDraftDiff";
 
 interface FactionGroup<T> {
+  /** Groups keyed by faction id, so unresolvable ids cannot collide under a shared label. */
+  key: string;
   faction: Faction | null;
   items: T[];
 }
@@ -68,6 +70,7 @@ function groupByFaction<T extends { factionId?: string }>(
     else grouped.set(key, [item]);
   }
   const groups: FactionGroup<T>[] = [...grouped.entries()].map(([factionId, groupItems]) => ({
+    key: factionId,
     faction: factionId ? (factionsById.get(factionId) ?? null) : null,
     items: groupItems,
   }));
@@ -135,7 +138,7 @@ export default function ModelDefinitionsAdminPage() {
       }
       setLoading(true);
       Promise.all([
-        getModelDefinitions({ signal }),
+        getAdminModelDefinitions({ signal }),
         getModelDefinitionDrafts({ signal }),
         getFactions({ signal }),
         getWargearDefinitions({ signal }),
@@ -533,7 +536,7 @@ export default function ModelDefinitionsAdminPage() {
                   const groupDraftIds = group.items.map((d) => d.id ?? "");
                   const groupSelectedCount = groupDraftIds.filter((id) => selectedDraftIds.has(id)).length;
                   return (
-                    <div key={group.faction?.id ?? UNCATEGORISED_LABEL}>
+                    <div key={group.key}>
                       <Text fw={500} size="sm" c="dimmed" mb={4}>
                         {group.faction?.name ?? UNCATEGORISED_LABEL}
                       </Text>
@@ -651,7 +654,7 @@ export default function ModelDefinitionsAdminPage() {
                     selectedModelDefinitionIds.has(id),
                   ).length;
                   return (
-                    <div key={group.faction?.id ?? UNCATEGORISED_LABEL}>
+                    <div key={group.key}>
                       <Group gap="xs" mb={4}>
                         <Checkbox
                           aria-label={`Select all in ${group.faction?.name ?? UNCATEGORISED_LABEL}`}

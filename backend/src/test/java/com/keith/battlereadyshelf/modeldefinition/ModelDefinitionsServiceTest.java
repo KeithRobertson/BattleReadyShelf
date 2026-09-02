@@ -246,6 +246,27 @@ class ModelDefinitionsServiceTest {
     }
 
     @Test
+    void getSharedModelDefinitions_neverIncludesTheCallersOwnDefinitions() {
+        var sharedId = UUID.randomUUID();
+
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull())
+                .thenReturn(
+                        List.of(ModelDefinitionEntity.builder().id(sharedId).name("Plague Marine").build()));
+        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(sharedId)))
+                .thenReturn(List.of());
+        when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(sharedId)))
+                .thenReturn(List.of());
+
+        var modelDefinitions = modelDefinitionsService.getSharedModelDefinitions();
+
+        // Admins curate the shared catalogue only, so who is signed in must make no difference:
+        // unlike the public catalogue endpoint this never folds in the caller's own definitions.
+        assertThat(modelDefinitions).extracting(ModelDefinition::getId).containsExactly(sharedId);
+        verify(authenticatedUserProvider, never()).findCurrentUser();
+        verify(modelDefinitionRepository, never()).findAllByOwnerUserId(any());
+    }
+
+    @Test
     void deleteModelDefinition_deletesWhenNotInUse() {
         var modelDefinitionId = UUID.randomUUID();
         when(modelDefinitionRepository.existsById(modelDefinitionId)).thenReturn(true);
