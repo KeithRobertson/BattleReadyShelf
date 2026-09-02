@@ -1,5 +1,4 @@
-import { Combobox, Group, InputBase, Text, useCombobox } from "@mantine/core";
-import { useState } from "react";
+import { Combobox, Text, TextInput, useCombobox } from "@mantine/core";
 import type { WargearDefinition } from "@/generated";
 
 export type WargearSelection = Readonly<{
@@ -22,69 +21,57 @@ type WargearOptionPickerProps = Readonly<{
  */
 export default function WargearOptionPicker({ definitions, value, onChange }: WargearOptionPickerProps) {
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
-  const [search, setSearch] = useState("");
 
-  const term = search.trim().toLowerCase();
-  const matches = definitions.filter(
-    (definition) =>
-      definition.name.toLowerCase().includes(term) || (definition.externalId?.toLowerCase().includes(term) ?? false),
-  );
-  const hasExactMatch = definitions.some((definition) => definition.name.toLowerCase() === term);
+  const term = value.name.trim().toLowerCase();
+  const showAll = value.wargearDefinitionId != null || term === "";
+  const matches = showAll ? definitions : definitions.filter((d) => d.name.toLowerCase().includes(term));
+  const isUnknownName = term !== "" && !definitions.some((d) => d.name.toLowerCase() === term);
 
-  function handleSelect(optionValue: string) {
-    if (optionValue.startsWith("new:")) {
-      onChange({ name: optionValue.slice("new:".length) });
-    } else {
-      const picked = definitions.find((definition) => definition.id === optionValue);
-      if (picked) onChange({ wargearDefinitionId: picked.id, name: picked.name });
-    }
-    setSearch("");
+  function handleSelect(definitionId: string) {
+    const picked = definitions.find((definition) => definition.id === definitionId);
+    if (picked) onChange({ wargearDefinitionId: picked.id, name: picked.name });
     combobox.closeDropdown();
   }
 
   const options = matches.map((definition) => (
     <Combobox.Option value={definition.id ?? ""} key={definition.id}>
-      <Group justify="space-between" wrap="nowrap">
-        <Text size="sm">{definition.name}</Text>
-        {definition.externalId != null && (
-          <Text size="xs" c="dimmed" ff="monospace">
-            {definition.externalId}
-          </Text>
-        )}
-      </Group>
+      <Text size="sm">{definition.name}</Text>
     </Combobox.Option>
   ));
 
   return (
     <Combobox store={combobox} withinPortal onOptionSubmit={handleSelect}>
       <Combobox.Target>
-        <InputBase
-          component="button"
-          type="button"
-          pointer
+        <TextInput
+          placeholder="Select or type wargear"
+          value={value.name}
           rightSection={<Combobox.Chevron />}
           rightSectionPointerEvents="none"
-          onClick={() => combobox.toggleDropdown()}
-        >
-          {value.name === "" ? <Text c="dimmed">Select wargear</Text> : value.name}
-        </InputBase>
+          onChange={(event) => {
+            combobox.openDropdown();
+            combobox.updateSelectedOptionIndex();
+            onChange({ name: event.currentTarget.value });
+          }}
+          onFocus={() => combobox.openDropdown()}
+          onClick={() => combobox.openDropdown()}
+          onBlur={() => combobox.closeDropdown()}
+        />
       </Combobox.Target>
 
       <Combobox.Dropdown>
-        <Combobox.Search
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-          placeholder="Search wargear"
-        />
         <Combobox.Options mah={260} style={{ overflowY: "auto" }}>
           {options}
-          {term !== "" && !hasExactMatch && (
-            <Combobox.Option value={`new:${search.trim()}`}>
-              <Text size="sm">+ Create new wargear &quot;{search.trim()}&quot;</Text>
-            </Combobox.Option>
+          {options.length === 0 && (
+            <Combobox.Empty>{definitions.length === 0 ? "No wargear definitions yet" : "No matches"}</Combobox.Empty>
           )}
-          {options.length === 0 && term === "" && <Combobox.Empty>No wargear definitions yet</Combobox.Empty>}
         </Combobox.Options>
+        {isUnknownName && (
+          <Combobox.Footer>
+            <Text size="xs" c="dimmed">
+              &quot;{value.name.trim()}&quot; is not in the catalogue yet — it will be created when you save.
+            </Text>
+          </Combobox.Footer>
+        )}
       </Combobox.Dropdown>
     </Combobox>
   );
