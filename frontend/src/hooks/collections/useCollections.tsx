@@ -12,6 +12,7 @@ import type { ArmyCollection, CollectionModelStatus } from "@/generated";
 import { createArmyCollection, getArmyCollections, reorderArmyCollections } from "@/generated";
 import { COLLECTIONS_KEY } from "@/queryKeys.ts";
 import { COLLECTION_MODEL_STATUSES } from "@/utils/collectionModelStatus";
+import isInitialLoad from "@/utils/isInitialLoad.ts";
 
 export type CollectionsState = "auth-loading" | "unauthenticated" | "collections-loading" | "empty" | "ready";
 
@@ -27,11 +28,7 @@ export function useCollections() {
   const [description, setDescription] = useState("");
   const [isPublic, setIsPublic] = useState(false);
 
-  const {
-    data: collections = [],
-    isLoading: collectionsLoading,
-    error,
-  } = useQuery<ArmyCollection[]>({
+  const collectionsQuery = useQuery<ArmyCollection[]>({
     queryKey: [COLLECTIONS_KEY],
     queryFn: async () => {
       const response = await getArmyCollections();
@@ -40,6 +37,7 @@ export function useCollections() {
     enabled: isAuthenticated,
     placeholderData: [],
   });
+  const { data: collections = [], isLoading: collectionsLoading, error } = collectionsQuery;
 
   useEffect(() => {
     if (!collections) return;
@@ -126,7 +124,7 @@ export function useCollections() {
   function getCollectionsState(): CollectionsState {
     if (isAuthLoading) return "auth-loading";
     if (!isAuthenticated) return "unauthenticated";
-    if (collectionsLoading) return "collections-loading";
+    if (collectionsLoading || isInitialLoad(collectionsQuery)) return "collections-loading";
     if (collections.length === 0) return "empty";
     return "ready";
   }

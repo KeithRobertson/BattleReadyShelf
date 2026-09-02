@@ -3,6 +3,7 @@ import { useAuth } from "@/auth/useAuth";
 import type { ArmyCollection } from "@/generated";
 import { getArmyCollection } from "@/generated";
 import { COLLECTION_KEY } from "@/queryKeys.ts";
+import isInitialLoad from "@/utils/isInitialLoad.ts";
 
 export type CollectionHook = ReturnType<typeof useCollection>;
 
@@ -13,6 +14,8 @@ export default function useCollection(collectionId: string | undefined) {
   const {
     data: collection,
     isLoading,
+    isFetching,
+    isPlaceholderData,
     isError,
     error,
   } = useQuery<ArmyCollection | null>({
@@ -38,7 +41,7 @@ export default function useCollection(collectionId: string | undefined) {
   return {
     collection,
     isOwner,
-    loading: isAuthLoading || isLoading,
+    loading: isAuthLoading || isLoading || isInitialLoad({ isFetching, isPlaceholderData }),
     error: isError ? String(error) : null,
     setCollection,
   };

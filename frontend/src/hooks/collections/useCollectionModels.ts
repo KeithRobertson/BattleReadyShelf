@@ -12,6 +12,7 @@ import {
 } from "@/generated";
 import { COLLECTION_MODELS_KEY } from "@/queryKeys.ts";
 import { createImageVariants } from "@/utils/imageVariants";
+import isInitialLoad from "@/utils/isInitialLoad.ts";
 
 export type CollectionModels = ReturnType<typeof useCollectionModels>;
 
@@ -21,6 +22,8 @@ export default function useCollectionModels(collectionId: string | undefined) {
   const {
     data: models = [],
     isLoading,
+    isFetching,
+    isPlaceholderData,
     isError,
     error,
   } = useQuery<CollectionModel[]>({
@@ -256,7 +259,7 @@ export default function useCollectionModels(collectionId: string | undefined) {
 
   return {
     models,
-    loading: isLoading,
+    loading: isLoading || isInitialLoad({ isFetching, isPlaceholderData }),
     error: isError ? String(error) : null,
     setModels,
     addModel,

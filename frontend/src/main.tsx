@@ -18,7 +18,9 @@ const rootElement = document.getElementById("root");
 // and meant a catalogue fetched on an earlier visit was reused forever within a session, so a
 // faction or model definition added on one page stayed invisible on the others until a full page
 // reload. Every query below sets `placeholderData`, so a background refetch on mount re-renders
-// with fresh data without ever showing a loading state.
+// with fresh data without showing a loading state over data we already have. Note that this also
+// makes `isLoading` false on the very first render, so use `isInitialLoad` (see
+// `utils/isInitialLoad.ts`) to decide whether to show a loading state.
 const queryClient = new QueryClient();
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
 

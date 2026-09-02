@@ -4,6 +4,7 @@ import type { Faction, ModelDefinition } from "@/generated";
 import { getFactionsList, getModelDefinitions } from "@/generated";
 import { FACTIONS_KEY, MODEL_DEFINITIONS_KEY } from "@/queryKeys.ts";
 import { factionOptionLabel, modelDefinitionOptionLabel } from "@/utils/definitionOrigin.ts";
+import isInitialLoad from "@/utils/isInitialLoad.ts";
 
 function compareFactionGroups(a: string, b: string): number {
   if (a === "Uncategorised" && b !== "Uncategorised") return 1;
@@ -14,12 +15,7 @@ function compareFactionGroups(a: string, b: string): number {
 export type CollectionMetadata = ReturnType<typeof useCollectionMetadata>;
 
 export default function useCollectionMetadata(collectionId: string | undefined) {
-  const {
-    data: modelDefinitions = [],
-    isLoading: modelDefinitionsLoading,
-    isError: isModelDefinitionsError,
-    error: modelDefinitionsError,
-  } = useQuery<ModelDefinition[]>({
+  const modelDefinitionsQuery = useQuery<ModelDefinition[]>({
     queryKey: [MODEL_DEFINITIONS_KEY, collectionId],
     queryFn: async () => {
       const response = await getModelDefinitions();
@@ -28,13 +24,14 @@ export default function useCollectionMetadata(collectionId: string | undefined) 
     enabled: Boolean(collectionId),
     placeholderData: [],
   });
-
   const {
-    data: factions = [],
-    isLoading: factionsLoading,
-    isError: isFactionsError,
-    error: factionsError,
-  } = useQuery<Faction[]>({
+    data: modelDefinitions = [],
+    isLoading: modelDefinitionsLoading,
+    isError: isModelDefinitionsError,
+    error: modelDefinitionsError,
+  } = modelDefinitionsQuery;
+
+  const factionsQuery = useQuery<Faction[]>({
     queryKey: [FACTIONS_KEY, collectionId],
     queryFn: async () => {
       const response = await getFactionsList();
@@ -43,6 +40,12 @@ export default function useCollectionMetadata(collectionId: string | undefined) 
     enabled: Boolean(collectionId),
     placeholderData: [],
   });
+  const {
+    data: factions = [],
+    isLoading: factionsLoading,
+    isError: isFactionsError,
+    error: factionsError,
+  } = factionsQuery;
 
   let metadataError: string | null = null;
 
@@ -93,7 +96,11 @@ export default function useCollectionMetadata(collectionId: string | undefined) 
     factions,
     factionFilterOptions,
     modelDefinitionSelectData,
-    loading: modelDefinitionsLoading || factionsLoading,
+    loading:
+      modelDefinitionsLoading ||
+      factionsLoading ||
+      isInitialLoad(modelDefinitionsQuery) ||
+      isInitialLoad(factionsQuery),
     error: metadataError,
   };
 }
