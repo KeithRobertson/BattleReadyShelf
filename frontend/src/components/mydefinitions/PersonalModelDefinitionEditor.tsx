@@ -66,7 +66,22 @@ export default function PersonalModelDefinitionEditor({
   }
 
   return (
-    <ResponsiveModal opened onClose={onClose} title="Edit your model definition" size="lg">
+    <ResponsiveModal
+      opened
+      onClose={onClose}
+      title="Edit your model definition"
+      size="lg"
+      footer={
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button loading={saving} onClick={handleSave}>
+            Save
+          </Button>
+        </Group>
+      }
+    >
       <Stack gap="md">
         {isCustomisation ? (
           <Badge variant="light" w="fit-content">
@@ -113,15 +128,6 @@ export default function PersonalModelDefinitionEditor({
           setOptions={setOptions}
           wargearDefinitions={wargearDefinitions}
         />
-
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button loading={saving} onClick={handleSave}>
-            Save
-          </Button>
-        </Group>
       </Stack>
     </ResponsiveModal>
   );

@@ -121,7 +121,48 @@ export default function ModelDefinitionDraftEditor({
   }
 
   return (
-    <ResponsiveModal opened onClose={onClose} title="Edit model definition draft" size="lg">
+    <ResponsiveModal
+      opened
+      onClose={onClose}
+      title="Edit model definition draft"
+      size="lg"
+      footer={
+        showPublishConfirm ? (
+          <Stack gap="xs">
+            <Textarea
+              label="Change summary (optional, recorded in the audit trail)"
+              value={changeSummary}
+              onChange={(e) => setChangeSummary(e.currentTarget.value)}
+              autosize
+              minRows={1}
+              maxRows={3}
+            />
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setShowPublishConfirm(false)}>
+                Cancel
+              </Button>
+              <Button color="green" loading={publishing} onClick={handlePublish}>
+                Confirm publish
+              </Button>
+            </Group>
+          </Stack>
+        ) : (
+          <Group justify="space-between">
+            <Button color="red" variant="subtle" loading={discarding} onClick={handleDiscard}>
+              Discard draft
+            </Button>
+            <Group gap="xs">
+              <Button variant="default" loading={saving} onClick={() => handleSave(true)}>
+                Save draft
+              </Button>
+              <Button color="green" onClick={() => setShowPublishConfirm(true)}>
+                Publish...
+              </Button>
+            </Group>
+          </Group>
+        )
+      }
+    >
       <Stack gap="md">
         {draft.publishedModelDefinitionId ? (
           <Badge variant="light" w="fit-content">
@@ -175,40 +216,6 @@ export default function ModelDefinitionDraftEditor({
           setOptions={setOptions}
           wargearDefinitions={wargearDefinitions}
         />
-
-        {showPublishConfirm ? (
-          <Stack gap="xs" p="sm" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 4 }}>
-            <Textarea
-              label="Change summary (optional, recorded in the audit trail)"
-              value={changeSummary}
-              onChange={(e) => setChangeSummary(e.currentTarget.value)}
-              autosize
-              minRows={2}
-            />
-            <Group justify="flex-end">
-              <Button variant="default" onClick={() => setShowPublishConfirm(false)}>
-                Cancel
-              </Button>
-              <Button color="green" loading={publishing} onClick={handlePublish}>
-                Confirm publish
-              </Button>
-            </Group>
-          </Stack>
-        ) : (
-          <Group justify="space-between">
-            <Button color="red" variant="subtle" loading={discarding} onClick={handleDiscard}>
-              Discard draft
-            </Button>
-            <Group>
-              <Button variant="default" loading={saving} onClick={() => handleSave(true)}>
-                Save draft
-              </Button>
-              <Button color="green" onClick={() => setShowPublishConfirm(true)}>
-                Publish...
-              </Button>
-            </Group>
-          </Group>
-        )}
       </Stack>
     </ResponsiveModal>
   );

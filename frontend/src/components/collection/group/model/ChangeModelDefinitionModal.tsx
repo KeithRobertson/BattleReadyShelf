@@ -130,7 +130,29 @@ export default function ChangeModelDefinitionModal({
   const droppedCount = preview?.entries.filter((entry) => entry.outcome === "DROPPED").length ?? 0;
 
   return (
-    <ResponsiveModal opened={opened} onClose={onClose} title="Change model type" size="lg">
+    <ResponsiveModal
+      opened={opened}
+      onClose={onClose}
+      title="Change model type"
+      size="lg"
+      footer={
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!selectedId || loading || !!error}
+            color={droppedCount > 0 ? "orange" : undefined}
+            onClick={() => {
+              if (selectedId) onConfirm(selectedId);
+              onClose();
+            }}
+          >
+            Change type
+          </Button>
+        </Group>
+      }
+    >
       <Stack gap="md">
         <Text size="sm" c="dimmed">
           Currently {model.modelDefinition?.name ?? "an unknown type"}. Wargear is carried across to the new type
@@ -171,22 +193,6 @@ export default function ChangeModelDefinitionModal({
             )}
           </Stack>
         )}
-
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            disabled={!selectedId || loading || !!error}
-            color={droppedCount > 0 ? "orange" : undefined}
-            onClick={() => {
-              if (selectedId) onConfirm(selectedId);
-              onClose();
-            }}
-          >
-            Change type
-          </Button>
-        </Group>
       </Stack>
     </ResponsiveModal>
   );

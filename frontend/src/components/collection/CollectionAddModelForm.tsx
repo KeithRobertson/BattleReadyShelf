@@ -23,6 +23,11 @@ export type CollectionAddModelFormProps = Readonly<{
   setFactionFilter: (v: string[]) => void;
   status: CollectionModelStatus;
   setStatus: (status: CollectionModelStatus) => void;
+  /**
+   * When set, the form is given this id and drops its own submit button, so an outside button can
+   * submit it with a matching `form` attribute. Used to pin the action to a modal footer.
+   */
+  formId?: string;
   addModel: (
     modelDefinitionId: string,
     name?: string,
@@ -53,6 +58,7 @@ export function CollectionAddModelForm(props: CollectionAddModelFormProps) {
     setFactionFilter,
     status,
     setStatus,
+    formId,
     addModel,
     loading,
     onSubmitted,
@@ -86,7 +92,7 @@ export function CollectionAddModelForm(props: CollectionAddModelFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit} id={formId}>
       <Stack gap="xs">
         <Group align="flex-end" wrap="wrap">
           <MultiSelect
@@ -158,9 +164,11 @@ export function CollectionAddModelForm(props: CollectionAddModelFormProps) {
             w={160}
           />
 
-          <Button type="submit" leftSection={<IconPlus size={16} />} loading={loading}>
-            {Number(count) > 1 ? `Add ${count} models` : "Add model"}
-          </Button>
+          {formId == null && (
+            <Button type="submit" leftSection={<IconPlus size={16} />} loading={loading}>
+              {Number(count) > 1 ? `Add ${count} models` : "Add model"}
+            </Button>
+          )}
         </Group>
 
         {Number(count) > 1 && (
