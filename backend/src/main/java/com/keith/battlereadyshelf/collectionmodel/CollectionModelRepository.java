@@ -14,6 +14,13 @@ public interface CollectionModelRepository extends JpaRepository<CollectionModel
 
     long countByModelDefinitionId(UUID modelDefinitionId);
 
+    /**
+     * Whether a collection contains any model of one type. Used to reject a paint recipe scoped to a
+     * type the collection does not have, which could never be displayed.
+     */
+    boolean existsByArmyCollectionIdAndModelDefinitionId(
+            UUID armyCollectionId, UUID modelDefinitionId);
+
     @Query(
             "select c.armyCollectionId as armyCollectionId, c.status as status, count(c) as count "
                     + "from CollectionModelEntity c "

@@ -4,6 +4,7 @@ import { CollectionDescriptionEditor } from "@/components/collection/CollectionD
 import { CollectionNameEditor } from "@/components/collection/CollectionNameEditor.tsx";
 import { CollectionVisibilityToggle } from "@/components/collection/CollectionVisibilityToggle.tsx";
 import { useCollectionContext } from "@/components/collection/context/CollectionContext.ts";
+import CollectionPaintRecipe from "@/components/collection/paint/CollectionPaintRecipe.tsx";
 
 export default function CollectionHeader() {
   const { collection } = useCollectionContext();
@@ -17,6 +18,8 @@ export default function CollectionHeader() {
       {collection.collection?.userDisplayName && <CollectionCreatedBy name={collection.collection.userDisplayName} />}
 
       <CollectionDescriptionEditor />
+
+      <CollectionPaintRecipe />
     </Stack>
   );
 }

@@ -14,3 +14,5 @@ export const COLLECTION_KEY = "collection";
 export const COLLECTION_MODELS_KEY = "collectionModels";
 export const MODEL_DEFINITIONS_KEY = "modelDefinitions";
 export const FACTIONS_KEY = "factions";
+export const PAINTS_KEY = "paints";
+export const PAINT_RECIPES_KEY = "paintRecipes";

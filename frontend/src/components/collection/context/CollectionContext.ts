@@ -9,6 +9,7 @@ import type { GroupedModels } from "@/hooks/collections/useGroupedModels.ts";
 import type { ModelImages } from "@/hooks/collections/useModelImages.ts";
 import type { ModelSelection } from "@/hooks/collections/useModelSelection.ts";
 import type { ModelSort } from "@/hooks/collections/useModelSort.ts";
+import type { PaintRecipes } from "@/hooks/collections/usePaintRecipes.ts";
 
 export interface CollectionContextValue {
   collection: CollectionHook;
@@ -20,6 +21,7 @@ export interface CollectionContextValue {
   modelImages: ModelImages;
   collectionModels: CollectionModels;
   modelSort: ModelSort;
+  paintRecipes: PaintRecipes;
   isEditMode: boolean;
   setIsEditMode: (v: boolean) => void;
   statusFilter: CollectionModelStatus[];

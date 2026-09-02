@@ -23,6 +23,7 @@ import useGroupedModels from "@/hooks/collections/useGroupedModels.ts";
 import useModelImages from "@/hooks/collections/useModelImages.ts";
 import useModelSelection from "@/hooks/collections/useModelSelection.ts";
 import { useModelSort } from "@/hooks/collections/useModelSort.ts";
+import usePaintRecipes from "@/hooks/collections/usePaintRecipes.ts";
 import NotFoundPage from "@/pages//NotFoundPage";
 
 export type ModelDefinitionSelectData = {
@@ -45,6 +46,7 @@ export default function CollectionPage() {
   const collectionMetaData = useCollectionMetadata(collectionId);
   const collectionModels = useCollectionModels(collectionId);
   const modelSort = useModelSort();
+  const paintRecipes = usePaintRecipes(collectionId);
   const [statusFilter, setStatusFilter] = useState<CollectionModelStatus[]>([]);
   const groupedModels = useGroupedModels(
     collectionModels.models,
@@ -91,6 +93,7 @@ export default function CollectionPage() {
       modelImages={modelImages}
       collectionModels={collectionModels}
       modelSort={modelSort}
+      paintRecipes={paintRecipes}
       isEditMode={isEditMode}
       setIsEditMode={setIsEditMode}
       statusFilter={statusFilter}

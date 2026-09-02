@@ -1,5 +1,5 @@
 import type { TablerIcon } from "@tabler/icons-react";
-import { IconSwords, IconTags, IconTagsChevronUp, IconTools, IconUsers } from "@tabler/icons-react";
+import { IconPaint, IconSwords, IconTags, IconTagsChevronUp, IconTools, IconUsers } from "@tabler/icons-react";
 
 export interface NavItem {
   label: string;
@@ -24,6 +24,11 @@ export const myDefinitionNavItems: NavItem[] = [
     to: "/my/wargear-definitions",
     icon: IconSwords,
   },
+  {
+    label: "My Paints",
+    to: "/my/paints",
+    icon: IconPaint,
+  },
 ];
 
 export const adminNavItems: NavItem[] = [
@@ -46,5 +51,10 @@ export const adminNavItems: NavItem[] = [
     label: "Manage Wargear Definitions",
     to: "/admin/wargear-definitions",
     icon: IconSwords,
+  },
+  {
+    label: "Manage Paints",
+    to: "/admin/paint-definitions",
+    icon: IconPaint,
   },
 ];

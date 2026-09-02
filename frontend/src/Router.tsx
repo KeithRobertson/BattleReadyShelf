@@ -10,10 +10,12 @@ const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
 const MyModelDefinitionsPage = lazy(() => import("@/pages/MyModelDefinitionsPage"));
 const MyFactionsPage = lazy(() => import("@/pages/MyFactionsPage"));
 const MyWargearDefinitionsPage = lazy(() => import("@/pages/MyWargearDefinitionsPage"));
+const MyPaintsPage = lazy(() => import("@/pages/MyPaintsPage"));
 const UsersAdminPage = lazy(() => import("@/pages/UsersAdminPage"));
 const ModelDefinitionsAdminPage = lazy(() => import("@/pages/ModelDefinitionsAdminPage"));
 const FactionDefinitionsAdminPage = lazy(() => import("@/pages/FactionDefinitionsAdminPage"));
 const WargearDefinitionsAdminPage = lazy(() => import("@/pages/WargearDefinitionsAdminPage"));
+const PaintDefinitionsAdminPage = lazy(() => import("@/pages/PaintDefinitionsAdminPage"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 
 const Router = () => (
@@ -27,11 +29,13 @@ const Router = () => (
       <Route path="my/model-definitions" element={<MyModelDefinitionsPage />} />
       <Route path="my/factions" element={<MyFactionsPage />} />
       <Route path="my/wargear-definitions" element={<MyWargearDefinitionsPage />} />
+      <Route path="my/paints" element={<MyPaintsPage />} />
       <Route path="settings" element={<SettingsPage />} />
       <Route path="admin/users" element={<UsersAdminPage />} />
       <Route path="admin/model-definitions" element={<ModelDefinitionsAdminPage />} />
       <Route path="admin/faction-definitions" element={<FactionDefinitionsAdminPage />} />
       <Route path="admin/wargear-definitions" element={<WargearDefinitionsAdminPage />} />
+      <Route path="admin/paint-definitions" element={<PaintDefinitionsAdminPage />} />
       <Route path="*" element={<NotFoundPage />} />
     </Route>
   </Routes>

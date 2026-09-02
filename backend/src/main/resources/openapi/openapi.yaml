@@ -1857,6 +1857,574 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /api/v1/paints:
+    get:
+      tags: [ "Paints" ]
+      summary: >-
+        List the paints the caller can use - the shared catalogue plus, when signed in, their own.
+        This is what backs the paint picker on a recipe.
+      operationId: getPaints
+      responses:
+        '200':
+          description: The visible paints, ordered by brand then name
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Paint'
+  /api/v1/my/paints:
+    get:
+      tags: [ "PersonalPaints" ]
+      summary: List the signed-in user's own paints
+      description: >-
+        Both kinds of personal paint: customisations of catalogue paints (which carry a basePaintId)
+        and paints the user added themselves, such as a mix of their own or a brand the catalogue
+        doesn't carry.
+      operationId: getMyPaints
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: This user's paints
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Paint'
+    post:
+      tags: [ "PersonalPaints" ]
+      summary: Add a paint of the user's own
+      operationId: createMyPaint
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePaintRequest'
+      responses:
+        '201':
+          description: The created paint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Paint'
+        '409':
+          description: The user already has a paint with that name and brand
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/my/paints/shared:
+    get:
+      tags: [ "PersonalPaints" ]
+      summary: List the shared paint catalogue on its own
+      description: >-
+        GET /api/v1/paints returns the shared catalogue and the user's own together. This endpoint
+        returns the shared paints alone: to offer them for customisation, and to diff a personal
+        copy against the paint it was forked from.
+      operationId: getSharedPaints
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: The shared paints
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Paint'
+  /api/v1/my/paints/{paintId}:
+    put:
+      tags: [ "PersonalPaints" ]
+      summary: Update one of the user's own paints
+      operationId: updateMyPaint
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: paintId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePaintRequest'
+      responses:
+        '200':
+          description: The updated paint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Paint'
+        '404':
+          description: No such paint belongs to this user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: The user already has a paint with that name and brand
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    delete:
+      tags: [ "PersonalPaints" ]
+      summary: Delete one of the user's own paints
+      description: For a customisation this is the "revert to the catalogue version" action.
+      operationId: deleteMyPaint
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: paintId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The paint was deleted
+        '404':
+          description: No such paint belongs to this user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: Paint recipes still reference this paint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/my/paints/from/{paintId}:
+    post:
+      tags: [ "PersonalPaints" ]
+      summary: Start customising a shared paint
+      description: >-
+        Copies the catalogue paint into one owned by the caller, which they can then rename or
+        recolour - useful when a paint has been reformulated, or the user thins or mixes it and
+        wants their own swatch. Idempotent - returns the existing customisation if they already
+        have one.
+      operationId: customisePaint
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: paintId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The personal copy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Paint'
+        '400':
+          description: The given paint is not shared
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Paint not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/paints:
+    get:
+      tags: [ "PaintAdmin" ]
+      summary: >-
+        List the shared paint catalogue (admin only), each with how many recipes use it. Personal
+        paints are never returned here.
+      operationId: getAdminPaints
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: The shared paints, ordered by brand then name
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Paint'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    post:
+      tags: [ "PaintAdmin" ]
+      summary: Add a paint to the shared catalogue (admin only)
+      operationId: createPaint
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePaintRequest'
+      responses:
+        '201':
+          description: The created paint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Paint'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: The catalogue already has a paint with that name and brand
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/paints/{paintId}:
+    patch:
+      tags: [ "PaintAdmin" ]
+      summary: >-
+        Propose a change to a shared paint (admin only). The change is staged for review rather
+        than applied, because one catalogue row backs every recipe that uses the paint. Proposing
+        the state already stored instead clears any pending change and returns 204.
+      operationId: proposePaintChange
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: paintId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePaintRequest'
+      responses:
+        '200':
+          description: The staged change, awaiting review
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaintDraft'
+        '204':
+          description: The proposed state matches the stored one, so nothing is staged
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Paint not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    delete:
+      tags: [ "PaintAdmin" ]
+      summary: Remove a paint from the shared catalogue (admin only)
+      operationId: deletePaint
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: paintId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The paint was deleted
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Paint not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: Recipes or personal customisations still reference this paint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/paints/drafts:
+    get:
+      tags: [ "PaintAdmin" ]
+      summary: >-
+        List pending paint changes awaiting review (admin only), each showing the stored state and
+        the state that would be applied.
+      operationId: getPaintDrafts
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: The pending paint changes, ordered by proposed name
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaintDraft'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/paints/drafts/{draftId}/publish:
+    post:
+      tags: [ "PaintAdmin" ]
+      summary: >-
+        Accept a pending paint change (admin only), applying it to the shared catalogue and
+        therefore to every recipe that uses the paint, and recording an audit entry.
+      operationId: publishPaintDraft
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The updated paint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Paint'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Draft not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/paints/drafts/{draftId}:
+    delete:
+      tags: [ "PaintAdmin" ]
+      summary: Reject a pending paint change (admin only), keeping the stored state.
+      operationId: discardPaintDraft
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The pending change was discarded
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Draft not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/paints/{paintId}/publish-history:
+    get:
+      tags: [ "PaintAdmin" ]
+      summary: Accepted changes to this paint, most recent first (admin only)
+      operationId: getPaintPublishHistory
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: paintId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The paint's publish history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DefinitionPublishAudit'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/paints/export:
+    get:
+      tags: [ "PaintAdmin" ]
+      summary: >-
+        Export the whole shared paint catalogue as a versioned JSON document (admin only),
+        including paints no recipe currently uses.
+      operationId: exportPaints
+      security:
+        - bearerAuth: [ ]
+      responses:
+        '200':
+          description: The exported paints
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaintExport'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/admin/paints/import:
+    post:
+      tags: [ "PaintAdmin" ]
+      summary: >-
+        Import a versioned JSON document of paints (admin only), matched by stable source id.
+        Paints the catalogue does not have yet are created outright, but an entry differing from
+        the stored one raises a pending change for review rather than being applied - one
+        catalogue row backs every recipe that names the paint, in every user's collection, so an
+        unattended edit fans out across all of them.
+      operationId: importPaints
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaintExport'
+      responses:
+        '200':
+          description: What the import created and what it wants an admin to review
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaintImportResult'
+        '400':
+          description: The document's schemaVersion is not supported, or an entry is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/army-collections/{armyCollectionId}/paint-recipes:
+    get:
+      tags: [ "PaintRecipes" ]
+      summary: Every paint recipe that applies anywhere in this collection
+      description: >-
+        Returns the collection-wide recipe, the recipes attached to a model type within this
+        collection, and the recipes attached to individual models, in one call. A model's effective
+        recipe is the collection one, then its type's, then its own, so the client can resolve what
+        to show without a request per model.
+      operationId: getPaintRecipes
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: armyCollectionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The recipes applying to this collection
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaintRecipe'
+        '404':
+          description: Army collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /api/v1/paint-recipes:
+    put:
+      tags: [ "PaintRecipes" ]
+      summary: Create or replace the paint recipe at one scope
+      description: >-
+        Upserts by scope and target rather than by id, because at most one recipe exists per target.
+        Sending an empty paint list and empty notes deletes the recipe instead, which is what
+        clearing the editor does.
+      operationId: savePaintRecipe
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavePaintRecipeRequest'
+      responses:
+        '200':
+          description: The saved recipe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaintRecipe'
+        '204':
+          description: The recipe was empty, so any existing one at that scope was removed
+        '400':
+          description: The target ids do not match the given scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: The collection, model or paint was not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/army-collections/{armyCollectionId}/models:
     get:
       tags: [ "CollectionModels" ]
@@ -2665,6 +3233,254 @@ components:
       readOnly: true
       description: Where a pending change came from, so a review can weigh an import against a hand edit.
       enum: [ IMPORT, ADMIN ]
+    PaintType:
+      type: string
+      description: >-
+        What the paint is for, which is also roughly the order it goes on the model. Recipes are
+        sorted by the step the user gives them rather than by this, but it makes a long catalogue
+        searchable and tells you why two similar colours are not interchangeable.
+      enum: [ BASE, LAYER, SHADE, CONTRAST, DRY, TECHNICAL, PRIMER, VARNISH, OTHER ]
+    Paint:
+      type: object
+      description: >-
+        A paint that can be recorded in a recipe, e.g. Citadel's "Leadbelcher". Brand is part of the
+        identity because names are only unique within one: several manufacturers sell a "Bone
+        White".
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        externalId:
+          type: string
+          readOnly: true
+          nullable: true
+          description: Stable identifier from the reference dataset; null for paints added by hand.
+        ownerUserId:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: >-
+            Null for the shared catalogue. Set when a user added a paint of their own - a mix, or a
+            brand the catalogue doesn't carry - in which case only they can see it.
+        basePaintId:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: >-
+            The catalogue paint this personal one was forked from, so the app can show how it
+            differs and offer to revert. Null both for catalogue paints and for paints a user added
+            themselves.
+        name:
+          type: string
+          description: The paint's name, e.g. "Leadbelcher".
+        brand:
+          type: string
+          nullable: true
+          description: Who makes it, e.g. "Citadel". Null for a user's own mix.
+        paintType:
+          $ref: '#/components/schemas/PaintType'
+        hexColour:
+          type: string
+          nullable: true
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          description: >-
+            A swatch colour as #RRGGBB. An indicator rather than a match - metallics, shades and
+            contrast paints cannot be represented honestly by a flat colour.
+        usageCount:
+          type: integer
+          format: int32
+          readOnly: true
+          description: How many paint recipes currently reference this paint.
+      required: [ name ]
+    UpdatePaintRequest:
+      type: object
+      description: >-
+        The complete proposed state of a paint. An omitted or null brand, paintType or hexColour
+        proposes clearing that field rather than leaving it alone.
+      properties:
+        name:
+          type: string
+        brand:
+          type: string
+          nullable: true
+        paintType:
+          $ref: '#/components/schemas/PaintType'
+        hexColour:
+          type: string
+          nullable: true
+          pattern: '^#[0-9A-Fa-f]{6}$'
+      required: [ name ]
+    PaintDraft:
+      type: object
+      description: >-
+        A change to a catalogue paint that has been proposed but not yet applied. One catalogue row
+        backs every recipe that uses the paint, so the change is staged here for an admin to accept
+        or reject. The draft carries the complete proposed state.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        paintId:
+          type: string
+          format: uuid
+          readOnly: true
+        externalId:
+          type: string
+          readOnly: true
+          nullable: true
+          description: Stable identifier from the reference dataset, if this paint came from one.
+        currentName:
+          type: string
+          readOnly: true
+          description: The name stored today, which stays in effect unless this change is accepted.
+        proposedName:
+          type: string
+          readOnly: true
+          description: The name that would be applied.
+        currentBrand:
+          type: string
+          readOnly: true
+          nullable: true
+        proposedBrand:
+          type: string
+          readOnly: true
+          nullable: true
+        currentPaintType:
+          $ref: '#/components/schemas/PaintType'
+        proposedPaintType:
+          $ref: '#/components/schemas/PaintType'
+        currentHexColour:
+          type: string
+          readOnly: true
+          nullable: true
+        proposedHexColour:
+          type: string
+          readOnly: true
+          nullable: true
+        usageCount:
+          type: integer
+          format: int32
+          readOnly: true
+          description: How many recipes the change would affect.
+        origin:
+          $ref: '#/components/schemas/ProposalOrigin'
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+      required: [ currentName, proposedName ]
+    PaintRecipeScope:
+      type: string
+      description: >-
+        What a recipe is attached to. COLLECTION covers every model in the collection ("everything
+        here is based Fenrisian Grey"), MODEL_TYPE covers every model of one type within that
+        collection, and MODEL covers a single miniature. A model shows all three, most specific
+        last, so the broader ones do not have to be repeated.
+      enum: [ COLLECTION, MODEL_TYPE, MODEL ]
+    PaintRecipeEntry:
+      type: object
+      description: One paint in a recipe, with the step it is used for.
+      properties:
+        paintId:
+          type: string
+          format: uuid
+        paint:
+          # A plain $ref rather than an allOf wrapper: the generator turns the latter into a
+          # separate PaintRecipeEntryPaint class instead of reusing Paint. Embedded so a recipe can
+          # be rendered without a separate lookup, which also lets someone viewing a public
+          # collection see paints personal to its owner that they cannot fetch from the catalogue.
+          $ref: '#/components/schemas/Paint'
+        stepLabel:
+          type: string
+          nullable: true
+          description: What this paint is used for here, e.g. "Base", "Edge highlight".
+        note:
+          type: string
+          nullable: true
+          description: A short qualifier, e.g. "thinned 2:1", "stipple".
+        showOnCard:
+          type: boolean
+          description: >-
+            Whether this paint is shown as a swatch on the model card, where there is only room
+            for a few. Omitted on save means the first three steps are shown, which is where a
+            recipe's defining colours usually are.
+      required: [ paintId ]
+    PaintRecipe:
+      type: object
+      description: >-
+        The paints used on something, plus free text describing how. Attached at whichever scope
+        the user chose - see PaintRecipeScope.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        scope:
+          $ref: '#/components/schemas/PaintRecipeScope'
+        armyCollectionId:
+          type: string
+          format: uuid
+          readOnly: true
+        modelDefinitionId:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: Set for a MODEL_TYPE recipe; null otherwise.
+        collectionModelId:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: Set for a MODEL recipe; null otherwise.
+        notes:
+          type: string
+          nullable: true
+          description: Free text describing how the paints are used - the recipe proper.
+        paints:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaintRecipeEntry'
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+      required: [ scope, paints ]
+    SavePaintRecipeRequest:
+      type: object
+      description: >-
+        Identifies the recipe by what it is attached to rather than by id, since at most one recipe
+        exists per target. Exactly one of modelDefinitionId or collectionModelId is expected for the
+        MODEL_TYPE and MODEL scopes respectively, and neither for COLLECTION.
+      properties:
+        scope:
+          $ref: '#/components/schemas/PaintRecipeScope'
+        armyCollectionId:
+          type: string
+          format: uuid
+          description: >-
+            The collection the recipe belongs to. Required for every scope, including MODEL, so
+            ownership can be checked the same way each time.
+        modelDefinitionId:
+          type: string
+          format: uuid
+          nullable: true
+        collectionModelId:
+          type: string
+          format: uuid
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        paints:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaintRecipeEntry'
+      required: [ scope, armyCollectionId, paints ]
     UpdateFactionRequest:
       type: object
       description: >-
@@ -2940,6 +3756,71 @@ components:
         name:
           type: string
       required: [ id, name ]
+    PaintExport:
+      type: object
+      description: >-
+        A versioned, portable catalogue of shared paints. New paints are created outright on
+        import; changes to existing ones are proposed for review.
+      properties:
+        schemaVersion:
+          type: integer
+          format: int32
+          description: The version of this export document's schema, incremented on breaking changes.
+        exportedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        datasetVersion:
+          type: integer
+          format: int32
+          description: Optional version of the source dataset assembled into this document.
+        paints:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaintExportItem'
+      required: [ schemaVersion, paints ]
+    PaintExportItem:
+      type: object
+      properties:
+        id:
+          type: string
+          description: >-
+            Stable identifier used to match this paint across imports. Exports of
+            hand-authored paints emit the persisted UUID instead.
+        name:
+          type: string
+        brand:
+          type: string
+          nullable: true
+        paintType:
+          $ref: '#/components/schemas/PaintType'
+        hexColour:
+          type: string
+          nullable: true
+          description: A six-digit hex colour like '#b4b4b4'.
+      required: [ id, name ]
+    PaintImportResult:
+      type: object
+      description: >-
+        What a paint import did. Changes to existing paints are proposed rather than applied, so
+        'pendingChanges' is the list an admin still has to accept or reject. Paints already
+        matching the document are counted as unchanged, so re-importing the same document
+        reports nothing.
+      properties:
+        created:
+          type: array
+          description: Paints the catalogue did not have, added outright.
+          items:
+            $ref: '#/components/schemas/Paint'
+        pendingChanges:
+          type: array
+          description: Edits raised for review because the stored paint differs from the document's.
+          items:
+            $ref: '#/components/schemas/PaintDraft'
+        unchanged:
+          type: integer
+          format: int32
+      required: [ created, pendingChanges, unchanged ]
     FactionExportItem:
       type: object
       properties:

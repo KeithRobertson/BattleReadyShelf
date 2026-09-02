@@ -43,6 +43,7 @@ function ChangeCountBadge({ diff }: Readonly<{ diff: DraftDiff | undefined }>) {
 type MineTableProps<T extends PersonalDefinition> = Readonly<{
   items: T[];
   columns: PersonalCatalogueColumn<T>[];
+  renderName?: (item: T) => ReactNode;
   baseIdOf: (item: T) => string | null | undefined;
   diffsById: Map<string, DraftDiff>;
   removingIds: Set<string>;
@@ -55,6 +56,7 @@ type MineTableProps<T extends PersonalDefinition> = Readonly<{
 function MineTable<T extends PersonalDefinition>({
   items,
   columns,
+  renderName,
   baseIdOf,
   diffsById,
   removingIds,
@@ -84,7 +86,7 @@ function MineTable<T extends PersonalDefinition>({
           return (
             <Table.Tr key={id}>
               <Table.Td style={{ wordBreak: "break-word" }}>
-                {item.name}
+                {renderName ? renderName(item) : item.name}
                 {/* The columns dropped on a phone reappear here, so narrowing the table never
                     costs information - it only stops the row's buttons scrolling out of reach. */}
                 <Group gap="xs" mt={4} hiddenFrom="sm">
@@ -142,6 +144,7 @@ function MineTable<T extends PersonalDefinition>({
 type SharedTableProps<T extends PersonalDefinition> = Readonly<{
   items: T[];
   columns: PersonalCatalogueColumn<T>[];
+  renderName?: (item: T) => ReactNode;
   customisingIds: Set<string>;
   onCustomise: (item: T) => void;
 }>;
@@ -149,6 +152,7 @@ type SharedTableProps<T extends PersonalDefinition> = Readonly<{
 function SharedTable<T extends PersonalDefinition>({
   items,
   columns,
+  renderName,
   customisingIds,
   onCustomise,
 }: SharedTableProps<T>) {
@@ -176,7 +180,7 @@ function SharedTable<T extends PersonalDefinition>({
         {items.map((item) => (
           <Table.Tr key={item.id}>
             <Table.Td style={{ wordBreak: "break-word" }}>
-              {item.name}
+              {renderName ? renderName(item) : item.name}
               <Group gap="xs" mt={4} hiddenFrom="sm">
                 {columns.map((column) => (
                   <div key={column.header}>{column.render(item)}</div>
@@ -222,6 +226,7 @@ type PersonalCatalogueViewProps<T extends PersonalDefinition> = Readonly<{
   mine: T[];
   shared: T[];
   columns: PersonalCatalogueColumn<T>[];
+  renderName?: (item: T) => ReactNode;
   baseIdOf: (item: T) => string | null | undefined;
   diffsById: Map<string, DraftDiff>;
   customisingIds: Set<string>;
@@ -254,6 +259,7 @@ export default function PersonalCatalogueView<T extends PersonalDefinition>({
   mine,
   shared,
   columns,
+  renderName,
   baseIdOf,
   diffsById,
   customisingIds,
@@ -314,6 +320,7 @@ export default function PersonalCatalogueView<T extends PersonalDefinition>({
               <MineTable
                 items={mine}
                 columns={columns}
+                renderName={renderName}
                 baseIdOf={baseIdOf}
                 diffsById={diffsById}
                 removingIds={removingIds}
@@ -338,6 +345,7 @@ export default function PersonalCatalogueView<T extends PersonalDefinition>({
             <SharedTable
               items={customisableShared}
               columns={columns}
+              renderName={renderName}
               customisingIds={customisingIds}
               onCustomise={onCustomise}
             />

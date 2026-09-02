@@ -1,6 +1,7 @@
 import { Accordion, Checkbox, SimpleGrid, Stack } from "@mantine/core";
 import React, { useMemo } from "react";
 import { useCollectionContext } from "@/components/collection/context/CollectionContext.ts";
+import GroupPaintRecipe from "@/components/collection/paint/GroupPaintRecipe.tsx";
 import ModelCard from "@/components/collection/group/model/ModelCard.tsx";
 import type { CollectionModelStatus } from "@/generated";
 import { useModelActions } from "@/hooks/collections/models/useModelActions.ts";
@@ -22,6 +23,8 @@ export const CollectionGroupPanel = React.memo(function CollectionGroupPanel({ g
   return (
     <Accordion.Panel>
       <Stack gap="xs">
+        <GroupPaintRecipe group={group} />
+
         {isEditMode && (
           <Checkbox
             label="Select all in this group"

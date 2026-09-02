@@ -3,9 +3,9 @@ package com.keith.battlereadyshelf.definitionexport;
 import com.keith.battlereadyshelf.error.BadRequestException;
 
 /**
- * The versioning rule shared by every portable catalogue document - factions, wargear and model
- * definitions. They are exported and imported separately, one per admin page, but they come from
- * the same source dataset build and so move through schema versions together.
+ * The versioning rule shared by every portable catalogue document - factions, wargear, paints and
+ * model definitions. They are exported and imported separately, one per admin page, but they come
+ * from the same source dataset build and so move through schema versions together.
  */
 public final class ExportSchema {
     /** The version this application writes. */

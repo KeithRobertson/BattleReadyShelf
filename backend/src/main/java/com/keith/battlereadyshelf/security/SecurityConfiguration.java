@@ -50,6 +50,11 @@ public class SecurityConfiguration {
                                         .requestMatchers(
                                                 HttpMethod.GET, "/api/v1/model-definitions")
                                         .permitAll()
+                                        // Open for the same reason as the model definitions above:
+                                        // it is a read-only catalogue, and a signed-out visitor
+                                        // needs it to make sense of a collection's paint recipes.
+                                        .requestMatchers(HttpMethod.GET, "/api/v1/paints")
+                                        .permitAll()
                                         .anyRequest()
                                         .authenticated())
                 .addFilterBefore(

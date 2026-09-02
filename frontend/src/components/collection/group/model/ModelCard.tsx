@@ -4,6 +4,7 @@ import ChangeModelDefinitionModal from "@/components/collection/group/model/Chan
 import { ModelCardCompletedDate } from "@/components/collection/group/model/ModelCardCompletedDate.tsx";
 import { ModelCardDescription } from "@/components/collection/group/model/ModelCardDescription.tsx";
 import { ModelCardHeader } from "@/components/collection/group/model/ModelCardHeader.tsx";
+import { ModelCardPaints } from "@/components/collection/group/model/ModelCardPaints.tsx";
 import { ModelCardStatus } from "@/components/collection/group/model/ModelCardStatus.tsx";
 import { ModelCardWargear } from "@/components/collection/group/model/ModelCardWargear.tsx";
 import { ModelImageSection } from "@/components/collection/group/model/ModelImageSection.tsx";
@@ -251,6 +252,8 @@ function ModelCard({
               setCustomLabelDraftsBySlot={setCustomLabelDraftsBySlot}
               setIsEditingWargear={setIsEditingWargear}
             />
+
+            <ModelCardPaints model={model} editMode={editMode} />
           </Stack>
         </Group>
       </Stack>
