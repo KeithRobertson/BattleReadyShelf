@@ -4,11 +4,13 @@ import com.keith.battlereadyshelf.collectionmodel.CollectionModelRepository;
 import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.ConflictException;
 import com.keith.battlereadyshelf.error.NotFoundException;
+import com.keith.battlereadyshelf.generated.model.AttachmentSlot;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.UpsertAttachmentSlotDraftRequest;
 import com.keith.battlereadyshelf.generated.model.UpsertModelDefinitionDraftRequest;
 import com.keith.battlereadyshelf.generated.model.UpsertWargearOptionDraftRequest;
 import com.keith.battlereadyshelf.generated.model.WargearDefinition;
+import com.keith.battlereadyshelf.generated.model.WargearOption;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 
 import lombok.RequiredArgsConstructor;
@@ -49,10 +51,7 @@ public class PersonalModelDefinitionService {
     private final ModelDefinitionMapper modelDefinitionMapper;
 
     public List<ModelDefinition> getMyModelDefinitions(CurrentAuthenticatedUser currentUser) {
-        return modelDefinitionRepository.findAllByOwnerUserId(currentUser.id()).stream()
-                .sorted(Comparator.comparing(ModelDefinitionEntity::getName, String.CASE_INSENSITIVE_ORDER))
-                .map(this::toDtoWithChildren)
-                .toList();
+        return withChildren(modelDefinitionRepository.findAllByOwnerUserId(currentUser.id()));
     }
 
     /**
@@ -62,10 +61,7 @@ public class PersonalModelDefinitionService {
      * does.
      */
     public List<ModelDefinition> getSharedModelDefinitions() {
-        return modelDefinitionRepository.findAllByOwnerUserIdIsNull().stream()
-                .sorted(Comparator.comparing(ModelDefinitionEntity::getName, String.CASE_INSENSITIVE_ORDER))
-                .map(this::toDtoWithChildren)
-                .toList();
+        return withChildren(modelDefinitionRepository.findAllByOwnerUserIdIsNull());
     }
 
     /**
@@ -360,12 +356,49 @@ public class PersonalModelDefinitionService {
         return wargear;
     }
 
+    /**
+     * Maps definitions to DTOs, fetching every definition's slots and options in two queries rather
+     * than two per definition.
+     *
+     * <p>This matters more than it looks. The shared catalogue is ~180 definitions, so loading the
+     * children row by row cost ~360 round trips for a payload of a few hundred kilobytes: barely
+     * noticeable against a local database at ~2ms a query, but around twelve seconds against a
+     * hosted one where each query costs ~30ms. Whenever this returns more than a single definition,
+     * the child fetches must stay batched.
+     */
+    private List<ModelDefinition> withChildren(List<ModelDefinitionEntity> entities) {
+        var ids = entities.stream().map(ModelDefinitionEntity::getId).toList();
+
+        Map<UUID, List<AttachmentSlot>> slotsByDefinitionId =
+                attachmentSlotRepository.findAllByModelDefinitionIdIn(ids).stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        AttachmentSlotEntity::getModelDefinitionId,
+                                        Collectors.mapping(
+                                                modelDefinitionMapper::toDto, Collectors.toList())));
+
+        Map<UUID, List<WargearOption>> optionsByDefinitionId =
+                wargearOptionRepository.findAllByModelDefinitionIdIn(ids).stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        WargearOptionEntity::getModelDefinitionId,
+                                        Collectors.mapping(
+                                                modelDefinitionMapper::toDto, Collectors.toList())));
+
+        return entities.stream()
+                .sorted(Comparator.comparing(ModelDefinitionEntity::getName, String.CASE_INSENSITIVE_ORDER))
+                .map(
+                        entity ->
+                                modelDefinitionMapper
+                                        .toDto(entity)
+                                        .attachmentSlots(
+                                                slotsByDefinitionId.getOrDefault(entity.getId(), List.of()))
+                                        .wargearOptions(
+                                                optionsByDefinitionId.getOrDefault(entity.getId(), List.of())))
+                .toList();
+    }
+
     private ModelDefinition toDtoWithChildren(ModelDefinitionEntity entity) {
-        var slots = attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(entity.getId()));
-        var options = wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(entity.getId()));
-        return modelDefinitionMapper
-                .toDto(entity)
-                .attachmentSlots(slots.stream().map(modelDefinitionMapper::toDto).toList())
-                .wargearOptions(options.stream().map(modelDefinitionMapper::toDto).toList());
+        return withChildren(List.of(entity)).getFirst();
     }
 }

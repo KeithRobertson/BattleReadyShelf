@@ -7,6 +7,7 @@ import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.factiondefinition.FactionDefinitionService;
 import com.keith.battlereadyshelf.factiondefinition.FactionEntity;
 import com.keith.battlereadyshelf.factiondefinition.FactionRepository;
+import com.keith.battlereadyshelf.generated.model.AttachmentSlotDraft;
 import com.keith.battlereadyshelf.generated.model.FactionExportItem;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionDraft;
@@ -19,6 +20,7 @@ import com.keith.battlereadyshelf.generated.model.UpsertAttachmentSlotDraftReque
 import com.keith.battlereadyshelf.generated.model.UpsertModelDefinitionDraftRequest;
 import com.keith.battlereadyshelf.generated.model.UpsertWargearOptionDraftRequest;
 import com.keith.battlereadyshelf.generated.model.WargearExportItem;
+import com.keith.battlereadyshelf.generated.model.WargearOptionDraft;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 
 import lombok.RequiredArgsConstructor;
@@ -68,7 +70,7 @@ public class ModelDefinitionDraftService {
     private final ObjectMapper objectMapper;
 
     public List<ModelDefinitionDraft> getAllDrafts() {
-        return modelDefinitionDraftRepository.findAll().stream().map(this::toDraftDto).toList();
+        return withChildren(modelDefinitionDraftRepository.findAll());
     }
 
     public ModelDefinitionDraft getDraft(UUID draftId) {
@@ -991,13 +993,46 @@ public class ModelDefinitionDraftService {
                 .orElseThrow(() -> new NotFoundException("Model definition draft not found: " + draftId));
     }
 
+    /**
+     * Maps drafts to DTOs, loading every draft's children in a fixed number of queries.
+     *
+     * <p>Mapping drafts one at a time costs two queries each plus the per-option association loads
+     * described on {@link WargearOptionDraftRepository#findAllByModelDefinitionDraftIdIn(List)}.
+     */
+    private List<ModelDefinitionDraft> withChildren(List<ModelDefinitionDraftEntity> entities) {
+        if (entities.isEmpty()) {
+            return List.of();
+        }
+        var ids = entities.stream().map(ModelDefinitionDraftEntity::getId).toList();
+
+        Map<UUID, List<AttachmentSlotDraft>> slotsByDraftId =
+                attachmentSlotDraftRepository.findAllByModelDefinitionDraftIdIn(ids).stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        AttachmentSlotDraftEntity::getModelDefinitionDraftId,
+                                        Collectors.mapping(
+                                                modelDefinitionMapper::toDto, Collectors.toList())));
+
+        Map<UUID, List<WargearOptionDraft>> optionsByDraftId =
+                wargearOptionDraftRepository.findAllByModelDefinitionDraftIdIn(ids).stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        WargearOptionDraftEntity::getModelDefinitionDraftId,
+                                        Collectors.mapping(
+                                                modelDefinitionMapper::toDto, Collectors.toList())));
+
+        return entities.stream()
+                .map(
+                        entity ->
+                                modelDefinitionMapper
+                                        .toDto(entity)
+                                        .attachmentSlots(slotsByDraftId.getOrDefault(entity.getId(), List.of()))
+                                        .wargearOptions(optionsByDraftId.getOrDefault(entity.getId(), List.of())))
+                .toList();
+    }
+
     private ModelDefinitionDraft toDraftDto(ModelDefinitionDraftEntity entity) {
-        var slots = attachmentSlotDraftRepository.findAllByModelDefinitionDraftId(entity.getId());
-        var options = wargearOptionDraftRepository.findAllByModelDefinitionDraftId(entity.getId());
-        return modelDefinitionMapper
-                .toDto(entity)
-                .attachmentSlots(slots.stream().map(modelDefinitionMapper::toDto).toList())
-                .wargearOptions(options.stream().map(modelDefinitionMapper::toDto).toList());
+        return withChildren(List.of(entity)).getFirst();
     }
 
     private ModelDefinitionPublishAuditEntry toAuditDto(ModelDefinitionPublishAuditEntity entity) {

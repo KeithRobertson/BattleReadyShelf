@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -466,6 +467,25 @@ class PersonalModelDefinitionServiceTest {
         assertThat(shared).extracting("name").containsExactly("Cultist", "Poxwalker");
         assertThat(shared).extracting("ownerUserId").containsOnlyNulls();
         verify(modelDefinitionRepository, never()).findAllByOwnerUserId(any());
+    }
+
+    @Test
+    void listingTheSharedCatalogueFetchesChildrenInOneQueryEachRatherThanPerDefinition() {
+        var definitions = new java.util.ArrayList<ModelDefinitionEntity>();
+        for (var i = 0; i < 50; i++) {
+            definitions.add(
+                    ModelDefinitionEntity.builder().id(UUID.randomUUID()).name("Definition " + i).build());
+        }
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(definitions);
+
+        var shared = service.getSharedModelDefinitions();
+
+        assertThat(shared).hasSize(50);
+        // The catalogue runs to a couple of hundred definitions. Fetching each one's slots and
+        // options separately is unnoticeable against a local database but costs seconds against a
+        // hosted one, so the child fetches have to stay batched no matter how long the list gets.
+        verify(attachmentSlotRepository, times(1)).findAllByModelDefinitionIdIn(any());
+        verify(wargearOptionRepository, times(1)).findAllByModelDefinitionIdIn(any());
     }
 
     private UpsertModelDefinitionDraftRequest request(String name) {
