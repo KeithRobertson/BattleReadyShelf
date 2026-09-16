@@ -1,5 +1,4 @@
 import { ActionIcon, Alert, Button, Group, Modal, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
-import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import { useDisclosure } from "@mantine/hooks";
 import {
   IconAlertCircle,
@@ -18,6 +17,7 @@ import PendingChangesPanel, { type PendingChangeRow } from "@/components/admin/P
 import PublishHistoryModal from "@/components/admin/PublishHistoryModal.tsx";
 import usePublishHistory from "@/components/admin/usePublishHistory.ts";
 import FactionFormModal from "@/components/definitions/FactionFormModal.tsx";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import type { Faction, FactionDraft, FactionImportResult } from "@/generated";
 import {
   createFaction,

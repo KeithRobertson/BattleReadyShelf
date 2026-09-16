@@ -22,9 +22,9 @@ import { useAuth } from "@/auth/useAuth";
 import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
 import { DefinitionTransferButtons } from "@/components/admin/DefinitionTransferButtons.tsx";
 import ModelDefinitionDraftEditor from "@/components/admin/modeldefinitions/ModelDefinitionDraftEditor.tsx";
-import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import ModelDefinitionSlotTable from "@/components/admin/modeldefinitions/ModelDefinitionSlotTable.tsx";
 import DefinitionDiffModal, { DRAFT_DIFF_LABELS } from "@/components/definitions/DefinitionDiffModal.tsx";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import type {
   Faction,
   ModelDefinition,

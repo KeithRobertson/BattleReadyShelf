@@ -1,6 +1,6 @@
 import { Alert, Badge, Button, Card, Group, Stack, Table, Text, Title } from "@mantine/core";
-import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import { IconArrowRight, IconCheck, IconHistory, IconInfoCircle, IconX } from "@tabler/icons-react";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import type { ProposalOrigin } from "@/generated";
 
 /** One field that would change, rendered as `before → after`. */

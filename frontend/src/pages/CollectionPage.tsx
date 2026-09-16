@@ -16,6 +16,7 @@ import { useFilteredModelDefinitions } from "@/hooks/collections/models/useFilte
 import useCollection from "@/hooks/collections/useCollection.ts";
 import useCollectionEditing from "@/hooks/collections/useCollectionEditing.ts";
 import useCollectionMetadata from "@/hooks/collections/useCollectionMetadata";
+import useCollectionModelFilters from "@/hooks/collections/useCollectionModelFilters.ts";
 import useCollectionModels from "@/hooks/collections/useCollectionModels.ts";
 import useDeleteConfirmation from "@/hooks/collections/useDeleteConfirmation.ts";
 import useGroupDrag from "@/hooks/collections/useGroupDrag.ts";
@@ -48,12 +49,14 @@ export default function CollectionPage() {
   const modelSort = useModelSort();
   const paintRecipes = usePaintRecipes(collectionId);
   const [statusFilter, setStatusFilter] = useState<CollectionModelStatus[]>([]);
+  const modelFilters = useCollectionModelFilters(collectionModels.models, paintRecipes.recipes);
   const groupedModels = useGroupedModels(
     collectionModels.models,
     collection.collection ?? null,
     modelSort.sortOrder,
     statusFilter,
     modelSort.sortModels,
+    modelFilters.modelMatchesFilters,
   );
   const selection = useModelSelection();
   const deletion = useDeleteConfirmation();
@@ -151,6 +154,12 @@ export default function CollectionPage() {
                   isEditMode={isEditMode}
                   statusFilter={statusFilter}
                   setStatusFilter={setStatusFilter}
+                  paintFilter={modelFilters.paintFilter}
+                  setPaintFilter={modelFilters.setPaintFilter}
+                  paintOptions={modelFilters.paintOptions}
+                  wargearFilter={modelFilters.wargearFilter}
+                  setWargearFilter={modelFilters.setWargearFilter}
+                  wargearOptions={modelFilters.wargearOptions}
                   groupedModels={groupedModels}
                   collectionModelsCount={collectionModels.models.length}
                   selection={selection}

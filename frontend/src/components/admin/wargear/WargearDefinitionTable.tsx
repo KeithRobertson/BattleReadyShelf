@@ -1,6 +1,6 @@
 import { ActionIcon, Badge, Table, Text } from "@mantine/core";
-import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import { IconPencil } from "@tabler/icons-react";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import type { WargearDefinition } from "@/generated";
 
 type WargearDefinitionTableProps = Readonly<{

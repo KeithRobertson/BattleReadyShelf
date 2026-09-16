@@ -1,9 +1,9 @@
 import { Alert, Badge, Button, Group, Loader, Select, Stack, Table, Text } from "@mantine/core";
-import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import { IconAlertTriangle, IconInfoCircle } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useCollectionContext } from "@/components/collection/context/CollectionContext.ts";
 import ResponsiveModal from "@/components/ResponsiveModal.tsx";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import type { ChangeModelDefinitionPreview, CollectionModel, WargearRemapOutcome } from "@/generated";
 import { previewModelDefinitionChange } from "@/generated";
 import useCollectionMetadata from "@/hooks/collections/useCollectionMetadata.ts";

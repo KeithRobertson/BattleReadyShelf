@@ -1,7 +1,7 @@
 import { Alert, Badge, Group, Stack, Table, Text, Title } from "@mantine/core";
-import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import { IconInfoCircle } from "@tabler/icons-react";
 import ResponsiveModal from "@/components/ResponsiveModal.tsx";
+import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import type { ChangeKind, ChildChange, DraftDiff, FieldChange } from "@/utils/modelDefinitionDraftDiff";
 
 const KIND_COLOR: Record<ChangeKind, string> = { added: "green", removed: "red", changed: "blue" };

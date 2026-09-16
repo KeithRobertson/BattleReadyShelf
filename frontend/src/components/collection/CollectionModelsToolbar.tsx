@@ -12,13 +12,13 @@ import {
 function getSelectionText({
   isEditMode,
   selection,
-  statusFilter,
+  isFiltered,
   shownCount,
   collectionModelsCount,
 }: {
   isEditMode: boolean;
   selection: { selectedModelIds: Set<string> };
-  statusFilter: CollectionModelStatus[];
+  isFiltered: boolean;
   shownCount: number;
   collectionModelsCount: number;
 }) {
@@ -28,18 +28,28 @@ function getSelectionText({
       : "Select models to bulk delete";
   }
 
-  if (statusFilter.length > 0) {
+  if (isFiltered) {
     return `${shownCount} of ${collectionModelsCount} model${collectionModelsCount === 1 ? "" : "s"}`;
   }
 
   return `${shownCount} model${shownCount === 1 ? "" : "s"}`;
 }
 
+type FilterOption = { value: string; label: string };
+
 export type CollectionModelsToolbarProps = Readonly<{
   isEditMode: boolean;
 
   statusFilter: CollectionModelStatus[];
   setStatusFilter: (value: CollectionModelStatus[]) => void;
+
+  paintFilter: string[];
+  setPaintFilter: (value: string[]) => void;
+  paintOptions: FilterOption[];
+
+  wargearFilter: string[];
+  setWargearFilter: (value: string[]) => void;
+  wargearOptions: FilterOption[];
 
   groupedModels: {
     groupedModels: { models: CollectionModel[] }[];
@@ -67,6 +77,12 @@ export function CollectionModelsToolbar({
   isEditMode,
   statusFilter,
   setStatusFilter,
+  paintFilter,
+  setPaintFilter,
+  paintOptions,
+  wargearFilter,
+  setWargearFilter,
+  wargearOptions,
   groupedModels,
   collectionModelsCount,
   selection,
@@ -74,6 +90,7 @@ export function CollectionModelsToolbar({
   deletion,
 }: CollectionModelsToolbarProps) {
   const shownCount = groupedModels.groupedModels.reduce((sum, g) => sum + g.models.length, 0);
+  const isFiltered = statusFilter.length > 0 || paintFilter.length > 0 || wargearFilter.length > 0;
 
   const toggleStatusFilter = useCallback(
     (status: CollectionModelStatus) => {
@@ -85,10 +102,10 @@ export function CollectionModelsToolbar({
   );
 
   return (
-    <Group justify="space-between" wrap="wrap">
+    <Group justify="space-between" wrap="wrap" gap="sm">
       <Group gap="xs" wrap="wrap">
         <Text size="sm" c="dimmed">
-          {getSelectionText({ isEditMode, selection, statusFilter, shownCount, collectionModelsCount })}
+          {getSelectionText({ isEditMode, selection, isFiltered, shownCount, collectionModelsCount })}
         </Text>
 
         {!isEditMode &&
@@ -118,7 +135,7 @@ export function CollectionModelsToolbar({
           })}
       </Group>
 
-      <Group gap="sm" align="flex-end">
+      <Group gap="sm" align="flex-end" wrap="wrap">
         <MultiSelect
           label="Filter by status"
           placeholder={statusFilter.length === 0 ? "All" : undefined}
@@ -129,6 +146,34 @@ export function CollectionModelsToolbar({
           size="xs"
           clearable
         />
+
+        {paintOptions.length > 0 && (
+          <MultiSelect
+            label="Filter by paint"
+            placeholder={paintFilter.length === 0 ? "All" : undefined}
+            data={paintOptions}
+            value={paintFilter}
+            onChange={setPaintFilter}
+            w={220}
+            size="xs"
+            searchable
+            clearable
+          />
+        )}
+
+        {wargearOptions.length > 0 && (
+          <MultiSelect
+            label="Filter by wargear"
+            placeholder={wargearFilter.length === 0 ? "All" : undefined}
+            data={wargearOptions}
+            value={wargearFilter}
+            onChange={setWargearFilter}
+            w={220}
+            size="xs"
+            searchable
+            clearable
+          />
+        )}
 
         <Select
           label="Sort by"

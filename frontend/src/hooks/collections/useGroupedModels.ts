@@ -17,6 +17,7 @@ export default function useGroupedModels(
   sortOrder: SortOrder,
   statusFilter: CollectionModelStatus[],
   sortModels: (models: CollectionModel[], sortOrder: SortOrder) => CollectionModel[],
+  matchesInventory: (model: CollectionModel) => boolean = () => true,
 ) {
   const statusCounts = useMemo(() => {
     const counts = new Map<CollectionModelStatus, number>();
@@ -34,8 +35,12 @@ export default function useGroupedModels(
   }, [models]);
 
   const groupedModels = useMemo<ModelGroup[]>(() => {
-    const filtered =
-      statusFilter.length === 0 ? models : models.filter((m) => m.status && statusFilter.includes(m.status));
+    const filtered = models.filter((m) => {
+      if (statusFilter.length > 0 && !(m.status && statusFilter.includes(m.status))) {
+        return false;
+      }
+      return matchesInventory(m);
+    });
 
     const groups = new Map<string, ModelGroup>();
 
@@ -68,7 +73,7 @@ export default function useGroupedModels(
       ...group,
       models: sortModels(group.models, sortOrder),
     }));
-  }, [models, sortOrder, statusFilter, collection?.modelDefinitionOrder, sortModels]);
+  }, [models, sortOrder, statusFilter, collection?.modelDefinitionOrder, sortModels, matchesInventory]);
 
   return {
     groupedModels,

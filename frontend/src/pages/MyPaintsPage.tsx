@@ -1,21 +1,14 @@
 import { Group, Text } from "@mantine/core";
 import { useMemo, useState } from "react";
 import DefinitionDiffModal, { PERSONAL_DIFF_LABELS } from "@/components/definitions/DefinitionDiffModal.tsx";
-import PaintFormModal, { paintTypeLabel, type PaintFormValues } from "@/components/mydefinitions/PaintFormModal.tsx";
+import PaintFormModal, { type PaintFormValues, paintTypeLabel } from "@/components/mydefinitions/PaintFormModal.tsx";
 import PersonalCatalogueView, {
   type PersonalCatalogueColumn,
 } from "@/components/mydefinitions/PersonalCatalogueView.tsx";
 import usePersonalCatalogue from "@/components/mydefinitions/usePersonalCatalogue.ts";
 import PaintSwatch from "@/components/paints/PaintSwatch.tsx";
 import type { Paint } from "@/generated";
-import {
-  createMyPaint,
-  customisePaint,
-  deleteMyPaint,
-  getMyPaints,
-  getSharedPaints,
-  updateMyPaint,
-} from "@/generated";
+import { createMyPaint, customisePaint, deleteMyPaint, getMyPaints, getSharedPaints, updateMyPaint } from "@/generated";
 import extractErrorMessage from "@/utils/extractErrorMessage.ts";
 import { diffFields, fieldChange } from "@/utils/personalFieldDiff";
 
