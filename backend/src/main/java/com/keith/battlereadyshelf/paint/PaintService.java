@@ -5,6 +5,8 @@ import static com.keith.battlereadyshelf.paint.PaintMapper.normaliseHexColour;
 import static com.keith.battlereadyshelf.paint.PaintMapper.requireName;
 import static com.keith.battlereadyshelf.paint.PaintMapper.trimToNull;
 
+import com.keith.battlereadyshelf.armycollection.ArmyCollectionEntity;
+import com.keith.battlereadyshelf.armycollection.ArmyCollectionRepository;
 import com.keith.battlereadyshelf.definitiondraft.Definition;
 import com.keith.battlereadyshelf.definitiondraft.DefinitionPublishAuditService;
 import com.keith.battlereadyshelf.definitiondraft.ProposalOrigin;
@@ -47,8 +49,10 @@ import java.util.stream.Collectors;
  * edits a paint directly: the change is staged as a {@link PaintDraftEntity} to be accepted or
  * rejected, exactly as for factions and wargear.
  *
- * <p>Creating and deleting are not staged. A paint nobody references yet cannot surprise anyone,
- * and deletion is refused outright while anything still points at it.
+ * <p>Creating and deleting are not staged. A paint nobody references yet cannot surprise anyone.
+ * Deleting a paint that recipes still name does not rewrite those recipes: each user who used it
+ * gets a personal copy, and their recipes are pointed at that copy. Customisations are detached
+ * the same way, so they behave as paints their owners created themselves.
  */
 @Service
 @RequiredArgsConstructor
@@ -57,6 +61,7 @@ public class PaintService {
     private final PaintRepository paintRepository;
     private final PaintDraftRepository paintDraftRepository;
     private final PaintRecipeRepository paintRecipeRepository;
+    private final ArmyCollectionRepository armyCollectionRepository;
     private final DefinitionPublishAuditService definitionPublishAuditService;
 
     /** The shared catalogue alone. A user's own paints are never administered here. */
@@ -156,27 +161,86 @@ public class PaintService {
     /**
      * Removes a paint from the catalogue.
      *
-     * <p>Refused while any recipe still names it, because deleting it would quietly rewrite what
-     * users recorded about their own models. Also refused while someone holds a customisation of
-     * it, which would otherwise be orphaned from the paint it was forked from.
+     * <p>Recipes that still name it are not left dangling: each user who used it receives a
+     * personal copy (or keeps an existing one with the same brand and name) and their recipe
+     * entries are pointed at that copy. Customisations are detached so they behave as paints those
+     * users created themselves, with nothing to revert to.
      */
     @Transactional
     public void deletePaint(UUID paintId) {
-        requireCataloguePaint(paintId);
+        var paint = requireCataloguePaint(paintId);
 
-        var inUseCount = paintRecipeRepository.countUsagesOfPaint(paintId);
-        if (inUseCount > 0) {
-            throw new ConflictException(
-                    "Cannot delete: " + inUseCount + " paint recipe entr(ies) still use this paint.");
-        }
-        if (paintRepository.existsByBasePaintId(paintId)) {
-            throw new ConflictException(
-                    "Cannot delete: users have customised this paint. Their copies would be left"
-                            + " without an original.");
-        }
+        rehomeUsagesToPersonalCopies(paint);
+
+        var customisations = paintRepository.findAllByBasePaintId(paintId);
+        customisations.forEach(copy -> copy.setBasePaintId(null));
+        paintRepository.saveAll(customisations);
 
         paintDraftRepository.findByPaintId(paintId).ifPresent(paintDraftRepository::delete);
         paintRepository.deleteById(paintId);
+    }
+
+    /**
+     * Gives each user who recorded this catalogue paint in a recipe a personal copy to keep, then
+     * points those recipe entries at it so the catalogue row can go.
+     */
+    private void rehomeUsagesToPersonalCopies(PaintEntity cataloguePaint) {
+        var recipes = paintRecipeRepository.findRecipesUsingPaint(cataloguePaint.getId());
+        if (recipes.isEmpty()) {
+            return;
+        }
+
+        var collectionIds =
+                recipes.stream().map(PaintRecipeEntity::getArmyCollectionId).distinct().toList();
+        var ownerByCollectionId =
+                armyCollectionRepository.findAllById(collectionIds).stream()
+                        .collect(
+                                Collectors.toMap(
+                                        ArmyCollectionEntity::getId, ArmyCollectionEntity::getUserId));
+
+        Map<UUID, PaintEntity> personalByOwner = new LinkedHashMap<>();
+        for (var recipe : recipes) {
+            var ownerId = ownerByCollectionId.get(recipe.getArmyCollectionId());
+            if (ownerId == null) {
+                throw new ConflictException(
+                        "Cannot delete: a paint recipe is attached to a collection that no longer exists.");
+            }
+            var personal =
+                    personalByOwner.computeIfAbsent(
+                            ownerId, id -> personalCopyFor(id, cataloguePaint));
+            for (var entry : recipe.getPaints()) {
+                if (cataloguePaint.getId().equals(entry.getPaint().getId())) {
+                    entry.setPaint(personal);
+                }
+            }
+        }
+        paintRecipeRepository.saveAll(recipes);
+    }
+
+    /**
+     * The personal paint this user should keep in place of the catalogue row: an existing copy with
+     * the same brand and name if they already have one, otherwise a new paint they own.
+     */
+    private PaintEntity personalCopyFor(UUID ownerUserId, PaintEntity cataloguePaint) {
+        var existing =
+                paintRepository.findClash(
+                        ownerUserId, cataloguePaint.getName(), cataloguePaint.getBrand());
+        if (existing.isPresent()) {
+            var copy = existing.get();
+            if (cataloguePaint.getId().equals(copy.getBasePaintId())) {
+                copy.setBasePaintId(null);
+                return paintRepository.save(copy);
+            }
+            return copy;
+        }
+        return paintRepository.save(
+                PaintEntity.builder()
+                        .ownerUserId(ownerUserId)
+                        .name(cataloguePaint.getName())
+                        .brand(cataloguePaint.getBrand())
+                        .paintType(cataloguePaint.getPaintType())
+                        .hexColour(cataloguePaint.getHexColour())
+                        .build());
     }
 
     public List<DefinitionPublishAudit> getPublishHistory(UUID paintId) {

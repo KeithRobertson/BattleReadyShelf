@@ -16,7 +16,7 @@ public interface PaintRepository extends JpaRepository<PaintEntity, UUID> {
 
     Optional<PaintEntity> findByOwnerUserIdAndBasePaintId(UUID ownerUserId, UUID basePaintId);
 
-    boolean existsByBasePaintId(UUID basePaintId);
+    List<PaintEntity> findAllByBasePaintId(UUID basePaintId);
 
     /**
      * Catalogue paints carrying any of the given dataset ids. Restricted to the shared catalogue

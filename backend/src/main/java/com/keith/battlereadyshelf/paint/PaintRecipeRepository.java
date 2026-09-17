@@ -23,6 +23,14 @@ public interface PaintRecipeRepository extends JpaRepository<PaintRecipeEntity, 
     Optional<PaintRecipeEntity> findByCollectionModelId(UUID collectionModelId);
 
     @Query(
+            """
+            SELECT DISTINCT r FROM PaintRecipeEntity r
+            JOIN r.paints e
+            WHERE e.paint.id = :paintId
+            """)
+    List<PaintRecipeEntity> findRecipesUsingPaint(UUID paintId);
+
+    @Query(
             "SELECT count(e) FROM PaintRecipePaintEntity e WHERE e.paint.id = :paintId")
     long countUsagesOfPaint(UUID paintId);
 

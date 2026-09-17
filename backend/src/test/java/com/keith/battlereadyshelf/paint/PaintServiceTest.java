@@ -9,6 +9,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.keith.battlereadyshelf.armycollection.ArmyCollectionEntity;
+import com.keith.battlereadyshelf.armycollection.ArmyCollectionRepository;
 import com.keith.battlereadyshelf.definitiondraft.Definition;
 import com.keith.battlereadyshelf.definitiondraft.DefinitionPublishAuditService;
 import com.keith.battlereadyshelf.definitiondraft.ProposalOrigin;
@@ -44,6 +46,7 @@ class PaintServiceTest {
     @Mock private PaintRepository paintRepository;
     @Mock private PaintDraftRepository paintDraftRepository;
     @Mock private PaintRecipeRepository paintRecipeRepository;
+    @Mock private ArmyCollectionRepository armyCollectionRepository;
     @Mock private DefinitionPublishAuditService definitionPublishAuditService;
 
     private PaintService service;
@@ -55,9 +58,19 @@ class PaintServiceTest {
                         paintRepository,
                         paintDraftRepository,
                         paintRecipeRepository,
+                        armyCollectionRepository,
                         definitionPublishAuditService);
 
-        lenient().when(paintRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient()
+                .when(paintRepository.save(any()))
+                .thenAnswer(
+                        invocation -> {
+                            PaintEntity paint = invocation.getArgument(0);
+                            if (paint.getId() == null) {
+                                paint.setId(UUID.randomUUID());
+                            }
+                            return paint;
+                        });
         lenient()
                 .when(paintDraftRepository.save(any()))
                 .thenAnswer(
@@ -86,6 +99,25 @@ class PaintServiceTest {
                 .brand(paint.getBrand())
                 .paintType(PaintMapper.toDto(paint.getPaintType()))
                 .hexColour(paint.getHexColour());
+    }
+
+    private static ArmyCollectionEntity collectionOwnedBy(UUID userId) {
+        return ArmyCollectionEntity.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Army")
+                .build();
+    }
+
+    private static PaintRecipeEntity recipeUsing(UUID collectionId, PaintEntity paint) {
+        var recipe =
+                PaintRecipeEntity.builder()
+                        .id(UUID.randomUUID())
+                        .scope(PaintRecipeScope.COLLECTION)
+                        .armyCollectionId(collectionId)
+                        .build();
+        recipe.replacePaints(List.of(PaintRecipePaintEntity.builder().paint(paint).position(0).build()));
+        return recipe;
     }
 
     @Test
@@ -176,26 +208,91 @@ class PaintServiceTest {
     }
 
     @Test
-    void aPaintStillNamedByARecipeCannotBeRemovedFromTheCatalogue() {
+    void deletingAPaintInUseGivesEachUserAPersonalCopyAndRepointsTheirRecipes() {
         var paint = catalogueLeadbelcher();
+        var alice = UUID.randomUUID();
+        var bob = UUID.randomUUID();
+        var aliceCollection = collectionOwnedBy(alice);
+        var bobCollection = collectionOwnedBy(bob);
+        var aliceRecipe = recipeUsing(aliceCollection.getId(), paint);
+        var bobRecipe = recipeUsing(bobCollection.getId(), paint);
         when(paintRepository.findById(paint.getId())).thenReturn(Optional.of(paint));
-        when(paintRecipeRepository.countUsagesOfPaint(paint.getId())).thenReturn(5L);
+        when(paintRecipeRepository.findRecipesUsingPaint(paint.getId()))
+                .thenReturn(List.of(aliceRecipe, bobRecipe));
+        when(armyCollectionRepository.findAllById(any()))
+                .thenReturn(List.of(aliceCollection, bobCollection));
+        when(paintRepository.findClash(alice, "Leadbelcher", "Citadel")).thenReturn(Optional.empty());
+        when(paintRepository.findClash(bob, "Leadbelcher", "Citadel")).thenReturn(Optional.empty());
+        when(paintRepository.findAllByBasePaintId(paint.getId())).thenReturn(List.of());
+        when(paintDraftRepository.findByPaintId(paint.getId())).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.deletePaint(paint.getId()))
-                .isInstanceOf(ConflictException.class);
-        verify(paintRepository, never()).deleteById(any());
+        service.deletePaint(paint.getId());
+
+        var aliceCopy = aliceRecipe.getPaints().getFirst().getPaint();
+        var bobCopy = bobRecipe.getPaints().getFirst().getPaint();
+        assertThat(aliceCopy.getOwnerUserId()).isEqualTo(alice);
+        assertThat(bobCopy.getOwnerUserId()).isEqualTo(bob);
+        assertThat(aliceCopy.getId()).isNotEqualTo(bobCopy.getId());
+        assertThat(aliceCopy.getId()).isNotEqualTo(paint.getId());
+        assertThat(aliceCopy.getName()).isEqualTo("Leadbelcher");
+        assertThat(aliceCopy.getBrand()).isEqualTo("Citadel");
+        assertThat(aliceCopy.getPaintType()).isEqualTo(PaintType.BASE);
+        assertThat(aliceCopy.getHexColour()).isEqualTo("#8b8b8b");
+        assertThat(aliceCopy.getBasePaintId()).isNull();
+        verify(paintRecipeRepository).saveAll(List.of(aliceRecipe, bobRecipe));
+        verify(paintRepository).deleteById(paint.getId());
     }
 
     @Test
-    void aPaintSomeoneHasCustomisedCannotBeRemovedFromTheCatalogue() {
+    void deletingAPaintInUseReusesASameNamedCopyRatherThanMakingASecond() {
         var paint = catalogueLeadbelcher();
+        var ownerId = UUID.randomUUID();
+        var customisation =
+                PaintEntity.builder()
+                        .id(UUID.randomUUID())
+                        .ownerUserId(ownerId)
+                        .basePaintId(paint.getId())
+                        .name("Leadbelcher")
+                        .brand("Citadel")
+                        .build();
+        var collection = collectionOwnedBy(ownerId);
+        var recipe = recipeUsing(collection.getId(), paint);
         when(paintRepository.findById(paint.getId())).thenReturn(Optional.of(paint));
-        when(paintRecipeRepository.countUsagesOfPaint(paint.getId())).thenReturn(0L);
-        when(paintRepository.existsByBasePaintId(paint.getId())).thenReturn(true);
+        when(paintRecipeRepository.findRecipesUsingPaint(paint.getId())).thenReturn(List.of(recipe));
+        when(armyCollectionRepository.findAllById(any())).thenReturn(List.of(collection));
+        when(paintRepository.findClash(ownerId, "Leadbelcher", "Citadel"))
+                .thenReturn(Optional.of(customisation));
+        when(paintRepository.findAllByBasePaintId(paint.getId())).thenReturn(List.of());
+        when(paintDraftRepository.findByPaintId(paint.getId())).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.deletePaint(paint.getId()))
-                .isInstanceOf(ConflictException.class);
-        verify(paintRepository, never()).deleteById(any());
+        service.deletePaint(paint.getId());
+
+        assertThat(recipe.getPaints().getFirst().getPaint()).isSameAs(customisation);
+        assertThat(customisation.getBasePaintId()).isNull();
+        verify(paintRepository).deleteById(paint.getId());
+    }
+
+    @Test
+    void deletingACustomisedPaintDetachesTheCopiesSoTheyBecomeTheOwnersOwn() {
+        var paint = catalogueLeadbelcher();
+        var customisation =
+                PaintEntity.builder()
+                        .id(UUID.randomUUID())
+                        .ownerUserId(UUID.randomUUID())
+                        .basePaintId(paint.getId())
+                        .name("Leadbelcher")
+                        .brand("Citadel")
+                        .build();
+        when(paintRepository.findById(paint.getId())).thenReturn(Optional.of(paint));
+        when(paintRecipeRepository.findRecipesUsingPaint(paint.getId())).thenReturn(List.of());
+        when(paintRepository.findAllByBasePaintId(paint.getId())).thenReturn(List.of(customisation));
+        when(paintDraftRepository.findByPaintId(paint.getId())).thenReturn(Optional.empty());
+
+        service.deletePaint(paint.getId());
+
+        assertThat(customisation.getBasePaintId()).isNull();
+        verify(paintRepository).saveAll(List.of(customisation));
+        verify(paintRepository).deleteById(paint.getId());
     }
 
     @Test

@@ -1,4 +1,4 @@
-import { ActionIcon, Alert, Badge, Button, Group, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { ActionIcon, Alert, Badge, Button, Group, Modal, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import {
   IconAlertCircle,
   IconAlertTriangle,
@@ -132,6 +132,7 @@ export default function PaintDefinitionsAdminPage() {
   const [saving, setSaving] = useState(false);
   const [busyDraftId, setBusyDraftId] = useState<string | null>(null);
   const [deletingPaintId, setDeletingPaintId] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<Paint | null>(null);
 
   const loadAll = useCallback(
     (signal?: AbortSignal) => {
@@ -244,15 +245,20 @@ export default function PaintDefinitionsAdminPage() {
     }
   }
 
-  async function handleDeletePaint(paintId: string) {
+  async function handleDeletePaint() {
+    const paint = pendingDelete;
+    if (!paint?.id) return;
     setError(null);
+    setNotice(null);
     try {
-      setDeletingPaintId(paintId);
-      await deletePaint({ path: { paintId } });
-      setPaints((prev) => prev.filter((paint) => paint.id !== paintId));
-      setDrafts((prev) => prev.filter((draft) => draft.paintId !== paintId));
+      setDeletingPaintId(paint.id);
+      await deletePaint({ path: { paintId: paint.id } });
+      setPaints((prev) => prev.filter((row) => row.id !== paint.id));
+      setDrafts((prev) => prev.filter((draft) => draft.paintId !== paint.id));
+      setPendingDelete(null);
     } catch (e) {
       setError(String(e));
+      setPendingDelete(null);
     } finally {
       setDeletingPaintId("");
     }
@@ -383,9 +389,7 @@ export default function PaintDefinitionsAdminPage() {
                         <ActionIcon
                           color="red"
                           variant="light"
-                          onClick={() => {
-                            if (paint.id) handleDeletePaint(paint.id);
-                          }}
+                          onClick={() => setPendingDelete(paint)}
                           loading={deletingPaintId === paint.id}
                           title="Delete paint"
                         >
@@ -400,6 +404,43 @@ export default function PaintDefinitionsAdminPage() {
           )}
         </Stack>
       </AdminPageGate>
+
+      <Modal
+        opened={pendingDelete !== null}
+        onClose={() => {
+          if (!deletingPaintId) setPendingDelete(null);
+        }}
+        title="Delete paint from the catalogue?"
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            This will remove{" "}
+            <Text span fw={600}>
+              {pendingDelete?.name}
+            </Text>
+            {pendingDelete?.brand ? ` (${pendingDelete.brand})` : ""} from the shared catalogue. This cannot be undone.
+          </Text>
+          <Alert color="yellow" icon={<IconAlertTriangle size={16} />}>
+            Anyone who customised this paint will keep their copy as a paint they created themselves. It will no longer
+            be linked to the catalogue, and they will not be able to revert to the shared version.
+          </Alert>
+          {(pendingDelete?.usageCount ?? 0) > 0 && (
+            <Alert color="yellow" icon={<IconAlertTriangle size={16} />}>
+              {(pendingDelete?.usageCount ?? 0) === 1
+                ? "1 paint recipe still uses this paint. That user will get a personal copy, and the recipe will keep using it."
+                : `${pendingDelete?.usageCount} paint recipes still use this paint. Each user who used it will get a personal copy, and their recipes will keep using that copy.`}
+            </Alert>
+          )}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setPendingDelete(null)} disabled={Boolean(deletingPaintId)}>
+              Cancel
+            </Button>
+            <Button color="red" onClick={handleDeletePaint} loading={Boolean(deletingPaintId)}>
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <PaintFormModal
         opened={creating}
