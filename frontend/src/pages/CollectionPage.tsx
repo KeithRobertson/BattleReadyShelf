@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
 import { AddModelModal } from "@/components/collection/AddModelModal.tsx";
+import CollectionAside from "@/components/collection/aside/CollectionAside.tsx";
 import CollectionHeader from "@/components/collection/CollectionHeader.tsx";
 import { CollectionModelsToolbar } from "@/components/collection/CollectionModelsToolbar.tsx";
 import CollectionPublicToggle from "@/components/collection/CollectionPublicToggle.tsx";
@@ -21,6 +22,7 @@ import useCollectionModels from "@/hooks/collections/useCollectionModels.ts";
 import useDeleteConfirmation from "@/hooks/collections/useDeleteConfirmation.ts";
 import useGroupDrag from "@/hooks/collections/useGroupDrag.ts";
 import useGroupedModels from "@/hooks/collections/useGroupedModels.ts";
+import useModelFocus from "@/hooks/collections/useModelFocus.ts";
 import useModelImages from "@/hooks/collections/useModelImages.ts";
 import useModelSelection from "@/hooks/collections/useModelSelection.ts";
 import { useModelSort } from "@/hooks/collections/useModelSort.ts";
@@ -59,6 +61,7 @@ export default function CollectionPage() {
     modelFilters.modelMatchesFilters,
   );
   const selection = useModelSelection();
+  const focus = useModelFocus();
   const deletion = useDeleteConfirmation();
   const [openGroups, setOpenGroups] = useState<string[]>([]);
   const drag = useGroupDrag(
@@ -91,6 +94,7 @@ export default function CollectionPage() {
       editing={editing}
       groupedModels={groupedModels}
       selection={selection}
+      focus={focus}
       deletion={deletion}
       drag={drag}
       modelImages={modelImages}
@@ -104,6 +108,7 @@ export default function CollectionPage() {
       setOpenGroups={setOpenGroups}
     >
       <Stack gap="md">
+        <CollectionAside />
         <Anchor component={Link} to="/" size="sm" display="inline-flex" style={{ alignItems: "center", gap: 4 }}>
           <IconArrowLeft size={14} /> Back to collections
         </Anchor>

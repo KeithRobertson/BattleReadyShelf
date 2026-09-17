@@ -91,7 +91,12 @@ export const ModelImageSection = React.memo(function ModelImageSection({
           justify="center"
           align="center"
           h={100}
-          onClick={() => editMode && !isUploading && fileInputRef.current?.click()}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (editMode && !isUploading) {
+              fileInputRef.current?.click();
+            }
+          }}
           style={{
             border: "1px dashed var(--mantine-color-gray-4)",
             borderRadius: "var(--mantine-radius-sm)",

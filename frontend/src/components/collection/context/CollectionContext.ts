@@ -6,6 +6,7 @@ import type { CollectionModels } from "@/hooks/collections/useCollectionModels.t
 import type { ModelDeletion } from "@/hooks/collections/useDeleteConfirmation.ts";
 import type { GroupDrag } from "@/hooks/collections/useGroupDrag.ts";
 import type { GroupedModels } from "@/hooks/collections/useGroupedModels.ts";
+import type { ModelFocus } from "@/hooks/collections/useModelFocus.ts";
 import type { ModelImages } from "@/hooks/collections/useModelImages.ts";
 import type { ModelSelection } from "@/hooks/collections/useModelSelection.ts";
 import type { ModelSort } from "@/hooks/collections/useModelSort.ts";
@@ -16,6 +17,7 @@ export interface CollectionContextValue {
   editing: CollectionEditing;
   groupedModels: GroupedModels;
   selection: ModelSelection;
+  focus: ModelFocus;
   deletion: ModelDeletion;
   drag: GroupDrag;
   modelImages: ModelImages;

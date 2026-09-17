@@ -30,7 +30,11 @@ export default function AppLayout() {
     }
   };
   const { opened: navOpened, toggle: toggleNav, isMobile } = useResponsivePersistentDisclosure("navOpened");
-  const { opened: asideOpened, toggle: toggleAside } = useResponsivePersistentDisclosure("asideOpened");
+  const {
+    opened: asideOpened,
+    toggle: toggleAside,
+    open: openAside,
+  } = useResponsivePersistentDisclosure("asideOpened");
   const isAdminRoute = location.pathname.startsWith("/admin");
   const isMyDefinitionsRoute = location.pathname.startsWith("/my/");
   const isCollectionsRoute = location.pathname === "/" || location.pathname.startsWith("/collections");
@@ -75,7 +79,7 @@ export default function AppLayout() {
                 <GoogleLoginButton loginWithGoogleIdToken={loginWithGoogleIdToken} />
               ))}
 
-            <ActionIcon variant="subtle" size="lg" onClick={toggleAside} aria-label="Toggle collection summary">
+            <ActionIcon variant="subtle" size="lg" onClick={toggleAside} aria-label="Toggle side panel">
               <AsideIcon size={20} />
             </ActionIcon>
           </Group>
@@ -158,13 +162,14 @@ export default function AppLayout() {
 
       <AppShell.Main>
         <Suspense fallback={<PageSkeleton />}>
-          <Outlet context={{ setAsideContent }} />
+          <Outlet context={{ setAsideContent, openAside }} />
         </Suspense>
       </AppShell.Main>
       <AppShell.Aside
         p="lg"
         style={(theme) => ({
           borderLeft: `1px solid ${theme.colors.gray[3]}`,
+          overflowY: "auto",
         })}
       >
         {asideContent}

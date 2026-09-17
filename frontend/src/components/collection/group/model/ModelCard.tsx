@@ -9,6 +9,7 @@ import { ModelCardStatus } from "@/components/collection/group/model/ModelCardSt
 import { ModelCardWargear } from "@/components/collection/group/model/ModelCardWargear.tsx";
 import { ModelImageSection } from "@/components/collection/group/model/ModelImageSection.tsx";
 import type { CollectionModel, CollectionModelStatus } from "@/generated";
+import isFromInteractiveTarget from "@/utils/collection/isFromInteractiveTarget.ts";
 import { COLLECTION_MODEL_STATUS_BACKGROUNDS } from "@/utils/collectionModelStatus.ts";
 
 const MAX_VISIBLE_THUMBNAILS = 4;
@@ -36,6 +37,8 @@ export type ModelCardProps = Readonly<{
 
   selected: boolean;
   onToggleSelected: (selected: boolean) => void;
+  focused: boolean;
+  onToggleFocus: () => void;
 }>;
 
 function ModelCard({
@@ -55,6 +58,8 @@ function ModelCard({
   isDeleting,
   selected,
   onToggleSelected,
+  focused,
+  onToggleFocus,
 }: ModelCardProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const images = model.images ?? [];
@@ -159,8 +164,24 @@ function ModelCard({
       withBorder
       radius="md"
       padding="md"
+      tabIndex={0}
+      onClick={(event) => {
+        if (!isFromInteractiveTarget(event.target)) {
+          onToggleFocus();
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onToggleFocus();
+        }
+      }}
       style={{
         backgroundColor: model.status ? COLLECTION_MODEL_STATUS_BACKGROUNDS[model.status] : undefined,
+        outline: focused ? "2px solid var(--mantine-color-blue-5)" : undefined,
+        outlineOffset: 2,
+        cursor: "pointer",
       }}
     >
       <Stack gap="xs">

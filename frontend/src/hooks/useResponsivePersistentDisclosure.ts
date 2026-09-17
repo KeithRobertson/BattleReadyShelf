@@ -1,11 +1,12 @@
 import { useMediaQuery } from "@mantine/hooks";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export function useResponsivePersistentDisclosure(key: string) {
   const isMobile = useMediaQuery("(max-width: 48em)");
   const [opened, setOpened] = useState<boolean | undefined>(undefined);
 
-  const toggle = () => setOpened((v) => !v);
+  const toggle = useCallback(() => setOpened((v) => !v), []);
+  const open = useCallback(() => setOpened(true), []);
 
   useEffect(() => {
     const saved = localStorage.getItem(key) === "true";
@@ -23,5 +24,5 @@ export function useResponsivePersistentDisclosure(key: string) {
     }
   }, [opened, isMobile, key]);
 
-  return { opened, toggle, isMobile };
+  return { opened, toggle, open, isMobile };
 }

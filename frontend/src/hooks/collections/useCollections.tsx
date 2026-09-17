@@ -4,9 +4,10 @@ import { Stack, Text, Title } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AxiosResponse } from "axios";
-import { type ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
+import type { AppOutletContext } from "@/components/AppOutletContext.ts";
 import { CollectionStatsPanel } from "@/components/collections/CollectionStatsPanel.tsx";
 import type { ArmyCollection, CollectionModelStatus } from "@/generated";
 import { createArmyCollection, getArmyCollections, reorderArmyCollections } from "@/generated";
@@ -18,7 +19,7 @@ export type CollectionsState = "auth-loading" | "unauthenticated" | "collections
 
 export function useCollections() {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
-  const { setAsideContent } = useOutletContext<{ setAsideContent: (c: ReactNode) => void }>();
+  const { setAsideContent } = useOutletContext<AppOutletContext>();
   const queryClient = useQueryClient();
 
   const isUser = user?.role === "USER" || user?.role === "ADMIN" || user?.role === "SUPERADMIN";

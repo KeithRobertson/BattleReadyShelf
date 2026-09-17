@@ -1,5 +1,7 @@
 import { Accordion, Checkbox, SimpleGrid, Stack } from "@mantine/core";
 import React, { useMemo } from "react";
+import { useOutletContext } from "react-router-dom";
+import type { AppOutletContext } from "@/components/AppOutletContext.ts";
 import { useCollectionContext } from "@/components/collection/context/CollectionContext.ts";
 import ModelCard from "@/components/collection/group/model/ModelCard.tsx";
 import GroupPaintRecipe from "@/components/collection/paint/GroupPaintRecipe.tsx";
@@ -13,12 +15,23 @@ export type CollectionGroupPanelProps = Readonly<{
 }>;
 
 export const CollectionGroupPanel = React.memo(function CollectionGroupPanel({ group }: CollectionGroupPanelProps) {
-  const { isEditMode, selection, deletion, modelImages } = useCollectionContext();
+  const { isEditMode, selection, focus, deletion, modelImages } = useCollectionContext();
+  const { openAside } = useOutletContext<AppOutletContext>();
   const selectedInGroup = useMemo(
     () => getSelectedInGroup(group, selection.selectedModelIds),
     [group, selection.selectedModelIds],
   );
   const actions = useModelActions();
+
+  function handleToggleFocus(modelId: string | undefined) {
+    if (!modelId) return;
+    if (focus.focusedModelId === modelId) {
+      focus.clearFocus();
+      return;
+    }
+    focus.setFocus(modelId);
+    openAside();
+  }
 
   return (
     <Accordion.Panel>
@@ -60,6 +73,8 @@ export const CollectionGroupPanel = React.memo(function CollectionGroupPanel({ g
                 isDeleting={deletion.pendingDelete?.modelId === model.id}
                 selected={!!model.id && selection.selectedModelIds.has(model.id)}
                 onToggleSelected={(isSelected: boolean) => actions.toggleSelected(model.id, isSelected)}
+                focused={focus.isFocused(model.id)}
+                onToggleFocus={() => handleToggleFocus(model.id)}
               />
             );
           })}
