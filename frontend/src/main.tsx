@@ -4,7 +4,7 @@ import "@mantine/dates/styles.css";
 import { Notifications } from "@mantine/notifications";
 import "@mantine/notifications/styles.css";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { StrictMode } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import "@/auth/apiClient";
@@ -37,6 +37,22 @@ const queryClient = new QueryClient({
 });
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
 
+// Both are dev-only and behind a statically false condition in a build, so neither the panel nor the
+// fault injection it drives is bundled for production.
+const DevToolsPanel = import.meta.env.DEV ? lazy(() => import("@/dev/DevToolsPanel")) : null;
+
+/**
+ * Fault injection is installed before the first render because the requests worth breaking include
+ * the ones a page makes on the way up: session restore, and whatever the landing route loads.
+ */
+async function installDevTools() {
+  if (!import.meta.env.DEV) return;
+  const { installApiFaults } = await import("@/dev/installApiFaults");
+  installApiFaults();
+}
+
+await installDevTools();
+
 if (rootElement) {
   createRoot(rootElement).render(
     <StrictMode>
@@ -47,6 +63,11 @@ if (rootElement) {
               button live - and "your session has expired" landing on top of the button it is telling
               you to press is not helpful. */}
           <Notifications position="bottom-right" />
+          {DevToolsPanel && (
+            <Suspense fallback={null}>
+              <DevToolsPanel />
+            </Suspense>
+          )}
           <GoogleOAuthProvider clientId={googleClientId}>
             <BrowserRouter basename={import.meta.env.BASE_URL}>
               <AuthProvider>

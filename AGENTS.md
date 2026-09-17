@@ -168,7 +168,27 @@ the `@/` alias, and `src/testing/` holds the shared harness:
 For error states that are about what the *user sees*, use the Playwright harness instead
 (`npm run screenshot -- --scenario=<name>`): a scenario can set `failApi` to fail chosen calls in the
 browser, so no data has to be broken to produce the error. Those scenarios double as regression
-checks — whatever a scenario's `prepare` waits for is effectively an assertion.
+checks — whatever a scenario's `prepare` waits for is effectively an assertion, and a scenario fails
+outright on a `Maximum update depth exceeded` warning, since an error state is exactly where a render
+loop hides and a looping page still screenshots perfectly well.
+
+The harness is not interactive — it drives itself and exits. Two ways to look at a state by hand:
+
+- `src/dev/` — a dev-only panel (bug icon, bottom left) that makes the API misbehave while browsing
+  the real app: a status and message, a request that never answers, one answered late, or a body of
+  your own. It replaces axios' adapter, the same trick as `stubApi`, so the app's own error handling
+  runs on a faked failure exactly as on a real one. Rules are held in localStorage so a reload lands
+  back in the same broken state, and a rule's `url`/`method` are the same shape as a scenario's
+  `failApi`, so one can be pasted into the other. None of it is in a production build.
+- `npm run screenshot -- --scenario=<name> --explore` — opens one scenario headed, runs its `prepare`,
+  and leaves the browser open to click around in. Use this to start from a state a scenario already
+  reaches; use the panel for open-ended poking about.
+
+Storybook is deliberately not used. The states worth exploring here are pages, and a page needs the
+router, `AuthProvider`, `QueryClientProvider`, Mantine's provider and (on a collection) a deep
+context — so component-level stories would mean maintaining a second copy of that wiring for less
+fidelity than the real app already gives. Revisit only if a shared design system needs a workshop of
+its own.
 
 ---
 

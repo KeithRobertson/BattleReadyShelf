@@ -23,6 +23,14 @@ export type CollectionsState =
   | "empty"
   | "ready";
 
+/**
+ * One instance rather than `data ?? []`, because a query in an error state has no data to fall back
+ * on: the literal would be a different array on every render, and the aside-panel effect below is
+ * keyed on it. That effect sets state in AppLayout, which renders again, which makes another array,
+ * so a failed load used to spin the page in an endless render loop.
+ */
+const NO_COLLECTIONS: ArmyCollection[] = [];
+
 export function useCollections() {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const { setAsideContent } = useOutletContext<AppOutletContext>();
@@ -44,9 +52,9 @@ export function useCollections() {
       return response.data ?? [];
     },
     enabled: isAuthenticated,
-    placeholderData: [],
+    placeholderData: NO_COLLECTIONS,
   });
-  const { data: collections = [], isLoading: collectionsLoading, error } = collectionsQuery;
+  const { data: collections = NO_COLLECTIONS, isLoading: collectionsLoading, error } = collectionsQuery;
 
   useEffect(() => {
     if (!collections) return;

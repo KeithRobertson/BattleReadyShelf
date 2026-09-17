@@ -12,6 +12,11 @@ function compareFactionGroups(a: string, b: string): number {
   return a.localeCompare(b);
 }
 
+// Shared instances, not `data ?? []`: a failed query has no data, and a fresh array every render
+// invalidates every memo below it (see the note in useCollections for where that turns into a loop).
+const NO_MODEL_DEFINITIONS: ModelDefinition[] = [];
+const NO_FACTIONS: Faction[] = [];
+
 export type CollectionMetadata = ReturnType<typeof useCollectionMetadata>;
 
 export default function useCollectionMetadata(collectionId: string | undefined) {
@@ -22,10 +27,10 @@ export default function useCollectionMetadata(collectionId: string | undefined) 
       return response.data ?? [];
     },
     enabled: Boolean(collectionId),
-    placeholderData: [],
+    placeholderData: NO_MODEL_DEFINITIONS,
   });
   const {
-    data: modelDefinitions = [],
+    data: modelDefinitions = NO_MODEL_DEFINITIONS,
     isLoading: modelDefinitionsLoading,
     isError: isModelDefinitionsError,
     error: modelDefinitionsError,
@@ -38,10 +43,10 @@ export default function useCollectionMetadata(collectionId: string | undefined) 
       return response.data ?? [];
     },
     enabled: Boolean(collectionId),
-    placeholderData: [],
+    placeholderData: NO_FACTIONS,
   });
   const {
-    data: factions = [],
+    data: factions = NO_FACTIONS,
     isLoading: factionsLoading,
     isError: isFactionsError,
     error: factionsError,

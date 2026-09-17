@@ -11,13 +11,17 @@ import {
 import { COLLECTION_MODELS_KEY } from "@/queryKeys.ts";
 import isInitialLoad from "@/utils/isInitialLoad.ts";
 
+// Shared instance, not `data ?? []`: a failed query has no data, and a fresh array every render
+// invalidates every memo below it (see the note in useCollections for where that turns into a loop).
+const NO_MODELS: CollectionModel[] = [];
+
 export type CollectionModels = ReturnType<typeof useCollectionModels>;
 
 export default function useCollectionModels(collectionId: string | undefined) {
   const queryClient = useQueryClient();
 
   const {
-    data: models = [],
+    data: models = NO_MODELS,
     isLoading,
     isFetching,
     isPlaceholderData,
@@ -34,7 +38,7 @@ export default function useCollectionModels(collectionId: string | undefined) {
       return collectionModelsResponse.data ?? [];
     },
     enabled: Boolean(collectionId),
-    placeholderData: [],
+    placeholderData: NO_MODELS,
   });
 
   function setModels(updater: (prev: CollectionModel[]) => CollectionModel[]) {

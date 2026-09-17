@@ -12,6 +12,7 @@
  *   node scripts/screenshot.mjs --scenario=wargear     # one scenario
  *   node scripts/screenshot.mjs --device="iPhone SE"   # one device
  *   node scripts/screenshot.mjs --headed               # watch it drive the browser
+ *   node scripts/screenshot.mjs --scenario=X --explore # leave it open to click around in
  *
  * Scenarios live in scripts/scenarios.mjs.
  */
@@ -32,6 +33,12 @@ const BASE_URL = process.env.SCREENSHOT_BASE_URL ?? "http://localhost:5173";
  * break first; the iPhone SE size is the common tight case; iPad Mini catches the tablet
  * breakpoint. Playwright's descriptors carry the right device pixel ratio and touch flags too.
  */
+/**
+ * Console noise that says nothing about the app: the analytics beacon in index.html has no CORS
+ * headers for localhost, and every page load complains about it twice.
+ */
+const IGNORED_CONSOLE_ERRORS = [/cloudflareinsights\.com/, /net::ERR_FAILED/];
+
 const DEVICE_PRESETS = {
   "Galaxy S III": { ...devices["Galaxy S III"] },
   "iPhone SE": { ...devices["iPhone SE"] },
@@ -40,9 +47,10 @@ const DEVICE_PRESETS = {
 };
 
 function parseArgs(argv) {
-  const args = { scenario: null, device: null, headed: false };
+  const args = { scenario: null, device: null, headed: false, explore: false };
   for (const arg of argv.slice(2)) {
     if (arg === "--headed") args.headed = true;
+    else if (arg === "--explore") args.explore = true;
     else if (arg.startsWith("--scenario=")) args.scenario = arg.slice("--scenario=".length);
     else if (arg.startsWith("--device=")) args.device = arg.slice("--device=".length);
   }
@@ -95,7 +103,9 @@ async function capture(browser, deviceName, scenario, token) {
 
   const consoleErrors = [];
   page.on("console", (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text());
+    if (message.type() === "error" && !IGNORED_CONSOLE_ERRORS.some((noise) => noise.test(message.text()))) {
+      consoleErrors.push(message.text());
+    }
   });
 
   const slug = `${scenario.name}--${deviceName.replace(/\s+/g, "-")}`;
@@ -105,6 +115,13 @@ async function capture(browser, deviceName, scenario, token) {
 
     const path = resolve(OUTPUT_DIR, `${slug}.png`);
     await page.screenshot({ path, fullPage: scenario.fullPage ?? false });
+
+    // A render loop still screenshots perfectly well, so nothing else here would notice one - and an
+    // error state is where they hide, because a query with no data hands out a new empty array on
+    // every render. Failing on the warning is the only thing that catches it.
+    const loop = consoleErrors.find((text) => text.includes("Maximum update depth exceeded"));
+    if (loop) throw new Error("React render loop: Maximum update depth exceeded");
+
     console.log(`  ok   ${slug}`);
     if (consoleErrors.length > 0) {
       console.log(`       (${consoleErrors.length} console error(s): ${consoleErrors[0].slice(0, 120)})`);
@@ -118,6 +135,39 @@ async function capture(browser, deviceName, scenario, token) {
   } finally {
     await context.close();
   }
+}
+
+/**
+ * Sets a scenario up and then hands the browser over, so its state can be clicked around in rather
+ * than only photographed. The script stays alive until the window is closed.
+ *
+ * For open-ended poking about, the dev panel in the app itself (bottom left, dev builds only) does
+ * the same fault injection without a script; this is for starting from a scenario that already
+ * exists.
+ */
+async function explore(browser, deviceName, scenario, token) {
+  // A real resizable window where nothing is being emulated, but the preset's fixed viewport when a
+  // device is, since that emulation is the only reason to name one.
+  const context = await browser.newContext(
+    deviceName === "Desktop" ? { viewport: null } : DEVICE_PRESETS[deviceName],
+  );
+  await context.addInitScript((value) => window.localStorage.setItem("brs_token", value), token);
+
+  const page = await context.newPage();
+  if (scenario.failApi) await failApiRoutes(page, scenario.failApi);
+
+  await page.goto(`${BASE_URL}${scenario.route}`, { waitUntil: "networkidle" });
+  // A scenario's prepare is what reaches the interesting state, but it is written for a screenshot
+  // and may wait for something this run has not produced. Losing it should not close the window.
+  await scenario.prepare?.(page).catch((error) => {
+    console.log(`  prepare stopped early: ${error.message.split("\n")[0]}`);
+  });
+
+  console.log(`\n"${scenario.name}" is open on ${deviceName}. Close the tab to finish.`);
+  if (scenario.failApi) {
+    console.log(`Faked: ${scenario.failApi.map((f) => `${f.method ?? "ANY"} ${f.url}`).join(", ")}`);
+  }
+  await page.waitForEvent("close", { timeout: 0 }).catch(() => {});
 }
 
 async function main() {
@@ -134,6 +184,20 @@ async function main() {
   if (unknownDevice) {
     console.error(`No device "${unknownDevice}". Known: ${Object.keys(DEVICE_PRESETS).join(", ")}`);
     process.exit(1);
+  }
+
+  if (args.explore) {
+    if (scenarios.length > 1) {
+      console.error("--explore opens one scenario at a time, so it needs --scenario=<name>.");
+      process.exit(1);
+    }
+    const browser = await chromium.launch({ headless: false });
+    try {
+      await explore(browser, args.device ?? "Desktop", scenarios[0], mintDevToken(devUser()));
+    } finally {
+      await browser.close();
+    }
+    return;
   }
 
   await rm(OUTPUT_DIR, { recursive: true, force: true });
