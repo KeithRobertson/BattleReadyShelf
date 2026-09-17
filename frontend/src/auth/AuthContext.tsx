@@ -1,9 +1,10 @@
 import { useMantineColorScheme } from "@mantine/core";
 import { googleLogout } from "@react-oauth/google";
+import { isAxiosError } from "axios";
 import type { ReactNode } from "react";
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
-import { getStoredToken, setStoredToken, setUnauthorizedHandler } from "@/auth//tokenStorage";
 import { type CurrentUser, fetchCurrentUser, loginWithGoogle, updateThemePreference } from "@/auth/authApi";
+import { getStoredToken, setStoredToken } from "@/auth/tokenStorage";
 import type { ThemePreference } from "@/generated";
 
 export type AuthContextValue = {
@@ -28,13 +29,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const { setColorScheme } = useMantineColorScheme();
 
   useEffect(() => {
-    // If any API call is rejected as unauthorized (expired/invalid token), make
-    // sure our in-memory user state is cleared too, not just the stored token.
-    setUnauthorizedHandler(() => setUser(null));
-    return () => setUnauthorizedHandler(null);
-  }, []);
-
-  useEffect(() => {
     const token = getStoredToken();
     if (!token) {
       setIsLoading(false);
@@ -42,7 +36,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     fetchCurrentUser()
       .then(setUser)
-      .catch(() => setStoredToken(null))
+      .catch((error: unknown) => {
+        // Only drop a stored token when the server actually rejected it. A blip
+        // (network / 5xx) must not sign the user out.
+        if (isAxiosError(error) && error.response?.status === 401) {
+          setStoredToken(null);
+        }
+      })
       .finally(() => setIsLoading(false));
   }, []);
 

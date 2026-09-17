@@ -11,17 +11,3 @@ export function setStoredToken(token: string | null): void {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
   }
 }
-
-// Lets the API layer notify AuthContext when a request is rejected as
-// unauthorized (e.g. an expired/invalid token), so the in-memory `user`
-// state doesn't stay stale after the stored token has been cleared.
-let unauthorizedHandler: (() => void) | null = null;
-
-export function setUnauthorizedHandler(handler: (() => void) | null): void {
-  unauthorizedHandler = handler;
-}
-
-export function clearTokenDueToUnauthorized(): void {
-  setStoredToken(null);
-  unauthorizedHandler?.();
-}

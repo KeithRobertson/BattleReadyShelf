@@ -14,6 +14,7 @@ import { Suspense, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { GoogleLoginButton } from "@/auth/GoogleLoginButton.tsx";
 import { useAuth } from "@/auth/useAuth";
+import ApiErrorBanner from "@/components/ApiErrorBanner.tsx";
 import PageSkeleton from "@/components/PageSkeleton.tsx";
 import { UserMenu } from "@/components/UserMenu.tsx";
 import { adminNavItems, myDefinitionNavItems } from "@/config/navigation";
@@ -161,6 +162,7 @@ export default function AppLayout() {
       </AppShell.Navbar>
 
       <AppShell.Main>
+        <ApiErrorBanner />
         <Suspense fallback={<PageSkeleton />}>
           <Outlet context={{ setAsideContent, openAside }} />
         </Suspense>
