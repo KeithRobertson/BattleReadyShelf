@@ -4,7 +4,7 @@ import { isAxiosError } from "axios";
 import type { ReactNode } from "react";
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
 import { type CurrentUser, fetchCurrentUser, loginWithGoogle, updateThemePreference } from "@/auth/authApi";
-import { getStoredToken, setStoredToken } from "@/auth/tokenStorage";
+import { getStoredToken, setSessionEndedHandler, setStoredToken } from "@/auth/tokenStorage";
 import type { ThemePreference } from "@/generated";
 
 export type AuthContextValue = {
@@ -27,6 +27,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { setColorScheme } = useMantineColorScheme();
+
+  useEffect(() => {
+    // The API layer clears the token once the server has confirmed it is dead; clear the user with
+    // it, or the header keeps rendering a signed-in session that no longer exists.
+    setSessionEndedHandler(() => setUser(null));
+    return () => setSessionEndedHandler(null);
+  }, []);
 
   useEffect(() => {
     const token = getStoredToken();

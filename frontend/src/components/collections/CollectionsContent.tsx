@@ -32,6 +32,9 @@ export function CollectionsContent({
 
   if (state === "collections-loading") return <Loader />;
 
+  // Nothing: CollectionsError above has already said the list could not be loaded.
+  if (state === "load-failed") return null;
+
   if (state === "empty") return <Text c="dimmed">You haven't created any collections yet.</Text>;
 
   return (

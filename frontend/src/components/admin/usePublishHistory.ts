@@ -11,15 +11,19 @@ export default function usePublishHistory(fetchHistory: (definitionId: string) =
   const [target, setTarget] = useState<HistoryTarget | null>(null);
   const [entries, setEntries] = useState<DefinitionPublishAudit[]>([]);
   const [loading, setLoading] = useState(false);
+  // An empty list means "never published", so a failed fetch has to be told apart from it or the
+  // modal states as fact something it does not know.
+  const [failed, setFailed] = useState(false);
 
   const open = useCallback(
     (definitionId: string, name: string) => {
       setTarget({ id: definitionId, name });
       setEntries([]);
+      setFailed(false);
       setLoading(true);
       fetchHistory(definitionId)
         .then(setEntries)
-        .catch(() => setEntries([]))
+        .catch(() => setFailed(true))
         .finally(() => setLoading(false));
     },
     [fetchHistory],
@@ -27,5 +31,5 @@ export default function usePublishHistory(fetchHistory: (definitionId: string) =
 
   const close = useCallback(() => setTarget(null), []);
 
-  return { target, entries, loading, open, close };
+  return { target, entries, loading, failed, open, close };
 }

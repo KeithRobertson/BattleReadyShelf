@@ -1,20 +1,16 @@
 export type SettingsState = {
   isSaving: boolean;
-  error: string | null;
 };
 
-export type SettingsAction = { type: "startSaving" } | { type: "success" } | { type: "error"; error: string };
+export type SettingsAction = { type: "startSaving" } | { type: "saved" };
 
 export function settingsReducer(state: SettingsState, action: SettingsAction): SettingsState {
   switch (action.type) {
     case "startSaving":
-      return { isSaving: true, error: null };
+      return { isSaving: true };
 
-    case "success":
-      return { isSaving: false, error: null };
-
-    case "error":
-      return { isSaving: false, error: action.error };
+    case "saved":
+      return { isSaving: false };
 
     default:
       return state;

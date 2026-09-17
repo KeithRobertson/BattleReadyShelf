@@ -25,12 +25,14 @@ export default function UsersAdminPage() {
     }
     const abortController = new AbortController();
     dispatch({ type: "loadStart" });
-    getUsers({ signal: abortController.signal })
+    getUsers({ signal: abortController.signal, throwOnError: true })
       .then((response) => {
         if (!abortController.signal.aborted) dispatch({ type: "loadSuccess", users: response.data ?? [] });
       })
-      .catch((e) => {
-        if (!abortController.signal.aborted) dispatch({ type: "loadError", error: String(e) });
+      .catch(() => {
+        // The reason arrives from the API layer as a notification; the page only has to stop
+        // presenting an empty table as though there were no users.
+        if (!abortController.signal.aborted) dispatch({ type: "loadFailed" });
       });
     return () => abortController.abort();
   }, [isAdmin]);
@@ -58,18 +60,16 @@ export default function UsersAdminPage() {
   async function handleIndividualRoleChange(userId: string, role: UserRole) {
     dispatch({ type: "savingStart", userId });
     try {
-      const updated = (await updateUserRole({ path: { userId }, body: { role } })).data;
+      const updated = (await updateUserRole({ path: { userId }, body: { role }, throwOnError: true })).data;
       if (updated) {
         dispatch({
           type: "loadSuccess",
           users: state.users.map((u) => (u.id === userId ? updated : u)),
         });
       }
-    } catch (e) {
-      dispatch({
-        type: "loadError",
-        error: String(e),
-      });
+    } catch {
+      // Reported as a notification by the API layer. The table is left showing the role the server
+      // still has, so the select snaps back rather than claiming a change that did not happen.
     } finally {
       dispatch({ type: "savingEnd" });
     }
@@ -78,19 +78,20 @@ export default function UsersAdminPage() {
   async function handleBulkApply() {
     dispatch({ type: "bulkSavingStart" });
     try {
-      const updated = (await bulkUpdateUserRoles({ body: { userIds: [...state.selectedIds], role: state.bulkRole } }))
-        .data;
+      const updated = (
+        await bulkUpdateUserRoles({
+          body: { userIds: [...state.selectedIds], role: state.bulkRole },
+          throwOnError: true,
+        })
+      ).data;
       if (updated) {
         dispatch({
           type: "bulkApplySuccess",
           updated,
         });
       }
-    } catch (e) {
-      dispatch({
-        type: "loadError",
-        error: String(e),
-      });
+    } catch {
+      // Reported as a notification by the API layer; the selection stays put so it can be retried.
     } finally {
       dispatch({ type: "bulkSavingEnd" });
     }
@@ -104,9 +105,9 @@ export default function UsersAdminPage() {
         <Text c="dimmed">View all users and manage their roles. Superadmins cannot be modified.</Text>
       </div>
 
-      {state.error && (
+      {state.loadFailed && (
         <Alert color="red" icon={<IconAlertCircle size={16} />}>
-          {state.error}
+          The users could not be loaded. Reload the page to try again.
         </Alert>
       )}
 

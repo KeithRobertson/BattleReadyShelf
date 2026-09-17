@@ -15,7 +15,13 @@ import { COLLECTIONS_KEY } from "@/queryKeys.ts";
 import { COLLECTION_MODEL_STATUSES } from "@/utils/collectionModelStatus";
 import isInitialLoad from "@/utils/isInitialLoad.ts";
 
-export type CollectionsState = "auth-loading" | "unauthenticated" | "collections-loading" | "empty" | "ready";
+export type CollectionsState =
+  | "auth-loading"
+  | "unauthenticated"
+  | "collections-loading"
+  | "load-failed"
+  | "empty"
+  | "ready";
 
 export function useCollections() {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
@@ -32,7 +38,9 @@ export function useCollections() {
   const collectionsQuery = useQuery<ArmyCollection[]>({
     queryKey: [COLLECTIONS_KEY],
     queryFn: async () => {
-      const response = await getArmyCollections();
+      // throwOnError, or a failed request resolves as an empty list and the page says "you haven't
+      // created any collections yet" about collections it simply could not load.
+      const response = await getArmyCollections({ throwOnError: true });
       return response.data ?? [];
     },
     enabled: isAuthenticated,
@@ -65,7 +73,8 @@ export function useCollections() {
   }, [collections, setAsideContent]);
 
   const createCollection = useMutation({
-    mutationFn: async () => (await createArmyCollection({ body: { name, description, isPublic } })).data,
+    mutationFn: async () =>
+      (await createArmyCollection({ body: { name, description, isPublic }, throwOnError: true })).data,
     onSuccess: (created) => {
       if (!created) return;
       queryClient.setQueryData<ArmyCollection[]>(["collections"], (prev = []) => [...prev, created]);
@@ -126,6 +135,8 @@ export function useCollections() {
     if (isAuthLoading) return "auth-loading";
     if (!isAuthenticated) return "unauthenticated";
     if (collectionsLoading || isInitialLoad(collectionsQuery)) return "collections-loading";
+    // Before "empty", or a failed load looks like an account with no collections in it.
+    if (error) return "load-failed";
     if (collections.length === 0) return "empty";
     return "ready";
   }

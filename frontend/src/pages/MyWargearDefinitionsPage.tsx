@@ -16,7 +16,6 @@ import {
   updateMyWargearDefinition,
 } from "@/generated";
 import { MODEL_DEFINITIONS_KEY } from "@/queryKeys.ts";
-import extractErrorMessage from "@/utils/extractErrorMessage.ts";
 import { diffFields, fieldChange } from "@/utils/personalFieldDiff";
 
 const DIFF_LABELS = {
@@ -49,19 +48,21 @@ const COLUMNS: PersonalCatalogueColumn<WargearDefinition>[] = [
 export default function MyWargearDefinitionsPage() {
   const api = useMemo(
     () => ({
-      loadMine: async (signal?: AbortSignal) => (await getMyWargearDefinitions({ signal })).data ?? [],
-      loadShared: async (signal?: AbortSignal) => (await getSharedWargearDefinitions({ signal })).data ?? [],
+      loadMine: async (signal?: AbortSignal) =>
+        (await getMyWargearDefinitions({ signal, throwOnError: true })).data ?? [],
+      loadShared: async (signal?: AbortSignal) =>
+        (await getSharedWargearDefinitions({ signal, throwOnError: true })).data ?? [],
       customise: async (wargearDefinitionId: string) =>
-        (await customiseWargearDefinition({ path: { wargearDefinitionId } })).data,
+        (await customiseWargearDefinition({ path: { wargearDefinitionId }, throwOnError: true })).data,
       remove: async (wargearDefinitionId: string) => {
-        await deleteMyWargearDefinition({ path: { wargearDefinitionId } });
+        await deleteMyWargearDefinition({ path: { wargearDefinitionId }, throwOnError: true });
       },
     }),
     [],
   );
 
   const catalogue = usePersonalCatalogue<WargearDefinition>(api, CACHED_QUERY_KEYS);
-  const { mine, shared, upsertMine, setError, notifyChanged } = catalogue;
+  const { mine, shared, upsertMine, notifyChanged } = catalogue;
 
   const [editing, setEditing] = useState<Editing>({ mode: "closed" });
   const [diffTarget, setDiffTarget] = useState<WargearDefinition | null>(null);
@@ -80,28 +81,27 @@ export default function MyWargearDefinitionsPage() {
 
   async function handleSave(name: string) {
     if (editing.mode === "closed") return;
-    setError(null);
     setSaving(true);
     try {
       const body = { name };
       const saved =
         editing.mode === "create"
-          ? (await createMyWargearDefinition({ body })).data
+          ? (await createMyWargearDefinition({ body, throwOnError: true })).data
           : (
               await updateMyWargearDefinition({
                 path: { wargearDefinitionId: editing.definition.id ?? "" },
                 body,
+                throwOnError: true,
               })
             ).data;
-      if (!saved) {
-        setError("Failed to save this wargear");
-        return;
-      }
+      // Nothing came back, so the request failed and the API layer has already said why. Leaving
+      // the modal open keeps what they typed available to retry.
+      if (!saved) return;
       upsertMine(saved);
       notifyChanged();
       setEditing({ mode: "closed" });
-    } catch (e) {
-      setError(extractErrorMessage(e));
+    } catch {
+      // Same again: reported as a notification, modal stays open.
     } finally {
       setSaving(false);
     }
@@ -124,7 +124,7 @@ export default function MyWargearDefinitionsPage() {
       isAuthenticated={catalogue.isAuthenticated}
       isAuthLoading={catalogue.isAuthLoading}
       loading={catalogue.loading}
-      error={catalogue.error}
+      loadFailed={catalogue.loadFailed}
       mine={mine}
       shared={shared}
       columns={COLUMNS}

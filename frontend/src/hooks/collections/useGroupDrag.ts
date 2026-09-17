@@ -12,7 +12,6 @@ export default function useGroupDrag(
   groupedModels: ModelGroup[],
   collection: ArmyCollection | null,
   setCollection: (updater: (prev: ArmyCollection | null) => ArmyCollection | null) => void,
-  setError: (msg: string | null) => void,
   setOpenGroups: (openGroups: string[]) => void,
 ) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -52,9 +51,9 @@ export default function useGroupDrag(
         body: { modelDefinitionIds: reorderedIds },
         throwOnError: true,
       });
-    } catch (e) {
+    } catch {
+      // Reported as a notification by the API layer; put the groups back where they were.
       setCollection((prev) => (prev ? { ...prev, modelDefinitionOrder: previousOrder } : prev));
-      setError(String(e));
     }
   }
 

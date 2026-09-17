@@ -1,16 +1,4 @@
-import {
-  ActionIcon,
-  Alert,
-  Anchor,
-  Button,
-  Card,
-  Checkbox,
-  Group,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { ActionIcon, Anchor, Button, Card, Checkbox, Group, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -18,7 +6,6 @@ import PaintPicker from "@/components/collection/paint/PaintPicker.tsx";
 import ResponsiveModal from "@/components/ResponsiveModal.tsx";
 import type { Paint, PaintRecipe, PaintRecipeEntry, SavePaintRecipeRequest } from "@/generated";
 import type { RecipeTarget } from "@/hooks/collections/usePaintRecipes.ts";
-import extractErrorMessage from "@/utils/extractErrorMessage.ts";
 import { PAINT_RECIPE_SCOPE_LABELS } from "@/utils/paintRecipeScope.ts";
 
 /** A step being edited. `paint` is held alongside the id so the swatch renders without a lookup. */
@@ -81,14 +68,12 @@ export default function PaintRecipeEditorModal({
 }: PaintRecipeEditorModalProps) {
   const [steps, setSteps] = useState<StepDraft[]>([]);
   const [notes, setNotes] = useState("");
-  const [error, setError] = useState<string | null>(null);
 
   // Reset from the stored recipe each time the modal is opened, so cancelling really does discard.
   useEffect(() => {
     if (!opened) return;
     setSteps((recipe?.paints ?? []).map(toDraft));
     setNotes(recipe?.notes ?? "");
-    setError(null);
   }, [opened, recipe]);
 
   function updateStep(key: string, patch: Partial<StepDraft>) {
@@ -109,7 +94,6 @@ export default function PaintRecipeEditorModal({
     // A step with no paint chosen is an unfinished row rather than a deliberate blank, so it is
     // dropped instead of failing the save.
     const chosen = steps.filter((step) => step.paint !== null);
-    setError(null);
     try {
       await onSave({
         scope: target.scope,
@@ -125,8 +109,9 @@ export default function PaintRecipeEditorModal({
         })),
       });
       onClose();
-    } catch (e) {
-      setError(extractErrorMessage(e));
+    } catch {
+      // Reported as a notification by the API layer. The modal stays open so the recipe as edited is
+      // still there to retry with.
     }
   }
 
@@ -155,12 +140,6 @@ export default function PaintRecipeEditorModal({
             ? "These paints apply to every model in the collection, so a shared base coat only has to be recorded once."
             : "These paints are shown alongside anything inherited from the collection."}
         </Text>
-
-        {error && (
-          <Alert color="red" title="Could not save">
-            {error}
-          </Alert>
-        )}
 
         {steps.map((step, index) => (
           <Card key={step.key} withBorder radius="sm" padding="xs">

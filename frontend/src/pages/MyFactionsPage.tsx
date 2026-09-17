@@ -16,7 +16,6 @@ import {
   updateMyFaction,
 } from "@/generated";
 import { FACTIONS_KEY } from "@/queryKeys.ts";
-import extractErrorMessage from "@/utils/extractErrorMessage.ts";
 import { diffFields, fieldChange } from "@/utils/personalFieldDiff";
 
 const DIFF_LABELS = {
@@ -36,18 +35,19 @@ const CACHED_QUERY_KEYS = [FACTIONS_KEY];
 export default function MyFactionsPage() {
   const api = useMemo(
     () => ({
-      loadMine: async (signal?: AbortSignal) => (await getMyFactions({ signal })).data ?? [],
-      loadShared: async (signal?: AbortSignal) => (await getSharedFactions({ signal })).data ?? [],
-      customise: async (factionId: string) => (await customiseFaction({ path: { factionId } })).data,
+      loadMine: async (signal?: AbortSignal) => (await getMyFactions({ signal, throwOnError: true })).data ?? [],
+      loadShared: async (signal?: AbortSignal) => (await getSharedFactions({ signal, throwOnError: true })).data ?? [],
+      customise: async (factionId: string) =>
+        (await customiseFaction({ path: { factionId }, throwOnError: true })).data,
       remove: async (factionId: string) => {
-        await deleteMyFaction({ path: { factionId } });
+        await deleteMyFaction({ path: { factionId }, throwOnError: true });
       },
     }),
     [],
   );
 
   const catalogue = usePersonalCatalogue<Faction>(api, CACHED_QUERY_KEYS);
-  const { mine, shared, upsertMine, setError, notifyChanged } = catalogue;
+  const { mine, shared, upsertMine, notifyChanged } = catalogue;
 
   const [editing, setEditing] = useState<Editing>({ mode: "closed" });
   const [diffTarget, setDiffTarget] = useState<Faction | null>(null);
@@ -99,23 +99,21 @@ export default function MyFactionsPage() {
 
   async function handleSave(name: string, parentFactionId: string | null) {
     if (editing.mode === "closed") return;
-    setError(null);
     setSaving(true);
     try {
       const body = { name, parentFactionId };
       const saved =
         editing.mode === "create"
-          ? (await createMyFaction({ body })).data
-          : (await updateMyFaction({ path: { factionId: editing.faction.id ?? "" }, body })).data;
-      if (!saved) {
-        setError("Failed to save this faction");
-        return;
-      }
+          ? (await createMyFaction({ body, throwOnError: true })).data
+          : (await updateMyFaction({ path: { factionId: editing.faction.id ?? "" }, body, throwOnError: true })).data;
+      // Nothing came back, so the request failed and the API layer has already said why. Leaving
+      // the modal open keeps what they typed available to retry.
+      if (!saved) return;
       upsertMine(saved);
       notifyChanged();
       setEditing({ mode: "closed" });
-    } catch (e) {
-      setError(extractErrorMessage(e));
+    } catch {
+      // Same again: reported as a notification, modal stays open.
     } finally {
       setSaving(false);
     }
@@ -138,7 +136,7 @@ export default function MyFactionsPage() {
       isAuthenticated={catalogue.isAuthenticated}
       isAuthLoading={catalogue.isAuthLoading}
       loading={catalogue.loading}
-      error={catalogue.error}
+      loadFailed={catalogue.loadFailed}
       mine={mine}
       shared={shared}
       columns={columns}

@@ -1,5 +1,4 @@
-import { Alert, Button, Group, Modal, Stack, Text } from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
+import { Button, Group, Modal, Stack, Text } from "@mantine/core";
 import type { CollectionDeletion } from "@/hooks/collections/useDeleteCollection.ts";
 
 export type DeleteCollectionModalProps = Readonly<{
@@ -22,11 +21,6 @@ export default function DeleteCollectionModal({ deletion }: DeleteCollectionModa
             : " and any photos or paint recipes in it."}{" "}
           This cannot be undone.
         </Text>
-        {deletion.error && (
-          <Alert color="red" icon={<IconAlertCircle size={16} />}>
-            {deletion.error}
-          </Alert>
-        )}
         <Group justify="flex-end">
           <Button variant="default" onClick={deletion.close} disabled={deletion.deleting}>
             Cancel

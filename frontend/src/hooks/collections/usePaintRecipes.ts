@@ -94,6 +94,5 @@ export default function usePaintRecipes(collectionId: string | undefined) {
     loading:
       recipesQuery.isLoading ||
       isInitialLoad({ isFetching: recipesQuery.isFetching, isPlaceholderData: recipesQuery.isPlaceholderData }),
-    error: recipesQuery.isError ? String(recipesQuery.error) : null,
   };
 }

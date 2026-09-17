@@ -46,7 +46,6 @@ import {
   publishModelDefinitionDraft,
   startModelDefinitionDraft,
 } from "@/generated";
-import extractErrorMessage from "@/utils/extractErrorMessage.ts";
 import { type DraftDiff, diffModelDefinitionDraft } from "@/utils/modelDefinitionDraftDiff";
 
 interface FactionGroup<T> {
@@ -182,7 +181,10 @@ export default function ModelDefinitionsAdminPage() {
   const [factions, setFactions] = useState<Faction[]>([]);
   const [wargearDefinitions, setWargearDefinitions] = useState<WargearDefinition[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  // Which items a bulk action left behind. Why each one failed is reported by the API layer as a
+  // notification, but a notification cannot usefully name five drafts, so that part is kept here.
+  const [bulkFailureMessage, setBulkFailureMessage] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState<ModelDefinitionDraft | null>(null);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [newName, setNewName] = useState("");
@@ -202,11 +204,12 @@ export default function ModelDefinitionsAdminPage() {
         return;
       }
       setLoading(true);
+      setLoadFailed(false);
       Promise.all([
-        getAdminModelDefinitions({ signal }),
-        getModelDefinitionDrafts({ signal }),
-        getFactions({ signal }),
-        getWargearDefinitions({ signal }),
+        getAdminModelDefinitions({ signal, throwOnError: true }),
+        getModelDefinitionDrafts({ signal, throwOnError: true }),
+        getFactions({ signal, throwOnError: true }),
+        getWargearDefinitions({ signal, throwOnError: true }),
       ])
         .then(([modelDefinitionsRes, draftsRes, factionsRes, wargearRes]) => {
           if (signal?.aborted) return;
@@ -215,8 +218,10 @@ export default function ModelDefinitionsAdminPage() {
           setFactions(factionsRes.data ?? []);
           setWargearDefinitions(wargearRes.data ?? []);
         })
-        .catch((e) => {
-          if (!signal?.aborted) setError(String(e));
+        .catch(() => {
+          // The reason arrives from the API layer as a notification; the page only has to stop
+          // presenting empty lists as though there were nothing to show.
+          if (!signal?.aborted) setLoadFailed(true);
         })
         .finally(() => {
           if (!signal?.aborted) setLoading(false);
@@ -232,41 +237,35 @@ export default function ModelDefinitionsAdminPage() {
   }, [loadAll]);
 
   async function handleStartEditing(modelDefinitionId: string) {
-    setError(null);
     try {
-      const draft = (await startModelDefinitionDraft({ path: { modelDefinitionId } })).data;
-      if (!draft) {
-        setError("Failed to start draft");
-        return;
-      }
+      const draft = (await startModelDefinitionDraft({ path: { modelDefinitionId }, throwOnError: true })).data;
+      if (!draft) return;
       setDrafts((d) =>
         d.some((x) => x.id === draft.id) ? d.map((x) => (x.id === draft.id ? draft : x)) : [...d, draft],
       );
       setEditingDraft(draft);
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the editor stays closed.
     }
   }
 
   async function handleCreateNew(e: React.SubmitEvent) {
     e.preventDefault();
-    setError(null);
     try {
       const draft = (
         await createModelDefinitionDraft({
           body: { name: newName, attachmentSlots: [], wargearOptions: [] },
+          throwOnError: true,
         })
       ).data;
-      if (!draft) {
-        setError("Failed to create draft");
-        return;
-      }
+      if (!draft) return;
       setDrafts((d) => [...d, draft]);
       setNewName("");
       closeCreate();
       setEditingDraft(draft);
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer. The form keeps the name that was typed, so the
+      // create can be retried without entering it again.
     }
   }
 
@@ -325,29 +324,38 @@ export default function ModelDefinitionsAdminPage() {
   }
 
   async function handleDiscardDraft(draftId: string) {
-    setError(null);
     try {
-      await discardModelDefinitionDraft({ path: { draftId } });
+      await discardModelDefinitionDraft({ path: { draftId }, throwOnError: true });
       handleDraftDiscarded(draftId);
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the draft stays in the list.
     }
   }
 
   async function handleDiscardSelected() {
     const ids = [...selectedDraftIds];
     if (ids.length === 0) return;
-    setError(null);
+    setBulkFailureMessage(null);
     setDiscarding(true);
     try {
-      await Promise.all(ids.map((draftId) => discardModelDefinitionDraft({ path: { draftId } })));
-      setDrafts((drafts) => drafts.filter((draft) => !selectedDraftIds.has(draft.id ?? "")));
-      setSelectedDraftIds(new Set());
-      if (editingDraft && selectedDraftIds.has(editingDraft.id ?? "")) {
+      const results = await Promise.allSettled(
+        ids.map((draftId) => discardModelDefinitionDraft({ path: { draftId }, throwOnError: true })),
+      );
+      const discarded = new Set(ids.filter((_, index) => results[index].status === "fulfilled"));
+      const failedNames = ids
+        .filter((draftId) => !discarded.has(draftId))
+        .map((draftId) => drafts.find((draft) => draft.id === draftId)?.name ?? draftId);
+
+      setDrafts((drafts) => drafts.filter((draft) => !discarded.has(draft.id ?? "")));
+      setSelectedDraftIds((current) => new Set([...current].filter((id) => !discarded.has(id))));
+      if (editingDraft && discarded.has(editingDraft.id ?? "")) {
         setEditingDraft(null);
       }
-    } catch (e) {
-      setError(String(e));
+      if (failedNames.length > 0) {
+        setBulkFailureMessage(
+          `${failedNames.length} of ${ids.length} drafts were not discarded: ${failedNames.join(", ")}.`,
+        );
+      }
     } finally {
       setDiscarding(false);
     }
@@ -374,17 +382,13 @@ export default function ModelDefinitionsAdminPage() {
   }
 
   async function handlePublishDraft(draftId: string) {
-    setError(null);
     setPublishingDraftIds((ids) => new Set(ids).add(draftId));
     try {
-      const published = (await publishModelDefinitionDraft({ path: { draftId }, body: {} })).data;
-      if (!published) {
-        setError("Failed to publish draft");
-        return;
-      }
+      const published = (await publishModelDefinitionDraft({ path: { draftId }, body: {}, throwOnError: true })).data;
+      if (!published) return;
       applyPublishedModelDefinition(published, draftId);
-    } catch (e) {
-      setError(extractErrorMessage(e));
+    } catch {
+      // Reported as a notification by the API layer; the draft stays unpublished.
     } finally {
       setPublishingDraftIds((ids) => {
         const next = new Set(ids);
@@ -397,26 +401,26 @@ export default function ModelDefinitionsAdminPage() {
   async function handlePublishSelected() {
     const ids = [...selectedDraftIds];
     if (ids.length === 0) return;
-    setError(null);
+    setBulkFailureMessage(null);
     setPublishingSelected(true);
     setPublishingDraftIds((current) => new Set([...current, ...ids]));
     try {
       const results = await Promise.allSettled(
-        ids.map((draftId) => publishModelDefinitionDraft({ path: { draftId }, body: {} })),
+        ids.map((draftId) => publishModelDefinitionDraft({ path: { draftId }, body: {}, throwOnError: true })),
       );
-      const failures: string[] = [];
+      const failedNames: string[] = [];
       results.forEach((result, index) => {
         const draftId = ids[index];
         if (result.status === "fulfilled" && result.value.data) {
           applyPublishedModelDefinition(result.value.data, draftId);
         } else {
-          const draftName = drafts.find((d) => d.id === draftId)?.name ?? draftId;
-          const reason = result.status === "rejected" ? extractErrorMessage(result.reason) : "Unknown error";
-          failures.push(`${draftName}: ${reason}`);
+          failedNames.push(drafts.find((d) => d.id === draftId)?.name ?? draftId);
         }
       });
-      if (failures.length > 0) {
-        setError(`Failed to publish ${failures.length} draft(s):\n${failures.join("\n")}`);
+      if (failedNames.length > 0) {
+        setBulkFailureMessage(
+          `${failedNames.length} of ${ids.length} drafts were not published: ${failedNames.join(", ")}.`,
+        );
       }
     } finally {
       setPublishingSelected(false);
@@ -433,9 +437,10 @@ export default function ModelDefinitionsAdminPage() {
   }
 
   async function handleDeleteModelDefinition(modelDefinitionId: string) {
-    setError(null);
     try {
-      await deleteModelDefinition({ path: { modelDefinitionId } });
+      // throwOnError, or a refused delete resolves as a success and the model definition vanishes
+      // from the page while staying in the catalogue until the next reload.
+      await deleteModelDefinition({ path: { modelDefinitionId }, throwOnError: true });
       setModelDefinitions((mds) => mds.filter((md) => md.id !== modelDefinitionId));
       setDrafts((d) => d.filter((draft) => draft.publishedModelDefinitionId !== modelDefinitionId));
       setSelectedModelDefinitionIds((ids) => {
@@ -443,29 +448,28 @@ export default function ModelDefinitionsAdminPage() {
         next.delete(modelDefinitionId);
         return next;
       });
-    } catch (e) {
-      setError(extractErrorMessage(e));
+    } catch {
+      // Reported as a notification by the API layer; the model definition stays in the list.
     }
   }
 
   async function handleDeleteSelectedModelDefinitions() {
     const ids = [...selectedModelDefinitionIds];
     if (ids.length === 0) return;
-    setError(null);
+    setBulkFailureMessage(null);
     setDeletingSelectedModelDefinitions(true);
     try {
       const results = await Promise.allSettled(
-        ids.map((modelDefinitionId) => deleteModelDefinition({ path: { modelDefinitionId } })),
+        ids.map((modelDefinitionId) => deleteModelDefinition({ path: { modelDefinitionId }, throwOnError: true })),
       );
-      const failures: string[] = [];
+      const failedNames: string[] = [];
       const deletedIds = new Set<string>();
       results.forEach((result, index) => {
         const modelDefinitionId = ids[index];
         if (result.status === "fulfilled") {
           deletedIds.add(modelDefinitionId);
         } else {
-          const name = modelDefinitions.find((md) => md.id === modelDefinitionId)?.name ?? modelDefinitionId;
-          failures.push(`${name}: ${extractErrorMessage(result.reason)}`);
+          failedNames.push(modelDefinitions.find((md) => md.id === modelDefinitionId)?.name ?? modelDefinitionId);
         }
       });
       setModelDefinitions((mds) => mds.filter((md) => !deletedIds.has(md.id ?? "")));
@@ -475,8 +479,10 @@ export default function ModelDefinitionsAdminPage() {
         for (const id of deletedIds) next.delete(id);
         return next;
       });
-      if (failures.length > 0) {
-        setError(`Failed to delete ${failures.length} model definition(s):\n${failures.join("\n")}`);
+      if (failedNames.length > 0) {
+        setBulkFailureMessage(
+          `${failedNames.length} of ${ids.length} model definitions were not deleted: ${failedNames.join(", ")}.`,
+        );
       }
     } finally {
       setDeletingSelectedModelDefinitions(false);
@@ -549,22 +555,29 @@ export default function ModelDefinitionsAdminPage() {
             </Button>
             <DefinitionTransferButtons
               fileNamePrefix="model-definitions"
-              onStart={() => {
-                setError(null);
-                setImportSummary(null);
-              }}
-              onError={setError}
-              onExport={async () => (await exportModelDefinitions()).data}
-              onImport={async (document) => (await importModelDefinitions({ body: document })).data}
+              onStart={() => setImportSummary(null)}
+              onExport={async () => (await exportModelDefinitions({ throwOnError: true })).data}
+              onImport={async (document) => (await importModelDefinitions({ body: document, throwOnError: true })).data}
               onImported={handleImported}
             />
           </Group>
         )}
       </Group>
 
-      {error && (
-        <Alert color="red" icon={<IconAlertCircle size={16} />} style={{ whiteSpace: "pre-line" }}>
-          {error}
+      {loadFailed && (
+        <Alert color="red" icon={<IconAlertCircle size={16} />}>
+          The model definitions could not be loaded. Reload the page to try again.
+        </Alert>
+      )}
+
+      {bulkFailureMessage && (
+        <Alert
+          color="red"
+          icon={<IconAlertCircle size={16} />}
+          withCloseButton
+          onClose={() => setBulkFailureMessage(null)}
+        >
+          {bulkFailureMessage}
         </Alert>
       )}
 
@@ -741,7 +754,9 @@ export default function ModelDefinitionsAdminPage() {
               )}
             </Group>
             {modelDefinitions.length === 0 ? (
-              <Text c="dimmed">No model definitions exist yet.</Text>
+              // Silent when the load failed: the alert above already explains the empty list, and
+              // "none exist yet" would be stating something the page does not know.
+              !loadFailed && <Text c="dimmed">No model definitions exist yet.</Text>
             ) : (
               <Accordion multiple defaultValue={[]} variant="separated">
                 {modelDefinitionGroups.map((group) => {

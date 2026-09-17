@@ -1,5 +1,5 @@
-import { Alert, Anchor, Loader, Stack, Text, Title } from "@mantine/core";
-import { IconAlertCircle, IconArrowLeft } from "@tabler/icons-react";
+import { Anchor, Loader, Stack, Text, Title } from "@mantine/core";
+import { IconArrowLeft } from "@tabler/icons-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
@@ -35,7 +35,6 @@ export type ModelDefinitionSelectData = {
 }[];
 
 export default function CollectionPage() {
-  const [error, setError] = useState<string | null>(null);
   const [modelDefinitionId, setModelDefinitionId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -69,11 +68,10 @@ export default function CollectionPage() {
     groupedModels.groupedModels,
     collection.collection ?? null,
     collection.setCollection,
-    setError,
     setOpenGroups,
   );
-  const editing = useCollectionEditing(collectionId, collection.collection ?? null, collection.setCollection, setError);
-  const modelImages = useModelImages(collectionModels.setModels, setError);
+  const editing = useCollectionEditing(collectionId, collection.collection ?? null, collection.setCollection);
+  const modelImages = useModelImages(collectionModels.setModels);
   const { isLoading: isAuthLoading } = useAuth();
   const loading = isAuthLoading || collection.loading || collectionMetaData.loading || collectionModels.loading;
   const fatalError = collection.error || collectionMetaData.error || collectionModels.error;
@@ -118,12 +116,6 @@ export default function CollectionPage() {
         <Title order={3}>Collection models</Title>
 
         <CollectionPublicToggle />
-
-        {error && (
-          <Alert color="red" icon={<IconAlertCircle size={16} />}>
-            {error}
-          </Alert>
-        )}
 
         {loading ? (
           <Loader />

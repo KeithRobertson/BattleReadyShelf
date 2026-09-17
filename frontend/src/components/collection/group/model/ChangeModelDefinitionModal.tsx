@@ -7,7 +7,6 @@ import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import type { ChangeModelDefinitionPreview, CollectionModel, WargearRemapOutcome } from "@/generated";
 import { previewModelDefinitionChange } from "@/generated";
 import useCollectionMetadata from "@/hooks/collections/useCollectionMetadata.ts";
-import extractErrorMessage from "@/utils/extractErrorMessage.ts";
 
 export type ChangeModelDefinitionModalProps = Readonly<{
   opened: boolean;
@@ -82,7 +81,9 @@ export default function ChangeModelDefinitionModal({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [preview, setPreview] = useState<ChangeModelDefinitionPreview | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Whether the preview failed, not why: the reason arrives from the API layer as a notification.
+  // Kept because a change that could not be checked must not be offered as if it had been.
+  const [previewFailed, setPreviewFailed] = useState(false);
 
   const currentDefinitionId = model.modelDefinition?.id;
 
@@ -90,7 +91,7 @@ export default function ChangeModelDefinitionModal({
     if (!opened) {
       setSelectedId(null);
       setPreview(null);
-      setError(null);
+      setPreviewFailed(false);
     }
   }, [opened]);
 
@@ -99,18 +100,19 @@ export default function ChangeModelDefinitionModal({
 
     const controller = new AbortController();
     setLoading(true);
-    setError(null);
+    setPreviewFailed(false);
     previewModelDefinitionChange({
       path: { collectionModelId: model.id },
       body: { modelDefinitionId: selectedId },
       signal: controller.signal,
+      throwOnError: true,
     })
       .then((response) => {
         if (controller.signal.aborted) return;
         setPreview(response.data ?? null);
       })
-      .catch((e) => {
-        if (!controller.signal.aborted) setError(extractErrorMessage(e));
+      .catch(() => {
+        if (!controller.signal.aborted) setPreviewFailed(true);
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -141,7 +143,7 @@ export default function ChangeModelDefinitionModal({
             Cancel
           </Button>
           <Button
-            disabled={!selectedId || loading || !!error}
+            disabled={!selectedId || loading || previewFailed}
             color={droppedCount > 0 ? "orange" : undefined}
             onClick={() => {
               if (selectedId) onConfirm(selectedId);
@@ -175,13 +177,13 @@ export default function ChangeModelDefinitionModal({
           </Group>
         )}
 
-        {error && (
+        {previewFailed && (
           <Alert color="red" icon={<IconAlertTriangle size={16} />}>
-            {error}
+            This change could not be checked, so it is not safe to apply. Pick the type again to retry.
           </Alert>
         )}
 
-        {!loading && !error && preview && (
+        {!loading && !previewFailed && preview && (
           <Stack gap="xs">
             <PreviewTable preview={preview} />
             {droppedCount > 0 && (

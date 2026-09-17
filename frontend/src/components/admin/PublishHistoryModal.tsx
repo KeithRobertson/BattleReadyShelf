@@ -1,5 +1,5 @@
 import { Alert, Badge, Group, Loader, Stack, Table, Text, Timeline } from "@mantine/core";
-import { IconArrowRight, IconHistory, IconInfoCircle } from "@tabler/icons-react";
+import { IconAlertCircle, IconArrowRight, IconHistory, IconInfoCircle } from "@tabler/icons-react";
 import ResponsiveModal from "@/components/ResponsiveModal.tsx";
 import type { DefinitionPublishAudit } from "@/generated";
 
@@ -8,6 +8,7 @@ type PublishHistoryModalProps = Readonly<{
   definitionName: string | null;
   entries: DefinitionPublishAudit[];
   loading: boolean;
+  failed: boolean;
   onClose: () => void;
 }>;
 
@@ -78,8 +79,20 @@ function EntryChanges({ entry }: Readonly<{ entry: DefinitionPublishAudit }>) {
   );
 }
 
-function HistoryBody({ entries, loading }: Readonly<{ entries: DefinitionPublishAudit[]; loading: boolean }>) {
+function HistoryBody({
+  entries,
+  loading,
+  failed,
+}: Readonly<{ entries: DefinitionPublishAudit[]; loading: boolean; failed: boolean }>) {
   if (loading) return <Loader size="sm" />;
+
+  if (failed) {
+    return (
+      <Alert color="red" icon={<IconAlertCircle size={16} />}>
+        This history could not be loaded, so there is nothing to show. Close and reopen it to try again.
+      </Alert>
+    );
+  }
 
   if (entries.length === 0) {
     return (
@@ -113,6 +126,7 @@ export default function PublishHistoryModal({
   definitionName,
   entries,
   loading,
+  failed,
   onClose,
 }: PublishHistoryModalProps) {
   return (
@@ -122,7 +136,7 @@ export default function PublishHistoryModal({
       title={`Publish history for "${definitionName ?? ""}"`}
       size="lg"
     >
-      <HistoryBody entries={entries} loading={loading} />
+      <HistoryBody entries={entries} loading={loading} failed={failed} />
     </ResponsiveModal>
   );
 }

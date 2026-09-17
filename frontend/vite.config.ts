@@ -1,5 +1,5 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import path from "path";
 
 // https://vite.dev/config/
@@ -14,6 +14,11 @@ export default defineConfig({
 	build: {
 		target: "esnext",
 		sourcemap: true,
+	},
+	test: {
+		environment: "jsdom",
+		setupFiles: ["./src/testing/setup.ts"],
+		include: ["src/**/*.test.{ts,tsx}"],
 	},
 	// Dev server proxy: forward /api to local backend during development
 	server: {

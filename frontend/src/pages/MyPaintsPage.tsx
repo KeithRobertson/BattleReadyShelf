@@ -9,7 +9,6 @@ import usePersonalCatalogue from "@/components/mydefinitions/usePersonalCatalogu
 import PaintSwatch from "@/components/paints/PaintSwatch.tsx";
 import type { Paint } from "@/generated";
 import { createMyPaint, customisePaint, deleteMyPaint, getMyPaints, getSharedPaints, updateMyPaint } from "@/generated";
-import extractErrorMessage from "@/utils/extractErrorMessage.ts";
 import { diffFields, fieldChange } from "@/utils/personalFieldDiff";
 
 const DIFF_LABELS = {
@@ -51,18 +50,18 @@ function PaintName({ paint }: Readonly<{ paint: Paint }>) {
 export default function MyPaintsPage() {
   const api = useMemo(
     () => ({
-      loadMine: async (signal?: AbortSignal) => (await getMyPaints({ signal })).data ?? [],
-      loadShared: async (signal?: AbortSignal) => (await getSharedPaints({ signal })).data ?? [],
-      customise: async (paintId: string) => (await customisePaint({ path: { paintId } })).data,
+      loadMine: async (signal?: AbortSignal) => (await getMyPaints({ signal, throwOnError: true })).data ?? [],
+      loadShared: async (signal?: AbortSignal) => (await getSharedPaints({ signal, throwOnError: true })).data ?? [],
+      customise: async (paintId: string) => (await customisePaint({ path: { paintId }, throwOnError: true })).data,
       remove: async (paintId: string) => {
-        await deleteMyPaint({ path: { paintId } });
+        await deleteMyPaint({ path: { paintId }, throwOnError: true });
       },
     }),
     [],
   );
 
   const catalogue = usePersonalCatalogue<Paint>(api);
-  const { mine, shared, upsertMine, setError, notifyChanged } = catalogue;
+  const { mine, shared, upsertMine, notifyChanged } = catalogue;
 
   const [editing, setEditing] = useState<Editing>({ mode: "closed" });
   const [diffTarget, setDiffTarget] = useState<Paint | null>(null);
@@ -89,22 +88,20 @@ export default function MyPaintsPage() {
 
   async function handleSave(values: PaintFormValues) {
     if (editing.mode === "closed") return;
-    setError(null);
     setSaving(true);
     try {
       const saved =
         editing.mode === "create"
-          ? (await createMyPaint({ body: values })).data
-          : (await updateMyPaint({ path: { paintId: editing.paint.id ?? "" }, body: values })).data;
-      if (!saved) {
-        setError("Failed to save this paint");
-        return;
-      }
+          ? (await createMyPaint({ body: values, throwOnError: true })).data
+          : (await updateMyPaint({ path: { paintId: editing.paint.id ?? "" }, body: values, throwOnError: true })).data;
+      // Nothing came back, so the request failed and the API layer has already said why. Leaving
+      // the modal open keeps what they typed available to retry.
+      if (!saved) return;
       upsertMine(saved);
       notifyChanged();
       setEditing({ mode: "closed" });
-    } catch (e) {
-      setError(extractErrorMessage(e));
+    } catch {
+      // Same again: reported as a notification, modal stays open.
     } finally {
       setSaving(false);
     }
@@ -127,7 +124,7 @@ export default function MyPaintsPage() {
       isAuthenticated={catalogue.isAuthenticated}
       isAuthLoading={catalogue.isAuthLoading}
       loading={catalogue.loading}
-      error={catalogue.error}
+      loadFailed={catalogue.loadFailed}
       mine={mine}
       shared={shared}
       columns={COLUMNS}

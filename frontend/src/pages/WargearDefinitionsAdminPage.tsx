@@ -68,7 +68,7 @@ export default function WargearDefinitionsAdminPage() {
   const [definitions, setDefinitions] = useState<WargearDefinition[]>([]);
   const [drafts, setDrafts] = useState<WargearDefinitionDraft[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [importSummary, setImportSummary] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [renaming, setRenaming] = useState<WargearDefinition | null>(null);
@@ -82,14 +82,20 @@ export default function WargearDefinitionsAdminPage() {
         return;
       }
       setLoading(true);
-      Promise.all([getWargearDefinitions({ signal }), getWargearDefinitionDrafts({ signal })])
+      setLoadFailed(false);
+      Promise.all([
+        getWargearDefinitions({ signal, throwOnError: true }),
+        getWargearDefinitionDrafts({ signal, throwOnError: true }),
+      ])
         .then(([definitionsRes, draftsRes]) => {
           if (signal?.aborted) return;
           setDefinitions(definitionsRes.data ?? []);
           setDrafts(draftsRes.data ?? []);
         })
-        .catch((e) => {
-          if (!signal?.aborted) setError(String(e));
+        .catch(() => {
+          // The reason arrives from the API layer as a notification; the page only has to stop
+          // presenting an empty list as though there were nothing to show.
+          if (!signal?.aborted) setLoadFailed(true);
         })
         .finally(() => {
           if (!signal?.aborted) setLoading(false);
@@ -114,7 +120,8 @@ export default function WargearDefinitionsAdminPage() {
   const history = usePublishHistory(
     useCallback(
       async (definitionId: string) =>
-        (await getWargearPublishHistory({ path: { wargearDefinitionId: definitionId } })).data ?? [],
+        (await getWargearPublishHistory({ path: { wargearDefinitionId: definitionId }, throwOnError: true })).data ??
+        [],
       [],
     ),
   );
@@ -132,11 +139,15 @@ export default function WargearDefinitionsAdminPage() {
   async function handleRename(name: string) {
     const definition = renaming;
     if (!definition?.id) return;
-    setError(null);
     setSaving(true);
     try {
-      const staged = (await updateWargearDefinition({ path: { wargearDefinitionId: definition.id }, body: { name } }))
-        .data;
+      const staged = (
+        await updateWargearDefinition({
+          path: { wargearDefinitionId: definition.id },
+          body: { name },
+          throwOnError: true,
+        })
+      ).data;
       // A hand rename is staged like an imported one, so the published list is untouched until it
       // is accepted. No body back means the name already matched, which clears any stale proposal.
       setDrafts((prev) => {
@@ -144,36 +155,34 @@ export default function WargearDefinitionsAdminPage() {
         return staged ? [...others, staged] : others;
       });
       setRenaming(null);
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the modal stays open on the proposed name.
     } finally {
       setSaving(false);
     }
   }
 
   async function handleAcceptDraft(row: PendingChangeRow) {
-    setError(null);
     setBusyDraftId(row.id);
     try {
-      const updated = (await publishWargearDefinitionDraft({ path: { draftId: row.id } })).data;
-      if (!updated) throw new Error("Failed to apply the proposed name");
+      const updated = (await publishWargearDefinitionDraft({ path: { draftId: row.id }, throwOnError: true })).data;
+      if (!updated) return;
       setDefinitions((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
       setDrafts((prev) => prev.filter((d) => d.id !== row.id));
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the proposal stays pending.
     } finally {
       setBusyDraftId(null);
     }
   }
 
   async function handleRejectDraft(row: PendingChangeRow) {
-    setError(null);
     setBusyDraftId(row.id);
     try {
-      await discardWargearDefinitionDraft({ path: { draftId: row.id } });
+      await discardWargearDefinitionDraft({ path: { draftId: row.id }, throwOnError: true });
       setDrafts((prev) => prev.filter((d) => d.id !== row.id));
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the proposal stays pending.
     } finally {
       setBusyDraftId(null);
     }
@@ -206,21 +215,17 @@ export default function WargearDefinitionsAdminPage() {
         {isAdmin && (
           <DefinitionTransferButtons
             fileNamePrefix="wargear-definitions"
-            onStart={() => {
-              setError(null);
-              setImportSummary(null);
-            }}
-            onError={setError}
-            onExport={async () => (await exportWargearDefinitions()).data}
-            onImport={async (document) => (await importWargearDefinitions({ body: document })).data}
+            onStart={() => setImportSummary(null)}
+            onExport={async () => (await exportWargearDefinitions({ throwOnError: true })).data}
+            onImport={async (document) => (await importWargearDefinitions({ body: document, throwOnError: true })).data}
             onImported={handleImported}
           />
         )}
       </Group>
 
-      {error && (
-        <Alert color="red" icon={<IconAlertCircle size={16} />} style={{ whiteSpace: "pre-line" }}>
-          {error}
+      {loadFailed && (
+        <Alert color="red" icon={<IconAlertCircle size={16} />}>
+          The wargear definitions could not be loaded. Reload the page to try again.
         </Alert>
       )}
 
@@ -263,7 +268,9 @@ export default function WargearDefinitionsAdminPage() {
           </Text>
 
           {visible.length === 0 ? (
-            <Text c="dimmed">No wargear definitions match your search.</Text>
+            // Silent when the load failed: the alert above already explains the empty list, and
+            // blaming the search would be misleading.
+            !loadFailed && <Text c="dimmed">No wargear definitions match your search.</Text>
           ) : (
             <WargearDefinitionTable definitions={visible} onRename={setRenaming} />
           )}
@@ -290,6 +297,7 @@ export default function WargearDefinitionsAdminPage() {
         definitionName={history.target?.name ?? null}
         entries={history.entries}
         loading={history.loading}
+        failed={history.failed}
         onClose={history.close}
       />
     </Stack>

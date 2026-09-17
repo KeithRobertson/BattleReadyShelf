@@ -33,7 +33,6 @@ import {
   getSharedModelDefinitions,
 } from "@/generated";
 import { MODEL_DEFINITIONS_KEY } from "@/queryKeys.ts";
-import extractErrorMessage from "@/utils/extractErrorMessage.ts";
 import { type DraftDiff, diffPersonalModelDefinition } from "@/utils/modelDefinitionDraftDiff";
 
 function factionLabel(definition: ModelDefinition, factionsById: Map<string, Faction>): string {
@@ -224,7 +223,7 @@ export default function MyModelDefinitionsPage() {
   const [factions, setFactions] = useState<Faction[]>([]);
   const [wargearDefinitions, setWargearDefinitions] = useState<WargearDefinition[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [editing, setEditing] = useState<ModelDefinition | null>(null);
   const [diffTarget, setDiffTarget] = useState<ModelDefinition | null>(null);
   const [customisingIds, setCustomisingIds] = useState<Set<string>>(new Set());
@@ -248,11 +247,12 @@ export default function MyModelDefinitionsPage() {
         return;
       }
       setLoading(true);
+      setLoadFailed(false);
       Promise.all([
-        getMyModelDefinitions({ signal }),
-        getSharedModelDefinitions({ signal }),
-        getFactionsList({ signal }),
-        getAvailableWargearDefinitions({ signal }),
+        getMyModelDefinitions({ signal, throwOnError: true }),
+        getSharedModelDefinitions({ signal, throwOnError: true }),
+        getFactionsList({ signal, throwOnError: true }),
+        getAvailableWargearDefinitions({ signal, throwOnError: true }),
       ])
         .then(([mineRes, sharedRes, factionsRes, wargearRes]) => {
           if (signal?.aborted) return;
@@ -261,8 +261,10 @@ export default function MyModelDefinitionsPage() {
           setFactions(factionsRes.data ?? []);
           setWargearDefinitions(wargearRes.data ?? []);
         })
-        .catch((e) => {
-          if (!signal?.aborted) setError(extractErrorMessage(e));
+        .catch(() => {
+          // The reason arrives from the API layer as a notification; the page only has to stop
+          // presenting empty lists as though there were nothing to show.
+          if (!signal?.aborted) setLoadFailed(true);
         })
         .finally(() => {
           if (!signal?.aborted) setLoading(false);
@@ -297,18 +299,14 @@ export default function MyModelDefinitionsPage() {
 
   async function handleCustomise(definition: ModelDefinition) {
     const id = definition.id ?? "";
-    setError(null);
     withBusy(setCustomisingIds, id, true);
     try {
-      const created = (await customiseModelDefinition({ path: { modelDefinitionId: id } })).data;
-      if (!created) {
-        setError("Failed to customise this model definition");
-        return;
-      }
+      const created = (await customiseModelDefinition({ path: { modelDefinitionId: id }, throwOnError: true })).data;
+      if (!created) return;
       upsertMine(created);
       setEditing(created);
-    } catch (e) {
-      setError(extractErrorMessage(e));
+    } catch {
+      // Reported as a notification by the API layer; the shared definition stays uncustomised.
     } finally {
       withBusy(setCustomisingIds, id, false);
     }
@@ -316,14 +314,15 @@ export default function MyModelDefinitionsPage() {
 
   async function handleRemove(definition: ModelDefinition) {
     const id = definition.id ?? "";
-    setError(null);
     withBusy(setRemovingIds, id, true);
     try {
-      await deleteMyModelDefinition({ path: { modelDefinitionId: id } });
+      // throwOnError, or a refused delete resolves as a success and the definition vanishes from the
+      // page while staying on the account until the next reload.
+      await deleteMyModelDefinition({ path: { modelDefinitionId: id }, throwOnError: true });
       setMine((current) => current.filter((d) => d.id !== id));
       invalidateCatalogue();
-    } catch (e) {
-      setError(extractErrorMessage(e));
+    } catch {
+      // Reported as a notification by the API layer; the definition stays in the list.
     } finally {
       withBusy(setRemovingIds, id, false);
     }
@@ -331,21 +330,21 @@ export default function MyModelDefinitionsPage() {
 
   async function handleCreate(e: React.SubmitEvent) {
     e.preventDefault();
-    setError(null);
     try {
       const created = (
-        await createMyModelDefinition({ body: { name: newName, attachmentSlots: [], wargearOptions: [] } })
+        await createMyModelDefinition({
+          body: { name: newName, attachmentSlots: [], wargearOptions: [] },
+          throwOnError: true,
+        })
       ).data;
-      if (!created) {
-        setError("Failed to create model definition");
-        return;
-      }
+      if (!created) return;
       upsertMine(created);
       setNewName("");
       closeCreate();
       setEditing(created);
-    } catch (e) {
-      setError(extractErrorMessage(e));
+    } catch {
+      // Reported as a notification by the API layer. The form keeps the name that was typed, so the
+      // create can be retried without entering it again.
     }
   }
 
@@ -393,9 +392,9 @@ export default function MyModelDefinitionsPage() {
         )}
       </Group>
 
-      {error && (
-        <Alert color="red" icon={<IconAlertCircle size={16} />} style={{ whiteSpace: "pre-line" }}>
-          {error}
+      {loadFailed && (
+        <Alert color="red" icon={<IconAlertCircle size={16} />}>
+          Your model definitions could not be loaded. Reload the page to try again.
         </Alert>
       )}
 
@@ -411,9 +410,13 @@ export default function MyModelDefinitionsPage() {
               Yours
             </Title>
             {mine.length === 0 ? (
-              <Text c="dimmed">
-                You have not added or customised any model definitions yet. Customise one below to get started.
-              </Text>
+              // Silent when the load failed: the alert above already explains the empty list, and
+              // "you have not added any" would be stating something the page does not know.
+              !loadFailed && (
+                <Text c="dimmed">
+                  You have not added or customised any model definitions yet. Customise one below to get started.
+                </Text>
+              )
             ) : (
               <MyDefinitionsTable
                 definitions={mine}

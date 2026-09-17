@@ -326,7 +326,7 @@ export default function PaintDefinitionsAdminPage() {
   const [paints, setPaints] = useState<Paint[]>([]);
   const [drafts, setDrafts] = useState<PaintDraft[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState<string[]>([]);
@@ -347,14 +347,17 @@ export default function PaintDefinitionsAdminPage() {
         return;
       }
       setLoading(true);
-      Promise.all([getAdminPaints({ signal }), getPaintDrafts({ signal })])
+      setLoadFailed(false);
+      Promise.all([getAdminPaints({ signal, throwOnError: true }), getPaintDrafts({ signal, throwOnError: true })])
         .then(([paintsRes, draftsRes]) => {
           if (signal?.aborted) return;
           setPaints(paintsRes.data ?? []);
           setDrafts(draftsRes.data ?? []);
         })
-        .catch((e) => {
-          if (!signal?.aborted) setError(String(e));
+        .catch(() => {
+          // The reason arrives from the API layer as a notification; the page only has to stop
+          // presenting an empty list as though there were nothing to show.
+          if (!signal?.aborted) setLoadFailed(true);
         })
         .finally(() => {
           if (!signal?.aborted) setLoading(false);
@@ -395,7 +398,10 @@ export default function PaintDefinitionsAdminPage() {
     [drafts],
   );
   const history = usePublishHistory(
-    useCallback(async (paintId: string) => (await getPaintPublishHistory({ path: { paintId } })).data ?? [], []),
+    useCallback(
+      async (paintId: string) => (await getPaintPublishHistory({ path: { paintId }, throwOnError: true })).data ?? [],
+      [],
+    ),
   );
 
   function handleViewHistory(row: PendingChangeRow) {
@@ -406,17 +412,16 @@ export default function PaintDefinitionsAdminPage() {
   const unusedCount = useMemo(() => paints.filter((paint) => (paint.usageCount ?? 0) === 0).length, [paints]);
 
   async function handleCreate(values: PaintFormValues) {
-    setError(null);
     setNotice(null);
     setSaving(true);
     try {
-      const created = (await createPaint({ body: values })).data;
-      if (!created) throw new Error("Failed to create paint");
+      const created = (await createPaint({ body: values, throwOnError: true })).data;
+      if (!created) return;
       setPaints((prev) => [...prev, created]);
       setCreating(false);
       setNotice(`Created ${created.name}.`);
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the form stays open with the values intact.
     } finally {
       setSaving(false);
     }
@@ -425,45 +430,42 @@ export default function PaintDefinitionsAdminPage() {
   async function handleProposeChange(values: PaintFormValues) {
     const paint = editing;
     if (!paint?.id) return;
-    setError(null);
     setSaving(true);
     try {
-      const staged = (await proposePaintChange({ path: { paintId: paint.id }, body: values })).data;
+      const staged = (await proposePaintChange({ path: { paintId: paint.id }, body: values, throwOnError: true })).data;
       setDrafts((prev) => {
         const others = prev.filter((draft) => draft.paintId !== paint.id);
         return staged ? [...others, staged] : others;
       });
       setEditing(null);
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the modal stays open on the proposed change.
     } finally {
       setSaving(false);
     }
   }
 
   async function handleAcceptDraft(row: PendingChangeRow) {
-    setError(null);
     setBusyDraftId(row.id);
     try {
-      const updated = (await publishPaintDraft({ path: { draftId: row.id } })).data;
-      if (!updated) throw new Error("Failed to apply the proposed change");
+      const updated = (await publishPaintDraft({ path: { draftId: row.id }, throwOnError: true })).data;
+      if (!updated) return;
       setPaints((prev) => prev.map((paint) => (paint.id === updated.id ? updated : paint)));
       setDrafts((prev) => prev.filter((draft) => draft.id !== row.id));
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the proposal stays pending.
     } finally {
       setBusyDraftId(null);
     }
   }
 
   async function handleRejectDraft(row: PendingChangeRow) {
-    setError(null);
     setBusyDraftId(row.id);
     try {
-      await discardPaintDraft({ path: { draftId: row.id } });
+      await discardPaintDraft({ path: { draftId: row.id }, throwOnError: true });
       setDrafts((prev) => prev.filter((draft) => draft.id !== row.id));
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the proposal stays pending.
     } finally {
       setBusyDraftId(null);
     }
@@ -472,18 +474,18 @@ export default function PaintDefinitionsAdminPage() {
   async function handleDeletePaint() {
     const paint = pendingDelete;
     if (!paint?.id) return;
-    setError(null);
     setNotice(null);
     try {
       setDeletingPaintId(paint.id);
-      await deletePaint({ path: { paintId: paint.id } });
+      // throwOnError, or a refused delete resolves as a success and the paint vanishes from the page
+      // while staying in the catalogue until the next reload.
+      await deletePaint({ path: { paintId: paint.id }, throwOnError: true });
       setPaints((prev) => prev.filter((row) => row.id !== paint.id));
       setDrafts((prev) => prev.filter((draft) => draft.paintId !== paint.id));
-      setPendingDelete(null);
-    } catch (e) {
-      setError(String(e));
-      setPendingDelete(null);
+    } catch {
+      // Reported as a notification by the API layer; the paint stays in the list.
     } finally {
+      setPendingDelete(null);
       setDeletingPaintId("");
     }
   }
@@ -515,13 +517,9 @@ export default function PaintDefinitionsAdminPage() {
           <Group gap="xs">
             <DefinitionTransferButtons
               fileNamePrefix="paints"
-              onStart={() => {
-                setError(null);
-                setNotice(null);
-              }}
-              onError={setError}
-              onExport={async () => (await exportPaints()).data}
-              onImport={async (document) => (await importPaints({ body: document })).data}
+              onStart={() => setNotice(null)}
+              onExport={async () => (await exportPaints({ throwOnError: true })).data}
+              onImport={async (document) => (await importPaints({ body: document, throwOnError: true })).data}
               onImported={handleImported}
             />
             <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)}>
@@ -531,9 +529,9 @@ export default function PaintDefinitionsAdminPage() {
         )}
       </Group>
 
-      {error && (
-        <Alert color="red" icon={<IconAlertCircle size={16} />} style={{ whiteSpace: "pre-line" }}>
-          {error}
+      {loadFailed && (
+        <Alert color="red" icon={<IconAlertCircle size={16} />}>
+          The paint catalogue could not be loaded. Reload the page to try again.
         </Alert>
       )}
 
@@ -572,7 +570,9 @@ export default function PaintDefinitionsAdminPage() {
           </Text>
 
           {visible.length === 0 ? (
-            <Text c="dimmed">No paints match your filters.</Text>
+            // Silent when the load failed: the alert above already explains the empty list, and
+            // blaming the filters would be misleading.
+            !loadFailed && <Text c="dimmed">No paints match your filters.</Text>
           ) : (
             <ResponsiveTable highlightOnHover fitOnMobile>
               <Table.Thead>
@@ -734,6 +734,7 @@ export default function PaintDefinitionsAdminPage() {
         definitionName={history.target?.name ?? null}
         entries={history.entries}
         loading={history.loading}
+        failed={history.failed}
         onClose={history.close}
       />
     </Stack>

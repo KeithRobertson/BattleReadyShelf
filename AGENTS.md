@@ -37,7 +37,8 @@ Cloudflare R2 (S3-compatible, miniature photos via presigned URLs)
 | Database   | PostgreSQL                                       | Local via `backend/compose.yaml` (Docker) |
 | Storage    | Cloudflare R2                                    | S3-compatible, AWS SDK v2, presigned PUT/GET/DELETE |
 | Auth       | Google OAuth 2.0 (ID token) + internal JWT       | Email allowlist gate on first login |
-| Backend tests | JUnit + AssertJ + Mockito (via `spring-boot-starter-webmvc-test`) | No frontend test framework configured yet |
+| Backend tests | JUnit + AssertJ + Mockito (via `spring-boot-starter-webmvc-test`) | |
+| Frontend tests | Vitest + React Testing Library (jsdom) | Colocated `*.test.ts(x)` under `src/`; Playwright screenshot harness in `frontend/scripts/` |
 | Migrations | Flyway                                           | Versioned SQL only, in `backend/src/main/resources/db/migration` |
 | API contract | OpenAPI (`backend/src/main/resources/openapi/openapi.yaml`) | Server interfaces + frontend client both generated from this one spec |
 | CI/CD      | GitHub Actions                                   | See `.github/workflows/` (`backend-ci.yml`, `frontend-ci.yml`, `frontend-deploy.yml`, `qodana_code_quality.yml`) |
@@ -72,6 +73,22 @@ The richer "Rules domain" (GameSystem/Faction/UnitDefinition/WargearDefinition/p
 ### Frontend
 - TypeScript strict mode
 - Mantine UI components + Tabler icons (migrated off MUI) — do not reintroduce MUI
+- API errors are reported once, centrally: the response interceptor in `auth/apiClient.ts` publishes
+  every failure and `useApiErrorNotifications` shows it as a Mantine notification. Do not add a
+  page-level alert that repeats the same message — a page should only say *structurally* what is
+  wrong ("this list could not be loaded"), and should suppress its empty state while it is failing,
+  since "you have not added any yet" states something the page does not know
+- Every generated SDK call passes `throwOnError: true`. Without it a failure resolves with
+  `data: undefined`, so a mutation's `onSuccess` runs and the UI shows a delete or edit that never
+  happened; there are no exceptions to this in `src/` and new calls should not add one
+- Local state is kept only for what the message cannot carry: a boolean when a failure has to gate
+  something (`previewFailed` disabling a confirm button), or a summary naming *which* items a bulk
+  action left behind
+- A failure the API layer cannot see must report itself with `showErrorNotification` — a file that
+  will not parse, or an image PUT that goes straight to R2. Guard those with `!isAxiosError(e)` so an
+  API failure is not announced twice
+- An API failure never ends the session. Only a token the server has confirmed it rejects does, via
+  `endSession()`
 - API types/client are generated from the backend OpenAPI spec — do not hand-write duplicate types; regenerate instead
 - Structure: `src/components/` (shared UI, e.g. `AppLayout.tsx`, `CollectionCard.tsx`, `ModelCard.tsx`), `src/pages/` (route-level pages), `src/auth/`, `src/generated/` (OpenAPI output, do not hand-edit)
 
@@ -136,9 +153,22 @@ npm run dev
 cd backend; .\gradlew.bat build     # full backend build + tests
 cd frontend; npm run build          # frontend build
 cd frontend; npm run lint           # Biome lint
+cd frontend; npm test               # Vitest (single run); npm run test:watch to iterate
 ```
 
-There is no frontend test runner configured (no Vitest/RTL) — don't assume frontend unit tests exist or add references to running them.
+Frontend tests are Vitest + React Testing Library in a jsdom environment, colocated with the code as
+`*.test.ts(x)` under `src/`. Vitest config lives in the `test` block of `vite.config.ts` so it shares
+the `@/` alias, and `src/testing/` holds the shared harness:
+
+- `stubApi.ts` — swaps axios' adapter on the generated client so a test can reply to any route by
+  status code. The request/response interceptors in `auth/apiClient` still run, which is usually the
+  point; mocking the generated SDK instead would skip them.
+- `setup.ts` — `matchMedia`/`ResizeObserver` stubs Mantine needs under jsdom, plus per-test cleanup.
+
+For error states that are about what the *user sees*, use the Playwright harness instead
+(`npm run screenshot -- --scenario=<name>`): a scenario can set `failApi` to fail chosen calls in the
+browser, so no data has to be broken to produce the error. Those scenarios double as regression
+checks — whatever a scenario's `prepare` waits for is effectively an assertion.
 
 ---
 

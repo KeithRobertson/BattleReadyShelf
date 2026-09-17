@@ -71,7 +71,7 @@ export default function FactionDefinitionsAdminPage() {
   const [factions, setFactions] = useState<Faction[]>([]);
   const [drafts, setDrafts] = useState<FactionDraft[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [importSummary, setImportSummary] = useState<string | null>(null);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [newName, setNewName] = useState("");
@@ -89,14 +89,17 @@ export default function FactionDefinitionsAdminPage() {
         return;
       }
       setLoading(true);
-      Promise.all([getFactions({ signal }), getFactionDrafts({ signal })])
+      setLoadFailed(false);
+      Promise.all([getFactions({ signal, throwOnError: true }), getFactionDrafts({ signal, throwOnError: true })])
         .then(([factionsRes, draftsRes]) => {
           if (signal?.aborted) return;
           setFactions(factionsRes.data ?? []);
           setDrafts(draftsRes.data ?? []);
         })
-        .catch((e) => {
-          if (!signal?.aborted) setError(String(e));
+        .catch(() => {
+          // The reason arrives from the API layer as a notification; the page only has to stop
+          // presenting an empty list as though there were nothing to show.
+          if (!signal?.aborted) setLoadFailed(true);
         })
         .finally(() => {
           if (!signal?.aborted) setLoading(false);
@@ -124,7 +127,11 @@ export default function FactionDefinitionsAdminPage() {
   );
 
   const history = usePublishHistory(
-    useCallback(async (factionId: string) => (await getFactionPublishHistory({ path: { factionId } })).data ?? [], []),
+    useCallback(
+      async (factionId: string) =>
+        (await getFactionPublishHistory({ path: { factionId }, throwOnError: true })).data ?? [],
+      [],
+    ),
   );
 
   function handleViewHistory(row: PendingChangeRow) {
@@ -134,32 +141,37 @@ export default function FactionDefinitionsAdminPage() {
 
   async function handleCreateNew(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     try {
       const newFaction = (
         await createFaction({
           body: { name: newName, externalId: newExternalId, parentFactionId: newParentFactionId },
+          throwOnError: true,
         })
       ).data;
+      if (!newFaction) return;
+      setFactions((prev) => [...prev, newFaction]);
       setNewName("");
       setNewExternalId("");
       setNewParentFactionId(null);
-      if (!newFaction) throw new Error("Failed to create faction");
-      setFactions((prev) => [...prev, newFaction]);
       closeCreate();
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer. The form keeps what was typed, so the create
+      // can be retried without filling it in again.
     }
   }
 
   async function handleProposeChange(name: string, parentFactionId: string | null) {
     const faction = editing;
     if (!faction?.id) return;
-    setError(null);
     setSaving(true);
     try {
-      const staged = (await proposeFactionChange({ path: { factionId: faction.id }, body: { name, parentFactionId } }))
-        .data;
+      const staged = (
+        await proposeFactionChange({
+          path: { factionId: faction.id },
+          body: { name, parentFactionId },
+          throwOnError: true,
+        })
+      ).data;
       // Nothing is applied until the change is accepted. No body back means the proposal matched
       // what is already published, which also clears any stale pending change.
       setDrafts((prev) => {
@@ -167,36 +179,34 @@ export default function FactionDefinitionsAdminPage() {
         return staged ? [...others, staged] : others;
       });
       setEditing(null);
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the modal stays open on the proposed change.
     } finally {
       setSaving(false);
     }
   }
 
   async function handleAcceptDraft(row: PendingChangeRow) {
-    setError(null);
     setBusyDraftId(row.id);
     try {
-      const updated = (await publishFactionDraft({ path: { draftId: row.id } })).data;
-      if (!updated) throw new Error("Failed to apply the proposed change");
+      const updated = (await publishFactionDraft({ path: { draftId: row.id }, throwOnError: true })).data;
+      if (!updated) return;
       setFactions((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
       setDrafts((prev) => prev.filter((d) => d.id !== row.id));
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the proposal stays pending.
     } finally {
       setBusyDraftId(null);
     }
   }
 
   async function handleRejectDraft(row: PendingChangeRow) {
-    setError(null);
     setBusyDraftId(row.id);
     try {
-      await discardFactionDraft({ path: { draftId: row.id } });
+      await discardFactionDraft({ path: { draftId: row.id }, throwOnError: true });
       setDrafts((prev) => prev.filter((d) => d.id !== row.id));
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the proposal stays pending.
     } finally {
       setBusyDraftId(null);
     }
@@ -205,9 +215,13 @@ export default function FactionDefinitionsAdminPage() {
   async function handleDeleteFaction(factionId: string) {
     try {
       setDeletingFactionId(factionId);
-      await deleteFaction({ path: { factionId } });
+      // throwOnError, or a refused delete resolves as a success and the faction vanishes from the
+      // page while staying in the database until the next reload.
+      await deleteFaction({ path: { factionId }, throwOnError: true });
       setFactions((prev) => prev.filter((f) => f.id !== factionId));
       setDrafts((prev) => prev.filter((d) => d.factionId !== factionId));
+    } catch {
+      // Reported as a notification by the API layer; the faction stays in the list.
     } finally {
       setDeletingFactionId("");
     }
@@ -244,22 +258,18 @@ export default function FactionDefinitionsAdminPage() {
             </Button>
             <DefinitionTransferButtons
               fileNamePrefix="factions"
-              onStart={() => {
-                setError(null);
-                setImportSummary(null);
-              }}
-              onError={setError}
-              onExport={async () => (await exportFactions()).data}
-              onImport={async (document) => (await importFactions({ body: document })).data}
+              onStart={() => setImportSummary(null)}
+              onExport={async () => (await exportFactions({ throwOnError: true })).data}
+              onImport={async (document) => (await importFactions({ body: document, throwOnError: true })).data}
               onImported={handleImported}
             />
           </Group>
         )}
       </Group>
 
-      {error && (
-        <Alert color="red" icon={<IconAlertCircle size={16} />} style={{ whiteSpace: "pre-line" }}>
-          {error}
+      {loadFailed && (
+        <Alert color="red" icon={<IconAlertCircle size={16} />}>
+          The factions could not be loaded. Reload the page to try again.
         </Alert>
       )}
 
@@ -284,7 +294,9 @@ export default function FactionDefinitionsAdminPage() {
 
           <div>
             {factions.length === 0 ? (
-              <Text c="dimmed">No faction definitions exist yet.</Text>
+              // Silent when the load failed: the alert above already explains the empty list, and
+              // "none exist yet" would be stating something the page does not know.
+              !loadFailed && <Text c="dimmed">No faction definitions exist yet.</Text>
             ) : (
               <ResponsiveTable minWidth={520}>
                 <Table.Thead>
@@ -382,6 +394,7 @@ export default function FactionDefinitionsAdminPage() {
         definitionName={history.target?.name ?? null}
         entries={history.entries}
         loading={history.loading}
+        failed={history.failed}
         onClose={history.close}
       />
     </Stack>

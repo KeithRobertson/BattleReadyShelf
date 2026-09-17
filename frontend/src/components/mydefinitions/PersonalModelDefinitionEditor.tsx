@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Alert, Badge, Button, Group, Select, Stack, Textarea, TextInput } from "@mantine/core";
 import { IconInfoCircle } from "@tabler/icons-react";
 import { useState } from "react";
 import DefinitionChildrenEditor from "@/components/modeldefinitions/DefinitionChildrenEditor.tsx";
@@ -38,28 +38,24 @@ export default function PersonalModelDefinitionEditor({
   const [slots, setSlots] = useState<EditableSlot[]>(toEditableSlots(definition.attachmentSlots ?? []));
   const [options, setOptions] = useState<EditableOption[]>(toEditableOptions(definition.wargearOptions ?? []));
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const isCustomisation = definition.baseModelDefinitionId != null;
 
   async function handleSave() {
-    setError(null);
     setSaving(true);
     try {
       const updated = (
         await updateMyModelDefinition({
           path: { modelDefinitionId: definition.id ?? "" },
           body: toUpsertRequest(name, faction, description, slots, options),
+          throwOnError: true,
         })
       ).data;
-      if (!updated) {
-        setError("Failed to save");
-        return;
-      }
+      if (!updated) return;
       onSaved(updated);
       onClose();
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the modal stays open with the edits intact.
     } finally {
       setSaving(false);
     }
@@ -96,12 +92,6 @@ export default function PersonalModelDefinitionEditor({
         <Alert color="blue" icon={<IconInfoCircle size={16} />}>
           Only you can see this definition. Saving applies straight away — there is nothing to publish.
         </Alert>
-
-        {error && (
-          <Text c="red" size="sm">
-            {error}
-          </Text>
-        )}
 
         <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
         <Select

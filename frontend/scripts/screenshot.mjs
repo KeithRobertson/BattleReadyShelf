@@ -49,6 +49,30 @@ function parseArgs(argv) {
   return args;
 }
 
+/**
+ * Fails chosen API calls so error handling can be photographed. The request is answered in the
+ * browser, so nothing in the database has to be broken to produce the error, and a scenario can
+ * pick a status the backend would be hard to talk into returning on demand.
+ *
+ * A failure without a `method` fails every verb on that URL; with one, other verbs fall through to
+ * the real backend so the page can still load. `header` narrows it further, to requests carrying a
+ * particular header - which is how the app's own token check can be failed without also failing the
+ * session restore on the same URL.
+ */
+async function failApiRoutes(page, failures) {
+  for (const failure of failures) {
+    await page.route(failure.url, (route) => {
+      if (failure.method && route.request().method() !== failure.method) return route.fallback();
+      if (failure.header && !route.request().headers()[failure.header]) return route.fallback();
+      return route.fulfill({
+        status: failure.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: failure.message }),
+      });
+    });
+  }
+}
+
 function devUser() {
   const roleUpdatedAt = process.env.SCREENSHOT_USER_ROLE_UPDATED_AT;
   return {
@@ -67,6 +91,8 @@ async function capture(browser, deviceName, scenario, token) {
   await context.addInitScript((value) => window.localStorage.setItem("brs_token", value), token);
 
   const page = await context.newPage();
+  if (scenario.failApi) await failApiRoutes(page, scenario.failApi);
+
   const consoleErrors = [];
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());

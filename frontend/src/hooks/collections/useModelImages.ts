@@ -1,14 +1,13 @@
 import { useMutation } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 import type { CollectionModel } from "@/generated";
 import { createCollectionModelImageUploadUrl, deleteCollectionModelImage } from "@/generated";
 import { createImageVariants } from "@/utils/imageVariants";
+import showErrorNotification from "@/utils/showErrorNotification";
 
 export type ModelImages = ReturnType<typeof useModelImages>;
 
-export default function useModelImages(
-  setModels: (updater: (prev: CollectionModel[]) => CollectionModel[]) => void,
-  setError: (msg: string | null) => void,
-) {
+export default function useModelImages(setModels: (updater: (prev: CollectionModel[]) => CollectionModel[]) => void) {
   const uploadImageMutation = useMutation({
     mutationFn: async (params: { modelId: string; file: File }) => {
       const { modelId, file } = params;
@@ -17,6 +16,7 @@ export default function useModelImages(
 
       const created = (
         await createCollectionModelImageUploadUrl({
+          throwOnError: true,
           path: { collectionModelId: modelId },
           body: {
             large: {
@@ -60,8 +60,13 @@ export default function useModelImages(
       );
     },
 
-    onError: (err) => {
-      setError(String(err));
+    // Resizing the image and the PUT to R2 both happen outside axios, so the interceptor never sees
+    // those and this is the only chance to say anything about them. An axios failure has already
+    // been reported with the server's own message, so saying it again here would only repeat it.
+    onError: (error) => {
+      if (!isAxiosError(error)) {
+        showErrorNotification("That photo could not be uploaded. Please try again.");
+      }
     },
   });
 
@@ -73,8 +78,11 @@ export default function useModelImages(
     mutationFn: async (params: { modelId: string; imageId: string }) => {
       const { modelId, imageId } = params;
 
+      // throwOnError, or a failed delete resolves as a success and the photo disappears from the
+      // page while staying in the collection until the next reload.
       await deleteCollectionModelImage({
         path: { collectionModelId: modelId, imageId },
+        throwOnError: true,
       });
 
       return params;
@@ -86,10 +94,6 @@ export default function useModelImages(
           model.id === modelId ? { ...model, images: (model.images ?? []).filter((img) => img.id !== imageId) } : model,
         ),
       );
-    },
-
-    onError: (err) => {
-      setError(String(err));
     },
   });
 

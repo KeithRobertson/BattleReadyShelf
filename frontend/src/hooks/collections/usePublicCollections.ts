@@ -7,7 +7,7 @@ export function usePublicCollections() {
   const query = useQuery<ArmyCollection[]>({
     queryKey: [PUBLIC_COLLECTIONS_KEY],
     queryFn: async () => {
-      const response = await getPublicArmyCollections();
+      const response = await getPublicArmyCollections({ throwOnError: true });
       return response.data ?? [];
     },
     placeholderData: [],

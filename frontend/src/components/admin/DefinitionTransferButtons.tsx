@@ -1,6 +1,8 @@
 import { Button, FileButton, Group } from "@mantine/core";
 import { IconDownload, IconUpload } from "@tabler/icons-react";
+import { isAxiosError } from "axios";
 import { useState } from "react";
+import showErrorNotification from "@/utils/showErrorNotification";
 
 type Props<TExport, TResult> = {
   /** Used to name the downloaded file, e.g. "factions" -> factions-export-2025-01-31.json. */
@@ -9,7 +11,6 @@ type Props<TExport, TResult> = {
   onImport: (document: TExport) => Promise<TResult | undefined>;
   /** Called with the parsed result so the page can refresh its own state and summarise it. */
   onImported: (result: TResult, document: TExport) => void;
-  onError: (message: string) => void;
   onStart: () => void;
 };
 
@@ -23,7 +24,6 @@ export function DefinitionTransferButtons<TExport, TResult>({
   onExport,
   onImport,
   onImported,
-  onError,
   onStart,
 }: Props<TExport, TResult>) {
   const [importing, setImporting] = useState(false);
@@ -32,10 +32,7 @@ export function DefinitionTransferButtons<TExport, TResult>({
     onStart();
     try {
       const exportData = await onExport();
-      if (!exportData) {
-        onError(`Failed to export ${fileNamePrefix}`);
-        return;
-      }
+      if (!exportData) return;
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -44,7 +41,9 @@ export function DefinitionTransferButtons<TExport, TResult>({
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      onError(String(e));
+      // Writing the file happens in the browser, so a failure there is invisible to the API layer
+      // and would otherwise leave the Export button looking like it had simply done nothing.
+      if (!isAxiosError(e)) showErrorNotification(`The ${fileNamePrefix} file could not be saved.`);
     }
   }
 
@@ -59,7 +58,9 @@ export function DefinitionTransferButtons<TExport, TResult>({
         onImported(result, parsed);
       }
     } catch (e) {
-      onError(String(e));
+      // A rejected import is reported as a notification by the API layer, but the likeliest failure
+      // here is a file that will not parse, which never reaches the API at all.
+      if (!isAxiosError(e)) showErrorNotification("That file is not valid JSON, so there was nothing to import.");
     } finally {
       setImporting(false);
     }

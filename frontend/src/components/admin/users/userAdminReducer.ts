@@ -3,7 +3,8 @@ import type { UserDto, UserRole } from "@/generated";
 export type UserAdminState = {
   users: UserDto[];
   loading: boolean;
-  error: string | null;
+  /** Whether the list failed to load. Why it failed is reported by the API layer as a notification. */
+  loadFailed: boolean;
   selectedIds: Set<string>;
   bulkRole: UserRole;
   savingUserId: string | null;
@@ -13,7 +14,7 @@ export type UserAdminState = {
 export type UserAdminAction =
   | { type: "loadStart" }
   | { type: "loadSuccess"; users: UserDto[] }
-  | { type: "loadError"; error: string }
+  | { type: "loadFailed" }
   | { type: "toggleSelected"; userId: string }
   | { type: "toggleSelectAll"; editableIds: string[] }
   | { type: "setBulkRole"; role: UserRole }
@@ -26,7 +27,7 @@ export type UserAdminAction =
 export const initialUserAdminState: UserAdminState = {
   users: [],
   loading: true,
-  error: null,
+  loadFailed: false,
 
   selectedIds: new Set(),
   bulkRole: "USER",
@@ -38,13 +39,13 @@ export const initialUserAdminState: UserAdminState = {
 export function userAdminReducer(state: UserAdminState, action: UserAdminAction): UserAdminState {
   switch (action.type) {
     case "loadStart":
-      return { ...state, loading: true, error: null };
+      return { ...state, loading: true, loadFailed: false };
 
     case "loadSuccess":
       return { ...state, loading: false, users: action.users };
 
-    case "loadError":
-      return { ...state, loading: false, error: action.error };
+    case "loadFailed":
+      return { ...state, loading: false, loadFailed: true };
 
     case "toggleSelected": {
       const next = new Set(state.selectedIds);
@@ -61,13 +62,13 @@ export function userAdminReducer(state: UserAdminState, action: UserAdminAction)
       return { ...state, bulkRole: action.role };
 
     case "savingStart":
-      return { ...state, savingUserId: action.userId, error: null };
+      return { ...state, savingUserId: action.userId };
 
     case "savingEnd":
       return { ...state, savingUserId: null };
 
     case "bulkSavingStart":
-      return { ...state, bulkSaving: true, error: null };
+      return { ...state, bulkSaving: true };
 
     case "bulkSavingEnd":
       return { ...state, bulkSaving: false };

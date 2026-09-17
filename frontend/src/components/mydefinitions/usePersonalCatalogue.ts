@@ -2,7 +2,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
-import extractErrorMessage from "@/utils/extractErrorMessage.ts";
 
 /** The little every personal definition has in common, which is all this hook needs to track one. */
 export interface PersonalDefinition {
@@ -41,7 +40,9 @@ export default function usePersonalCatalogue<T extends PersonalDefinition>(
   const [mine, setMine] = useState<T[]>([]);
   const [shared, setShared] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Only whether the load failed, not why: the API layer reports the reason as a notification, so
+  // all this has to do is explain why the lists below are empty.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [customisingIds, setCustomisingIds] = useState<Set<string>>(new Set());
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
@@ -66,14 +67,15 @@ export default function usePersonalCatalogue<T extends PersonalDefinition>(
         return;
       }
       setLoading(true);
+      setLoadFailed(false);
       Promise.all([loadMine(signal), loadShared(signal)])
         .then(([mineItems, sharedItems]) => {
           if (signal?.aborted) return;
           setMine(mineItems);
           setShared(sharedItems);
         })
-        .catch((e) => {
-          if (!signal?.aborted) setError(extractErrorMessage(e));
+        .catch(() => {
+          if (!signal?.aborted) setLoadFailed(true);
         })
         .finally(() => {
           if (!signal?.aborted) setLoading(false);
@@ -98,7 +100,6 @@ export default function usePersonalCatalogue<T extends PersonalDefinition>(
 
   const handleCustomise = useCallback(
     async (id: string) => {
-      setError(null);
       withBusy(setCustomisingIds, id, true);
       try {
         const created = await customise(id);
@@ -107,8 +108,9 @@ export default function usePersonalCatalogue<T extends PersonalDefinition>(
           notifyChanged();
         }
         return created;
-      } catch (e) {
-        setError(extractErrorMessage(e));
+      } catch {
+        // Already reported as a notification by the API layer; nothing was added, so the row stays
+        // as it was and the user can try again.
         return undefined;
       } finally {
         withBusy(setCustomisingIds, id, false);
@@ -119,14 +121,14 @@ export default function usePersonalCatalogue<T extends PersonalDefinition>(
 
   const handleRemove = useCallback(
     async (id: string) => {
-      setError(null);
       withBusy(setRemovingIds, id, true);
       try {
         await remove(id);
         setMine((current) => current.filter((d) => d.id !== id));
         notifyChanged();
-      } catch (e) {
-        setError(extractErrorMessage(e));
+      } catch {
+        // Already reported as a notification by the API layer; the row is left in place because
+        // nothing was actually deleted.
       } finally {
         withBusy(setRemovingIds, id, false);
       }
@@ -140,8 +142,7 @@ export default function usePersonalCatalogue<T extends PersonalDefinition>(
     mine,
     shared,
     loading,
-    error,
-    setError,
+    loadFailed,
     customisingIds,
     removingIds,
     upsertMine,

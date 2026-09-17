@@ -4,14 +4,11 @@ import {
   bulkCreateCollectionModels,
   bulkDeleteCollectionModels,
   createCollectionModel,
-  createCollectionModelImageUploadUrl,
   deleteCollectionModel,
-  deleteCollectionModelImage,
   getCollectionModels,
   updateCollectionModel,
 } from "@/generated";
 import { COLLECTION_MODELS_KEY } from "@/queryKeys.ts";
-import { createImageVariants } from "@/utils/imageVariants";
 import isInitialLoad from "@/utils/isInitialLoad.ts";
 
 export type CollectionModels = ReturnType<typeof useCollectionModels>;
@@ -62,6 +59,7 @@ export default function useCollectionModels(collectionId: string | undefined) {
         const bulkCreateCollectionModelsResponse = await bulkCreateCollectionModels({
           path: { armyCollectionId: collectionId },
           body: { modelDefinitionId, count, status },
+          throwOnError: true,
         });
         return bulkCreateCollectionModelsResponse.data ?? [];
       }
@@ -69,6 +67,7 @@ export default function useCollectionModels(collectionId: string | undefined) {
       const createCollectionModelResponse = await createCollectionModel({
         path: { armyCollectionId: collectionId },
         body: { modelDefinitionId, name, description, status },
+        throwOnError: true,
       });
       return createCollectionModelResponse.data ? [createCollectionModelResponse.data] : [];
     },
@@ -93,6 +92,7 @@ export default function useCollectionModels(collectionId: string | undefined) {
       const res = await updateCollectionModel({
         path: { collectionModelId: params.modelId },
         body: params.body,
+        throwOnError: true,
       });
       return res.data;
     },
@@ -143,7 +143,9 @@ export default function useCollectionModels(collectionId: string | undefined) {
 
   const deleteModelMutation = useMutation({
     mutationFn: async (modelId: string) => {
-      await deleteCollectionModel({ path: { collectionModelId: modelId } });
+      // throwOnError, or a refused delete resolves as a success and the model vanishes from the page
+      // while staying in the collection until the next reload.
+      await deleteCollectionModel({ path: { collectionModelId: modelId }, throwOnError: true });
       return modelId;
     },
 
@@ -164,6 +166,7 @@ export default function useCollectionModels(collectionId: string | undefined) {
       await bulkDeleteCollectionModels({
         path: { armyCollectionId: collectionId },
         body: { collectionModelIds: modelIds },
+        throwOnError: true,
       });
       return modelIds;
     },
@@ -175,86 +178,6 @@ export default function useCollectionModels(collectionId: string | undefined) {
 
   function bulkDeleteModels(modelIds: string[]) {
     bulkDeleteMutation.mutate(modelIds);
-  }
-
-  const uploadImageMutation = useMutation({
-    mutationFn: async (params: { modelId: string; file: File }) => {
-      const { modelId, file } = params;
-
-      const variants = await createImageVariants(file);
-
-      const created = (
-        await createCollectionModelImageUploadUrl({
-          path: { collectionModelId: modelId },
-          body: {
-            large: {
-              contentType: variants.large.type,
-              contentLengthBytes: variants.large.size,
-            },
-            thumbnail: {
-              contentType: variants.thumbnail.type,
-              contentLengthBytes: variants.thumbnail.size,
-            },
-          },
-        })
-      ).data;
-
-      if (!created) throw new Error("Failed to request upload URL");
-
-      const uploads = [
-        { url: created.uploadUrls.large, body: variants.large, contentType: variants.large.type },
-        {
-          url: created.uploadUrls.thumbnail,
-          body: variants.thumbnail,
-          contentType: variants.thumbnail.type,
-        },
-      ];
-
-      const responses = await Promise.all(
-        uploads.map(({ url, body, contentType }) =>
-          fetch(url, {
-            method: "PUT",
-            headers: { "Content-Type": contentType },
-            body,
-          }),
-        ),
-      );
-
-      const failed = responses.find((r) => !r.ok);
-      if (failed) throw new Error(`Upload failed: ${failed.status}`);
-
-      return { modelId, image: created.image };
-    },
-
-    onSuccess: ({ modelId, image }) => {
-      setModels((prev) => prev.map((m) => (m.id === modelId ? { ...m, images: [...(m.images ?? []), image] } : m)));
-    },
-  });
-
-  function uploadImage(modelId: string, file: File) {
-    uploadImageMutation.mutate({ modelId, file });
-  }
-
-  const deleteImageMutation = useMutation({
-    mutationFn: async (params: { modelId: string; imageId: string }) => {
-      const { modelId, imageId } = params;
-      await deleteCollectionModelImage({
-        path: { collectionModelId: modelId, imageId },
-      });
-      return params;
-    },
-
-    onSuccess: ({ modelId, imageId }) => {
-      setModels((prev) =>
-        prev.map((m) =>
-          m.id === modelId ? { ...m, images: (m.images ?? []).filter((img) => img.id !== imageId) } : m,
-        ),
-      );
-    },
-  });
-
-  function deleteImage(modelId: string, imageId: string) {
-    deleteImageMutation.mutate({ modelId, imageId });
   }
 
   return {
@@ -271,7 +194,5 @@ export default function useCollectionModels(collectionId: string | undefined) {
     updateWargearSelection,
     deleteModel,
     bulkDeleteModels,
-    uploadImage,
-    deleteImage,
   };
 }

@@ -222,7 +222,7 @@ type PersonalCatalogueViewProps<T extends PersonalDefinition> = Readonly<{
   isAuthenticated: boolean;
   isAuthLoading: boolean;
   loading: boolean;
-  error: string | null;
+  loadFailed: boolean;
   mine: T[];
   shared: T[];
   columns: PersonalCatalogueColumn<T>[];
@@ -255,7 +255,7 @@ export default function PersonalCatalogueView<T extends PersonalDefinition>({
   isAuthenticated,
   isAuthLoading,
   loading,
-  error,
+  loadFailed,
   mine,
   shared,
   columns,
@@ -297,9 +297,10 @@ export default function PersonalCatalogueView<T extends PersonalDefinition>({
         )}
       </Group>
 
-      {error && (
-        <Alert color="red" icon={<IconAlertCircle size={16} />} style={{ whiteSpace: "pre-line" }}>
-          {error}
+      {/* Why the lists are empty, no more: the API layer reports the reason as a notification. */}
+      {loadFailed && (
+        <Alert color="red" icon={<IconAlertCircle size={16} />}>
+          This list could not be loaded. Reload the page to try again.
         </Alert>
       )}
 

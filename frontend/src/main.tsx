@@ -1,6 +1,8 @@
 import { MantineProvider } from "@mantine/core";
 import "@mantine/core/styles.css";
 import "@mantine/dates/styles.css";
+import { Notifications } from "@mantine/notifications";
+import "@mantine/notifications/styles.css";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
@@ -21,17 +23,15 @@ const rootElement = document.getElementById("root");
 // `placeholderData`, so a background refetch on mount re-renders with fresh data without showing a
 // loading state over data we already have. Note that this also makes `isLoading` false on the very
 // first render, so use `isInitialLoad` (see `utils/isInitialLoad.ts`) to decide whether to show a
-// loading state. Client errors are not retried — they will not succeed on a second attempt, and
-// retrying them would re-flash the same API error banner.
+// loading state.
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: (failureCount, error) => {
-        if (isAxiosError(error) && error.response && error.response.status < 500) {
-          return false;
-        }
-        return failureCount < 3;
-      },
+      // Only retry when the request never got an answer. A server that replied with an error will
+      // reply the same way again, so retrying it just delays the failure - and in the meantime the
+      // page sits on `placeholderData`, telling the user they have no collections rather than that
+      // the list could not be loaded.
+      retry: (failureCount, error) => (isAxiosError(error) && !error.response ? failureCount < 2 : false),
     },
   },
 });
@@ -43,6 +43,10 @@ if (rootElement) {
       <QueryClientProvider client={queryClient}>
         {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
         <MantineProvider theme={theme} defaultColorScheme="auto">
+          {/* Bottom, because the top right of the header is where the user menu and the sign-in
+              button live - and "your session has expired" landing on top of the button it is telling
+              you to press is not helpful. */}
+          <Notifications position="bottom-right" />
           <GoogleOAuthProvider clientId={googleClientId}>
             <BrowserRouter basename={import.meta.env.BASE_URL}>
               <AuthProvider>

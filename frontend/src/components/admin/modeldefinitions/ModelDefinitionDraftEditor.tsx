@@ -1,4 +1,4 @@
-import { Badge, Button, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Badge, Button, Group, Select, Stack, Textarea, TextInput } from "@mantine/core";
 import { useState } from "react";
 import DefinitionChildrenEditor from "@/components/modeldefinitions/DefinitionChildrenEditor.tsx";
 import type { EditableOption, EditableSlot } from "@/components/modeldefinitions/definitionChildren.ts";
@@ -40,7 +40,6 @@ export default function ModelDefinitionDraftEditor({
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [discarding, setDiscarding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   // Replaces local editor state with the server's view of the draft. Needed after
   // save/publish because the backend assigns real ids to newly-added slots/options
@@ -57,25 +56,22 @@ export default function ModelDefinitionDraftEditor({
   // is called internally by handlePublish (which needs the draft persisted first without
   // closing the modal out from under the publish confirmation step).
   async function handleSave(closeOnSuccess = false): Promise<ModelDefinitionDraft | null> {
-    setError(null);
     setSaving(true);
     try {
       const updated = (
         await updateModelDefinitionDraft({
           path: { draftId: draft.id ?? "" },
           body: toUpsertRequest(name, faction, description, slots, options),
+          throwOnError: true,
         })
       ).data;
-      if (!updated) {
-        setError("Failed to save draft");
-        return null;
-      }
+      if (!updated) return null;
       applyServerDraft(updated);
       onSaved(updated);
       if (closeOnSuccess) onClose();
       return updated;
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the modal stays open with the edits intact.
       return null;
     } finally {
       setSaving(false);
@@ -83,7 +79,6 @@ export default function ModelDefinitionDraftEditor({
   }
 
   async function handlePublish() {
-    setError(null);
     setPublishing(true);
     try {
       const saved = await handleSave();
@@ -92,15 +87,13 @@ export default function ModelDefinitionDraftEditor({
         await publishModelDefinitionDraft({
           path: { draftId: draft.id ?? "" },
           body: { changeSummary: changeSummary || undefined },
+          throwOnError: true,
         })
       ).data;
-      if (!published) {
-        setError("Failed to publish draft");
-        return;
-      }
+      if (!published) return;
       onPublished(published);
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer.
     } finally {
       setPublishing(false);
     }
@@ -108,13 +101,12 @@ export default function ModelDefinitionDraftEditor({
 
   async function handleDiscard() {
     if (!draft.id) return;
-    setError(null);
     setDiscarding(true);
     try {
-      await discardModelDefinitionDraft({ path: { draftId: draft.id } });
+      await discardModelDefinitionDraft({ path: { draftId: draft.id }, throwOnError: true });
       onDiscarded(draft.id);
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the draft is still there.
     } finally {
       setDiscarding(false);
     }
@@ -172,12 +164,6 @@ export default function ModelDefinitionDraftEditor({
           <Badge variant="light" color="grape" w="fit-content">
             New, unpublished model
           </Badge>
-        )}
-
-        {error && (
-          <Text c="red" size="sm">
-            {error}
-          </Text>
         )}
 
         <TextInput

@@ -1,8 +1,14 @@
-import { isAxiosError } from "axios";
+import { type AxiosError, isAxiosError } from "axios";
 import { publishApiError } from "@/auth/apiErrorEvents";
-import { getStoredToken } from "@/auth/tokenStorage";
+import { endSession, getStoredToken } from "@/auth/tokenStorage";
+import { getCurrentUser } from "@/generated";
 import { client } from "@/generated/client.gen";
 import extractErrorMessage from "@/utils/extractErrorMessage";
+
+const SESSION_EXPIRED_MESSAGE = "Your session has expired. Please sign in again.";
+
+/** Marks the token check below, so its own failures never come back round as errors to report. */
+const SESSION_CHECK_HEADER = "X-Session-Check";
 
 // Attach the JWT (if present) to every request made via the generated API client.
 client.instance.interceptors.request.use((config) => {
@@ -14,46 +20,80 @@ client.instance.interceptors.request.use((config) => {
   return config;
 });
 
-function isCanceled(error: unknown): boolean {
-  return isAxiosError(error) && error.code === "ERR_CANCELED";
+function requestUrl(error: AxiosError): string {
+  return error.config?.url ?? "";
 }
 
-function requestUrl(error: unknown): string {
-  return isAxiosError(error) ? (error.config?.url ?? "") : "";
+function isSessionCheck(error: AxiosError): boolean {
+  return Boolean(error.config?.headers?.[SESSION_CHECK_HEADER]);
 }
 
-/** Session restore uses GET /users/me; a 401 there is handled by AuthContext, not the banner. */
-function isSessionRestoreUnauthorized(error: unknown): boolean {
-  if (!isAxiosError(error) || error.response?.status !== 401) {
-    return false;
+/** AuthContext owns the session-restore call, including deciding a 401 means the token is dead. */
+function isSessionRestore(error: AxiosError): boolean {
+  return error.config?.method?.toLowerCase() === "get" && /\/users\/me\/?(\?|$)/.test(requestUrl(error));
+}
+
+function isGoogleLogin(error: AxiosError): boolean {
+  return /\/auth\/google\/?(\?|$)/.test(requestUrl(error));
+}
+
+let sessionCheck: Promise<boolean> | null = null;
+
+/**
+ * Asks the server whether the stored token is still accepted, sharing one answer between everything
+ * that failed at the same time so a page full of requests does not ask once per request.
+ */
+function isSessionStillValid(): Promise<boolean> {
+  sessionCheck ??= getCurrentUser({ throwOnError: true, headers: { [SESSION_CHECK_HEADER]: "1" } })
+    .then(() => true)
+    .catch((error: unknown) => !(isAxiosError(error) && error.response?.status === 401))
+    .finally(() => {
+      sessionCheck = null;
+    });
+  return sessionCheck;
+}
+
+/**
+ * Decides what an unauthorized response means for a signed-in user. Almost always an expired token,
+ * but confirming costs one request and keeps a one-off from throwing the session away.
+ */
+async function resolveUnauthorized(error: AxiosError): Promise<void> {
+  if (await isSessionStillValid()) {
+    publishApiError(extractErrorMessage(error));
+    return;
   }
-  const method = error.config?.method?.toLowerCase();
-  return method === "get" && /\/users\/me\/?(\?|$)/.test(requestUrl(error));
+  endSession();
+  publishApiError(SESSION_EXPIRED_MESSAGE);
 }
 
-function isGoogleLoginFailure(error: unknown): boolean {
-  return isAxiosError(error) && /\/auth\/google\/?(\?|$)/.test(requestUrl(error));
-}
+/**
+ * Reports a failed request to the user. An API error is a message, never a logout - the one
+ * exception being a token the server has confirmed it no longer accepts.
+ */
+function reportFailure(error: unknown): void {
+  if (!isAxiosError(error) || error.code === "ERR_CANCELED") return;
+  if (isSessionCheck(error)) return;
 
-function shouldPresentApiError(error: unknown): boolean {
-  if (isCanceled(error) || isSessionRestoreUnauthorized(error)) {
-    return false;
+  if (error.response?.status !== 401) {
+    publishApiError(extractErrorMessage(error));
+    return;
   }
-  // Signed-out 401s are expected on protected routes; don't nag. Login failures still show.
-  if (isAxiosError(error) && error.response?.status === 401 && !getStoredToken() && !isGoogleLoginFailure(error)) {
-    return false;
+
+  if (isSessionRestore(error)) return;
+
+  if (getStoredToken()) {
+    void resolveUnauthorized(error);
+  } else if (isGoogleLogin(error)) {
+    // Every other 401 without a token is a protected route doing its job to a signed-out visitor,
+    // which is expected rather than something to interrupt them about.
+    publishApiError(extractErrorMessage(error));
   }
-  return true;
 }
 
-// Keep the session on API failures. Business errors (and even most 401s mid-session) should
-// surface as messages rather than kicking the user back to the login button.
 client.instance.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (shouldPresentApiError(error)) {
-      publishApiError(extractErrorMessage(error));
-    }
+    reportFailure(error);
     return Promise.reject(error);
   },
 );

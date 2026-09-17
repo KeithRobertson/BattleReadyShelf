@@ -8,7 +8,6 @@ export default function useCollectionEditing(
   collectionId: string | undefined,
   collection: ArmyCollection | null,
   setCollection: (updater: (prev: ArmyCollection | null) => ArmyCollection | null) => void,
-  setError: (msg: string | null) => void,
 ) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
@@ -25,7 +24,6 @@ export default function useCollectionEditing(
     const newName = nameDraft.trim();
     if (!collectionId || !newName || newName === collection?.name) return;
 
-    setError(null);
     setSavingName(true);
 
     try {
@@ -33,14 +31,15 @@ export default function useCollectionEditing(
         await updateArmyCollection({
           path: { armyCollectionId: collectionId },
           body: { name: newName },
+          throwOnError: true,
         })
       ).data;
 
       if (updated) {
         setCollection(() => updated);
       }
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the name reverts to the server's version.
     } finally {
       setSavingName(false);
     }
@@ -65,7 +64,6 @@ export default function useCollectionEditing(
     const newDescription = descriptionDraft.trim();
     if (!collectionId || newDescription === (collection?.description ?? "")) return;
 
-    setError(null);
     setSavingDescription(true);
 
     try {
@@ -73,14 +71,15 @@ export default function useCollectionEditing(
         await updateArmyCollection({
           path: { armyCollectionId: collectionId },
           body: { description: newDescription },
+          throwOnError: true,
         })
       ).data;
 
       if (updated) {
         setCollection(() => updated);
       }
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the description reverts to the server's version.
     } finally {
       setSavingDescription(false);
     }
@@ -95,7 +94,6 @@ export default function useCollectionEditing(
   async function toggleVisibility(newIsPublic: boolean) {
     if (!collectionId) return;
 
-    setError(null);
     setSavingVisibility(true);
 
     try {
@@ -103,14 +101,15 @@ export default function useCollectionEditing(
         await updateArmyCollection({
           path: { armyCollectionId: collectionId },
           body: { isPublic: newIsPublic },
+          throwOnError: true,
         })
       ).data;
 
       if (updated) {
         setCollection(() => updated);
       }
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // Reported as a notification by the API layer; the toggle stays where the server has it.
     } finally {
       setSavingVisibility(false);
     }

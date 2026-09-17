@@ -51,6 +51,5 @@ export default function useDeleteCollection(onDeleted?: () => void) {
       }
     },
     deleting: mutation.isPending,
-    error: mutation.error ? String(mutation.error) : null,
   };
 }

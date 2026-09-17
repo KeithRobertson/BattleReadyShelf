@@ -18,7 +18,7 @@ export default function useCollectionMetadata(collectionId: string | undefined) 
   const modelDefinitionsQuery = useQuery<ModelDefinition[]>({
     queryKey: [MODEL_DEFINITIONS_KEY, collectionId],
     queryFn: async () => {
-      const response = await getModelDefinitions();
+      const response = await getModelDefinitions({ throwOnError: true });
       return response.data ?? [];
     },
     enabled: Boolean(collectionId),
@@ -34,7 +34,7 @@ export default function useCollectionMetadata(collectionId: string | undefined) 
   const factionsQuery = useQuery<Faction[]>({
     queryKey: [FACTIONS_KEY, collectionId],
     queryFn: async () => {
-      const response = await getFactionsList();
+      const response = await getFactionsList({ throwOnError: true });
       return response.data ?? [];
     },
     enabled: Boolean(collectionId),
