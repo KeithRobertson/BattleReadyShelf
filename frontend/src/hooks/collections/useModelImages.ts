@@ -100,7 +100,7 @@ export default function useModelImages(
   return {
     uploadImage,
     deleteImage,
-    uploadingModelId: uploadImageMutation.variables?.modelId ?? null,
-    deletingImageId: deleteImageMutation.variables?.imageId ?? null,
+    uploadingModelId: uploadImageMutation.isPending ? (uploadImageMutation.variables?.modelId ?? null) : null,
+    deletingImageId: deleteImageMutation.isPending ? (deleteImageMutation.variables?.imageId ?? null) : null,
   };
 }
