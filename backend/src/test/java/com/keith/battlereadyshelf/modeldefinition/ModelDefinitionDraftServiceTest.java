@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -16,13 +18,16 @@ import com.keith.battlereadyshelf.factiondefinition.FactionDefinitionService;
 import com.keith.battlereadyshelf.factiondefinition.FactionEntity;
 import com.keith.battlereadyshelf.factiondefinition.FactionRepository;
 import com.keith.battlereadyshelf.factiondefinition.FactionUpsertOutcome;
+import com.keith.battlereadyshelf.generated.model.AttachmentSlot;
 import com.keith.battlereadyshelf.generated.model.FactionExportItem;
+import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionDraft;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionExport;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionExportItem;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionExportItemAttachmentSlotsInner;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionExportItemWargearOptionsInner;
 import com.keith.battlereadyshelf.generated.model.WargearExportItem;
+import com.keith.battlereadyshelf.generated.model.WargearOption;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 import com.keith.battlereadyshelf.user.Role;
 
@@ -224,6 +229,137 @@ class ModelDefinitionDraftServiceTest {
                 .isEqualTo(customWeapon.getId().toString());
         assertThat(exported.getWargearOptions().getFirst().getSlotIds())
                 .containsExactly(slotId.toString());
+    }
+
+    @Test
+    void publishReusesExistingSlotByNameWhenDraftLostPublishedId() throws Exception {
+        var modelId = UUID.randomUUID();
+        var draftId = UUID.randomUUID();
+        var publishedVehicleGunId = UUID.randomUUID();
+        var unusedSlotId = UUID.randomUUID();
+        var publishedOptionId = UUID.randomUUID();
+        var laserLance = wargearDefinition("laser_lance", "Laser Lance");
+
+        var published =
+                ModelDefinitionEntity.builder()
+                        .id(modelId)
+                        .externalId("aeldari_shining_spear")
+                        .name("Shining Spear")
+                        .version(1)
+                        .build();
+        var publishedVehicleGun =
+                AttachmentSlotEntity.builder()
+                        .id(publishedVehicleGunId)
+                        .modelDefinitionId(modelId)
+                        .name("Vehicle Gun")
+                        .type("weapon")
+                        .build();
+        var unusedSlot =
+                AttachmentSlotEntity.builder()
+                        .id(unusedSlotId)
+                        .modelDefinitionId(modelId)
+                        .name("Old Mount")
+                        .type("other")
+                        .build();
+        var publishedOption =
+                WargearOptionEntity.builder()
+                        .id(publishedOptionId)
+                        .modelDefinitionId(modelId)
+                        .wargearDefinition(laserLance)
+                        .isDefault(true)
+                        .attachmentSlots(List.of(publishedVehicleGun))
+                        .build();
+
+        var draftSlot =
+                AttachmentSlotDraftEntity.builder()
+                        .id(UUID.randomUUID())
+                        .modelDefinitionDraftId(draftId)
+                        .externalId("vehicle_gun")
+                        .name("Vehicle Gun")
+                        .type("weapon")
+                        .build();
+        var draftOption =
+                WargearOptionDraftEntity.builder()
+                        .id(UUID.randomUUID())
+                        .modelDefinitionDraftId(draftId)
+                        .wargearDefinition(laserLance)
+                        .isDefault(true)
+                        .attachmentSlots(List.of(draftSlot))
+                        .build();
+
+        stubPublish(
+                draftId,
+                modelId,
+                published,
+                List.of(draftSlot),
+                List.of(draftOption),
+                List.of(publishedVehicleGun, unusedSlot),
+                List.of(publishedOption));
+
+        service.publishDraft(currentUser(), draftId, "Re-import Shining Spear");
+
+        var savedSlot = ArgumentCaptor.forClass(AttachmentSlotEntity.class);
+        verify(attachmentSlotRepository).save(savedSlot.capture());
+        assertThat(savedSlot.getValue().getId()).isEqualTo(publishedVehicleGunId);
+        assertThat(savedSlot.getValue().getExternalId()).isEqualTo("vehicle_gun");
+        assertThat(savedSlot.getValue().getName()).isEqualTo("Vehicle Gun");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<AttachmentSlotEntity>> deletedSlots =
+                ArgumentCaptor.forClass(Iterable.class);
+        verify(attachmentSlotRepository).deleteAll(deletedSlots.capture());
+        assertThat(deletedSlots.getValue()).containsExactly(unusedSlot);
+
+        var slotOrder = inOrder(attachmentSlotRepository);
+        slotOrder.verify(attachmentSlotRepository).deleteAll(any());
+        slotOrder.verify(attachmentSlotRepository).flush();
+        slotOrder.verify(attachmentSlotRepository).save(any());
+
+        var savedOption = ArgumentCaptor.forClass(WargearOptionEntity.class);
+        verify(wargearOptionRepository).save(savedOption.capture());
+        assertThat(savedOption.getValue().getId()).isEqualTo(publishedOptionId);
+    }
+
+    @Test
+    void publishReusesExistingSlotByExternalIdWhenNameChanged() throws Exception {
+        var modelId = UUID.randomUUID();
+        var draftId = UUID.randomUUID();
+        var publishedSlotId = UUID.randomUUID();
+        var published =
+                ModelDefinitionEntity.builder()
+                        .id(modelId)
+                        .externalId("aeldari_shining_spear")
+                        .name("Shining Spear")
+                        .version(1)
+                        .build();
+        var publishedSlot =
+                AttachmentSlotEntity.builder()
+                        .id(publishedSlotId)
+                        .modelDefinitionId(modelId)
+                        .externalId("vehicle_gun")
+                        .name("Gun")
+                        .type("other")
+                        .build();
+        var draftSlot =
+                AttachmentSlotDraftEntity.builder()
+                        .id(UUID.randomUUID())
+                        .modelDefinitionDraftId(draftId)
+                        .externalId("vehicle_gun")
+                        .name("Vehicle Gun")
+                        .type("weapon")
+                        .build();
+
+        stubPublish(
+                draftId, modelId, published, List.of(draftSlot), List.of(), List.of(publishedSlot), List.of());
+
+        service.publishDraft(currentUser(), draftId, null);
+
+        var savedSlot = ArgumentCaptor.forClass(AttachmentSlotEntity.class);
+        verify(attachmentSlotRepository).save(savedSlot.capture());
+        assertThat(savedSlot.getValue().getId()).isEqualTo(publishedSlotId);
+        assertThat(savedSlot.getValue().getName()).isEqualTo("Vehicle Gun");
+        assertThat(savedSlot.getValue().getType()).isEqualTo("weapon");
+        verify(wargearOptionRepository, never()).save(any());
     }
 
     @Test
@@ -571,6 +707,77 @@ class ModelDefinitionDraftServiceTest {
         assertThatThrownBy(() -> service.importModelDefinitions(currentUser(), export))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("schemaVersion");
+    }
+
+    private void stubPublish(
+            UUID draftId,
+            UUID modelId,
+            ModelDefinitionEntity published,
+            List<AttachmentSlotDraftEntity> draftSlots,
+            List<WargearOptionDraftEntity> draftOptions,
+            List<AttachmentSlotEntity> publishedSlots,
+            List<WargearOptionEntity> publishedOptions)
+            throws Exception {
+        var draft =
+                ModelDefinitionDraftEntity.builder()
+                        .id(draftId)
+                        .publishedModelDefinitionId(modelId)
+                        .externalId(published.getExternalId())
+                        .name(published.getName())
+                        .createdBy(UUID.randomUUID())
+                        .updatedBy(UUID.randomUUID())
+                        .build();
+        when(modelDefinitionDraftRepository.findById(draftId)).thenReturn(Optional.of(draft));
+        when(attachmentSlotDraftRepository.findAllByModelDefinitionDraftId(draftId))
+                .thenReturn(draftSlots);
+        when(wargearOptionDraftRepository.findAllByModelDefinitionDraftId(draftId))
+                .thenReturn(draftOptions);
+        when(modelDefinitionRepository.findById(modelId)).thenReturn(Optional.of(published));
+        when(modelDefinitionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(modelId)))
+                .thenReturn(publishedSlots);
+        when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(modelId)))
+                .thenReturn(publishedOptions);
+        when(attachmentSlotRepository.save(any()))
+                .thenAnswer(
+                        invocation -> {
+                            AttachmentSlotEntity entity = invocation.getArgument(0);
+                            if (entity.getId() == null) {
+                                entity.setId(UUID.randomUUID());
+                            }
+                            return entity;
+                        });
+        lenient()
+                .when(wargearOptionRepository.save(any()))
+                .thenAnswer(
+                        invocation -> {
+                            WargearOptionEntity entity = invocation.getArgument(0);
+                            if (entity.getId() == null) {
+                                entity.setId(UUID.randomUUID());
+                            }
+                            return entity;
+                        });
+        when(modelDefinitionMapper.toDto(any(ModelDefinitionEntity.class)))
+                .thenAnswer(
+                        invocation ->
+                                new ModelDefinition(((ModelDefinitionEntity) invocation.getArgument(0)).getName()));
+        when(modelDefinitionMapper.toDto(any(AttachmentSlotEntity.class)))
+                .thenAnswer(
+                        invocation -> {
+                            AttachmentSlotEntity slot = invocation.getArgument(0);
+                            return new AttachmentSlot(slot.getName(), slot.getType()).id(slot.getId());
+                        });
+        lenient()
+                .when(modelDefinitionMapper.toDto(any(WargearOptionEntity.class)))
+                .thenAnswer(
+                        invocation -> {
+                            WargearOptionEntity option = invocation.getArgument(0);
+                            return new WargearOption(
+                                    option.getWargearDefinition().getName(),
+                                    option.isDefault(),
+                                    List.of());
+                        });
+        doReturn("{}").when(objectMapper).writeValueAsString(any());
     }
 
     private static WargearUpsertOutcome outcomeFor(WargearDefinitionEntity definition) {

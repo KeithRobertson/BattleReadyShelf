@@ -8,7 +8,6 @@ import com.keith.battlereadyshelf.factiondefinition.FactionDefinitionService;
 import com.keith.battlereadyshelf.factiondefinition.FactionEntity;
 import com.keith.battlereadyshelf.factiondefinition.FactionRepository;
 import com.keith.battlereadyshelf.generated.model.AttachmentSlotDraft;
-import com.keith.battlereadyshelf.generated.model.FactionExportItem;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionDraft;
 import com.keith.battlereadyshelf.generated.model.ModelDefinitionExport;
@@ -19,7 +18,6 @@ import com.keith.battlereadyshelf.generated.model.ModelDefinitionPublishAuditEnt
 import com.keith.battlereadyshelf.generated.model.UpsertAttachmentSlotDraftRequest;
 import com.keith.battlereadyshelf.generated.model.UpsertModelDefinitionDraftRequest;
 import com.keith.battlereadyshelf.generated.model.UpsertWargearOptionDraftRequest;
-import com.keith.battlereadyshelf.generated.model.WargearExportItem;
 import com.keith.battlereadyshelf.generated.model.WargearOptionDraft;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 
@@ -30,17 +28,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -196,8 +192,15 @@ public class ModelDefinitionDraftService {
 
     /**
      * Publishes a draft: upserts its attachment slots/wargear options onto the published tables
-     * by id (creating the model definition itself if this draft was never published before),
-     * removes the now-published draft, and records an audit snapshot.
+     * (creating the model definition itself if this draft was never published before), removes the
+     * now-published draft, and records an audit snapshot.
+     *
+     * <p>Published children are matched first by the draft's stored published id, then by
+     * {@code externalId} / wargear definition, then by slot name. Importing the same catalogue
+     * again can replace draft rows and drop those stored ids; without the fallbacks, publish would
+     * insert a second "Vehicle Gun" (or the same wargear option) while the old row is still
+     * waiting to be deleted, which violates the unique constraints and would also cascade-delete
+     * collection wargear selections that still point at the original slot.
      */
     @Transactional
     public ModelDefinition publishDraft(CurrentAuthenticatedUser currentUser, UUID draftId, String changeSummary) {
@@ -224,75 +227,8 @@ public class ModelDefinitionDraftService {
         published = modelDefinitionRepository.save(published);
         var modelDefinitionId = published.getId();
 
-        var existingPublishedSlots =
-                attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(modelDefinitionId)).stream()
-                        .collect(Collectors.toMap(AttachmentSlotEntity::getId, s -> s));
-        Set<UUID> keptPublishedSlotIds =
-                draftSlots.stream()
-                        .map(AttachmentSlotDraftEntity::getPublishedAttachmentSlotId)
-                        .filter(java.util.Objects::nonNull)
-                        .collect(Collectors.toSet());
-        var removedSlots =
-                existingPublishedSlots.values().stream()
-                        .filter(s -> !keptPublishedSlotIds.contains(s.getId()))
-                        .toList();
-        attachmentSlotRepository.deleteAll(removedSlots);
-
-        Map<UUID, AttachmentSlotEntity> publishedSlotByDraftSlotId = new HashMap<>();
-        for (var draftSlot : draftSlots) {
-            var publishedSlotId = draftSlot.getPublishedAttachmentSlotId();
-            AttachmentSlotEntity publishedSlot;
-            if (publishedSlotId != null && existingPublishedSlots.containsKey(publishedSlotId)) {
-                publishedSlot = existingPublishedSlots.get(publishedSlotId);
-                publishedSlot.setName(draftSlot.getName());
-                publishedSlot.setExternalId(draftSlot.getExternalId());
-                publishedSlot.setType(draftSlot.getType());
-                publishedSlot = attachmentSlotRepository.save(publishedSlot);
-            } else {
-                publishedSlot =
-                        attachmentSlotRepository.save(
-                                AttachmentSlotEntity.builder()
-                                        .modelDefinitionId(modelDefinitionId)
-                                        .name(draftSlot.getName())
-                                        .externalId(draftSlot.getExternalId())
-                                        .type(draftSlot.getType())
-                                        .build());
-            }
-            publishedSlotByDraftSlotId.put(draftSlot.getId(), publishedSlot);
-        }
-
-        var existingPublishedOptions =
-                wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(modelDefinitionId)).stream()
-                        .collect(Collectors.toMap(WargearOptionEntity::getId, o -> o));
-        Set<UUID> keptPublishedOptionIds =
-                draftOptions.stream()
-                        .map(WargearOptionDraftEntity::getPublishedWargearOptionId)
-                        .filter(java.util.Objects::nonNull)
-                        .collect(Collectors.toSet());
-        var removedOptions =
-                existingPublishedOptions.values().stream()
-                        .filter(o -> !keptPublishedOptionIds.contains(o.getId()))
-                        .toList();
-        wargearOptionRepository.deleteAll(removedOptions);
-
-        for (var draftOption : draftOptions) {
-            var publishedOptionId = draftOption.getPublishedWargearOptionId();
-            WargearOptionEntity publishedOption;
-            if (publishedOptionId != null && existingPublishedOptions.containsKey(publishedOptionId)) {
-                publishedOption = existingPublishedOptions.get(publishedOptionId);
-            } else {
-                publishedOption =
-                        WargearOptionEntity.builder().modelDefinitionId(modelDefinitionId).build();
-            }
-            publishedOption.setWargearDefinition(draftOption.getWargearDefinition());
-            publishedOption.setDefault(draftOption.isDefault());
-            publishedOption.setAttachmentSlots(
-                    draftOption.getAttachmentSlots().stream()
-                            .map(slot -> publishedSlotByDraftSlotId.get(slot.getId()))
-                            .filter(java.util.Objects::nonNull)
-                            .collect(Collectors.toCollection(ArrayList::new)));
-            wargearOptionRepository.save(publishedOption);
-        }
+        var publishedSlotByDraftSlotId = publishSlots(modelDefinitionId, draftSlots);
+        publishOptions(modelDefinitionId, draftOptions, publishedSlotByDraftSlotId);
 
         var publishedDto =
                 modelDefinitionMapper
@@ -319,6 +255,169 @@ public class ModelDefinitionDraftService {
         modelDefinitionDraftRepository.delete(draft);
 
         return publishedDto;
+    }
+
+    /**
+     * Upserts published slots for a draft. Hibernate flushes inserts before deletes in one
+     * session, so unused slots are deleted and flushed before any new row is inserted; otherwise
+     * re-importing a slot whose draft lost {@code publishedAttachmentSlotId} trips {@code
+     * uq_attachment_slots_model_definition_name} (and the external-id unique index) on the still-
+     * present published row.
+     */
+    private Map<UUID, AttachmentSlotEntity> publishSlots(
+            UUID modelDefinitionId, List<AttachmentSlotDraftEntity> draftSlots) {
+        var existingPublishedSlots =
+                attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(modelDefinitionId));
+        Map<UUID, AttachmentSlotEntity> existingById =
+                existingPublishedSlots.stream()
+                        .collect(Collectors.toMap(AttachmentSlotEntity::getId, slot -> slot));
+        Map<String, AttachmentSlotEntity> remainingByExternalId = new LinkedHashMap<>();
+        Map<String, AttachmentSlotEntity> remainingByName = new LinkedHashMap<>();
+        for (var slot : existingPublishedSlots) {
+            if (slot.getExternalId() != null) {
+                remainingByExternalId.putIfAbsent(slot.getExternalId(), slot);
+            }
+            remainingByName.putIfAbsent(slot.getName(), slot);
+        }
+
+        Map<UUID, AttachmentSlotEntity> matchByDraftSlotId = new HashMap<>();
+        Set<UUID> claimedIds = new HashSet<>();
+        for (var draftSlot : draftSlots) {
+            var publishedId = draftSlot.getPublishedAttachmentSlotId();
+            if (publishedId == null) {
+                continue;
+            }
+            var match = existingById.get(publishedId);
+            if (match != null && claimedIds.add(match.getId())) {
+                matchByDraftSlotId.put(draftSlot.getId(), match);
+                claimPublishedSlot(match, remainingByExternalId, remainingByName);
+            }
+        }
+        for (var draftSlot : draftSlots) {
+            if (matchByDraftSlotId.containsKey(draftSlot.getId())) {
+                continue;
+            }
+            AttachmentSlotEntity match =
+                    draftSlot.getExternalId() != null
+                            ? remainingByExternalId.get(draftSlot.getExternalId())
+                            : null;
+            if (match == null) {
+                match = remainingByName.get(draftSlot.getName());
+            }
+            if (match != null && claimedIds.add(match.getId())) {
+                matchByDraftSlotId.put(draftSlot.getId(), match);
+                claimPublishedSlot(match, remainingByExternalId, remainingByName);
+            }
+        }
+
+        attachmentSlotRepository.deleteAll(
+                existingPublishedSlots.stream()
+                        .filter(slot -> !claimedIds.contains(slot.getId()))
+                        .toList());
+        attachmentSlotRepository.flush();
+
+        Map<UUID, AttachmentSlotEntity> publishedSlotByDraftSlotId = new HashMap<>();
+        for (var draftSlot : draftSlots) {
+            var publishedSlot = matchByDraftSlotId.get(draftSlot.getId());
+            if (publishedSlot != null) {
+                publishedSlot.setName(draftSlot.getName());
+                publishedSlot.setExternalId(draftSlot.getExternalId());
+                publishedSlot.setType(draftSlot.getType());
+            } else {
+                publishedSlot =
+                        AttachmentSlotEntity.builder()
+                                .modelDefinitionId(modelDefinitionId)
+                                .name(draftSlot.getName())
+                                .externalId(draftSlot.getExternalId())
+                                .type(draftSlot.getType())
+                                .build();
+            }
+            publishedSlotByDraftSlotId.put(
+                    draftSlot.getId(), attachmentSlotRepository.save(publishedSlot));
+        }
+        return publishedSlotByDraftSlotId;
+    }
+
+    private static void claimPublishedSlot(
+            AttachmentSlotEntity match,
+            Map<String, AttachmentSlotEntity> remainingByExternalId,
+            Map<String, AttachmentSlotEntity> remainingByName) {
+        if (match.getExternalId() != null) {
+            remainingByExternalId.remove(match.getExternalId());
+        }
+        remainingByName.remove(match.getName());
+    }
+
+    /**
+     * Same identity rules as {@link #publishSlots}: reuse the published option when the draft lost
+     * {@code publishedWargearOptionId}, so {@code uq_wargear_options_model_definition_wargear_definition}
+     * is not tripped by an insert-before-delete flush.
+     */
+    private void publishOptions(
+            UUID modelDefinitionId,
+            List<WargearOptionDraftEntity> draftOptions,
+            Map<UUID, AttachmentSlotEntity> publishedSlotByDraftSlotId) {
+        var existingPublishedOptions =
+                wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(modelDefinitionId));
+        Map<UUID, WargearOptionEntity> existingById =
+                existingPublishedOptions.stream()
+                        .collect(Collectors.toMap(WargearOptionEntity::getId, option -> option));
+        Map<UUID, WargearOptionEntity> remainingByWargearDefinitionId = new LinkedHashMap<>();
+        for (var option : existingPublishedOptions) {
+            if (option.getWargearDefinition() != null) {
+                remainingByWargearDefinitionId.putIfAbsent(
+                        option.getWargearDefinition().getId(), option);
+            }
+        }
+
+        Map<UUID, WargearOptionEntity> matchByDraftOptionId = new HashMap<>();
+        Set<UUID> claimedIds = new HashSet<>();
+        for (var draftOption : draftOptions) {
+            var publishedId = draftOption.getPublishedWargearOptionId();
+            if (publishedId == null) {
+                continue;
+            }
+            var match = existingById.get(publishedId);
+            if (match != null && claimedIds.add(match.getId())) {
+                matchByDraftOptionId.put(draftOption.getId(), match);
+                if (match.getWargearDefinition() != null) {
+                    remainingByWargearDefinitionId.remove(match.getWargearDefinition().getId());
+                }
+            }
+        }
+        for (var draftOption : draftOptions) {
+            if (matchByDraftOptionId.containsKey(draftOption.getId())
+                    || draftOption.getWargearDefinition() == null) {
+                continue;
+            }
+            var match = remainingByWargearDefinitionId.get(draftOption.getWargearDefinition().getId());
+            if (match != null && claimedIds.add(match.getId())) {
+                matchByDraftOptionId.put(draftOption.getId(), match);
+                remainingByWargearDefinitionId.remove(draftOption.getWargearDefinition().getId());
+            }
+        }
+
+        wargearOptionRepository.deleteAll(
+                existingPublishedOptions.stream()
+                        .filter(option -> !claimedIds.contains(option.getId()))
+                        .toList());
+        wargearOptionRepository.flush();
+
+        for (var draftOption : draftOptions) {
+            var publishedOption = matchByDraftOptionId.get(draftOption.getId());
+            if (publishedOption == null) {
+                publishedOption =
+                        WargearOptionEntity.builder().modelDefinitionId(modelDefinitionId).build();
+            }
+            publishedOption.setWargearDefinition(draftOption.getWargearDefinition());
+            publishedOption.setDefault(draftOption.isDefault());
+            publishedOption.setAttachmentSlots(
+                    draftOption.getAttachmentSlots().stream()
+                            .map(slot -> publishedSlotByDraftSlotId.get(slot.getId()))
+                            .filter(java.util.Objects::nonNull)
+                            .collect(Collectors.toCollection(ArrayList::new)));
+            wargearOptionRepository.save(publishedOption);
+        }
     }
 
     public List<ModelDefinitionPublishAuditEntry> getPublishHistory(UUID modelDefinitionId) {
