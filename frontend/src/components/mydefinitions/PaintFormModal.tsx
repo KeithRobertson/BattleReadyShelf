@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import ResponsiveModal from "@/components/ResponsiveModal.tsx";
 import type { Paint, PaintType, UpdatePaintRequest } from "@/generated";
 
-const PAINT_TYPE_OPTIONS: { value: PaintType; label: string }[] = [
+export const PAINT_TYPE_OPTIONS: { value: PaintType; label: string }[] = [
   { value: "BASE", label: "Base" },
   { value: "LAYER", label: "Layer" },
   { value: "SHADE", label: "Shade" },

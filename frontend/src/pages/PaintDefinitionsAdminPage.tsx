@@ -1,11 +1,28 @@
-import { ActionIcon, Alert, Badge, Button, Group, Modal, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Button,
+  Group,
+  Modal,
+  MultiSelect,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  Title,
+  UnstyledButton,
+} from "@mantine/core";
 import {
   IconAlertCircle,
   IconAlertTriangle,
+  IconChevronDown,
+  IconChevronUp,
   IconCircleCheck,
   IconPencil,
   IconPlus,
   IconSearch,
+  IconSelector,
   IconTrash,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -15,10 +32,14 @@ import { DefinitionTransferButtons } from "@/components/admin/DefinitionTransfer
 import PendingChangesPanel, { type PendingChangeRow } from "@/components/admin/PendingChangesPanel.tsx";
 import PublishHistoryModal from "@/components/admin/PublishHistoryModal.tsx";
 import usePublishHistory from "@/components/admin/usePublishHistory.ts";
-import PaintFormModal, { type PaintFormValues, paintTypeLabel } from "@/components/mydefinitions/PaintFormModal.tsx";
+import PaintFormModal, {
+  PAINT_TYPE_OPTIONS,
+  type PaintFormValues,
+  paintTypeLabel,
+} from "@/components/mydefinitions/PaintFormModal.tsx";
 import PaintSwatch from "@/components/paints/PaintSwatch.tsx";
 import ResponsiveTable from "@/components/ResponsiveTable.tsx";
-import type { Paint, PaintDraft, PaintImportResult } from "@/generated";
+import type { Paint, PaintDraft, PaintImportResult, PaintType } from "@/generated";
 import {
   createPaint,
   deletePaint,
@@ -32,6 +53,11 @@ import {
   publishPaintDraft,
 } from "@/generated";
 
+const NONE_FILTER = "__none__";
+
+type PaintSortField = "name" | "brand" | "type" | "externalId" | "usageCount";
+type PaintSortDirection = "asc" | "desc";
+
 function matchesSearch(paint: Paint, search: string) {
   const term = search.trim().toLowerCase();
   if (term === "") return true;
@@ -39,6 +65,182 @@ function matchesSearch(paint: Paint, search: string) {
     paint.name.toLowerCase().includes(term) ||
     (paint.brand?.toLowerCase().includes(term) ?? false) ||
     (paint.externalId?.toLowerCase().includes(term) ?? false)
+  );
+}
+
+function matchesBrandFilter(paint: Paint, brandFilter: string[]) {
+  if (brandFilter.length === 0) return true;
+  const value = paint.brand?.trim() ? paint.brand : NONE_FILTER;
+  return brandFilter.includes(value);
+}
+
+function matchesTypeFilter(paint: Paint, typeFilter: string[]) {
+  if (typeFilter.length === 0) return true;
+  const value = paint.paintType ?? NONE_FILTER;
+  return typeFilter.includes(value);
+}
+
+function isBlank(value?: string | null) {
+  return !value?.trim();
+}
+
+function compareOptionalText(a?: string | null, b?: string | null) {
+  const left = a?.trim() ?? "";
+  const right = b?.trim() ?? "";
+  if (!left && !right) return 0;
+  if (!left) return 1;
+  if (!right) return -1;
+  return left.localeCompare(right, undefined, { sensitivity: "base" });
+}
+
+function paintTextForSort(paint: Paint, field: Exclude<PaintSortField, "usageCount">) {
+  switch (field) {
+    case "name":
+      return paint.name;
+    case "brand":
+      return paint.brand;
+    case "type":
+      return paintTypeLabel(paint.paintType);
+    case "externalId":
+      return paint.externalId;
+  }
+}
+
+function comparePaints(a: Paint, b: Paint, field: PaintSortField, direction: PaintSortDirection) {
+  const dir = direction === "asc" ? 1 : -1;
+  if (field === "usageCount") {
+    return dir * ((a.usageCount ?? 0) - (b.usageCount ?? 0));
+  }
+
+  const left = paintTextForSort(a, field);
+  const right = paintTextForSort(b, field);
+  if (field !== "name" && isBlank(left) !== isBlank(right)) {
+    return isBlank(left) ? 1 : -1;
+  }
+  return dir * compareOptionalText(left, right);
+}
+
+function sortHeaderIcon(active: boolean, sortDirection: PaintSortDirection) {
+  if (!active) return IconSelector;
+  if (sortDirection === "asc") return IconChevronUp;
+  return IconChevronDown;
+}
+
+function sortAria(active: boolean, sortDirection: PaintSortDirection) {
+  if (!active) return "none";
+  if (sortDirection === "asc") return "ascending";
+  return "descending";
+}
+
+function brandFilterOptions(paints: Paint[]): { value: string; label: string }[] {
+  const brands = [
+    ...new Set(paints.map((paint) => paint.brand?.trim()).filter((brand): brand is string => Boolean(brand))),
+  ].toSorted((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  const options = brands.map((brand) => ({ value: brand, label: brand }));
+  if (paints.some((paint) => !paint.brand?.trim())) {
+    options.push({ value: NONE_FILTER, label: "No brand" });
+  }
+  return options;
+}
+
+function typeFilterOptions(paints: Paint[]): { value: string; label: string }[] {
+  const present = new Set(paints.map((paint) => paint.paintType).filter((type): type is PaintType => Boolean(type)));
+  const options: { value: string; label: string }[] = PAINT_TYPE_OPTIONS.filter((option) =>
+    present.has(option.value),
+  ).map((option) => ({
+    value: option.value,
+    label: option.label,
+  }));
+  if (paints.some((paint) => !paint.paintType)) {
+    options.push({ value: NONE_FILTER, label: "No type" });
+  }
+  return options;
+}
+
+function SortableHeader({
+  label,
+  field,
+  sortField,
+  sortDirection,
+  onSort,
+  visibleFrom,
+}: Readonly<{
+  label: string;
+  field: PaintSortField;
+  sortField: PaintSortField;
+  sortDirection: PaintSortDirection;
+  onSort: (field: PaintSortField) => void;
+  visibleFrom?: "sm";
+}>) {
+  const active = sortField === field;
+  const Icon = sortHeaderIcon(active, sortDirection);
+
+  return (
+    <Table.Th visibleFrom={visibleFrom} aria-sort={sortAria(active, sortDirection)}>
+      <UnstyledButton onClick={() => onSort(field)} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <Text span size="sm" fw={700}>
+          {label}
+        </Text>
+        <Icon size={14} aria-hidden />
+      </UnstyledButton>
+    </Table.Th>
+  );
+}
+
+function PaintCatalogueFilters({
+  search,
+  setSearch,
+  brandFilter,
+  setBrandFilter,
+  brandOptions,
+  typeFilter,
+  setTypeFilter,
+  typeOptions,
+}: Readonly<{
+  search: string;
+  setSearch: (value: string) => void;
+  brandFilter: string[];
+  setBrandFilter: (value: string[]) => void;
+  brandOptions: { value: string; label: string }[];
+  typeFilter: string[];
+  setTypeFilter: (value: string[]) => void;
+  typeOptions: { value: string; label: string }[];
+}>) {
+  return (
+    <Group align="flex-end" wrap="wrap" gap="sm">
+      <TextInput
+        placeholder="Search by name, brand or dataset id"
+        label="Search"
+        leftSection={<IconSearch size={16} />}
+        value={search}
+        onChange={(e) => setSearch(e.currentTarget.value)}
+        style={{ flex: "1 1 220px" }}
+      />
+      {brandOptions.length > 0 && (
+        <MultiSelect
+          label="Brand"
+          placeholder={brandFilter.length === 0 ? "All" : undefined}
+          data={brandOptions}
+          value={brandFilter}
+          onChange={setBrandFilter}
+          searchable
+          clearable
+          w={220}
+        />
+      )}
+      {typeOptions.length > 0 && (
+        <MultiSelect
+          label="Type"
+          placeholder={typeFilter.length === 0 ? "All" : undefined}
+          data={typeOptions}
+          value={typeFilter}
+          onChange={setTypeFilter}
+          searchable
+          clearable
+          w={220}
+        />
+      )}
+    </Group>
   );
 }
 
@@ -127,6 +329,10 @@ export default function PaintDefinitionsAdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [brandFilter, setBrandFilter] = useState<string[]>([]);
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [sortField, setSortField] = useState<PaintSortField>("name");
+  const [sortDirection, setSortDirection] = useState<PaintSortDirection>("asc");
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Paint | null>(null);
   const [saving, setSaving] = useState(false);
@@ -163,7 +369,25 @@ export default function PaintDefinitionsAdminPage() {
     return () => ac.abort();
   }, [loadAll]);
 
-  const visible = useMemo(() => paints.filter((paint) => matchesSearch(paint, search)), [paints, search]);
+  const brandOptions = useMemo(() => brandFilterOptions(paints), [paints]);
+  const typeOptions = useMemo(() => typeFilterOptions(paints), [paints]);
+
+  const visible = useMemo(() => {
+    const filtered = paints.filter(
+      (paint) =>
+        matchesSearch(paint, search) && matchesBrandFilter(paint, brandFilter) && matchesTypeFilter(paint, typeFilter),
+    );
+    return [...filtered].sort((a, b) => comparePaints(a, b, sortField, sortDirection));
+  }, [paints, search, brandFilter, typeFilter, sortField, sortDirection]);
+
+  function handleSort(field: PaintSortField) {
+    if (sortField === field) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortField(field);
+    setSortDirection("asc");
+  }
   const pendingRows = useMemo(() => drafts.map(toPendingRow), [drafts]);
   const draftById = useMemo(() => new Map(drafts.map((draft) => [draft.id, draft])), [drafts]);
   const usageByPaintId = useMemo(
@@ -332,11 +556,15 @@ export default function PaintDefinitionsAdminPage() {
             onViewHistory={handleViewHistory}
           />
 
-          <TextInput
-            placeholder="Search by name, brand or dataset id"
-            leftSection={<IconSearch size={16} />}
-            value={search}
-            onChange={(e) => setSearch(e.currentTarget.value)}
+          <PaintCatalogueFilters
+            search={search}
+            setSearch={setSearch}
+            brandFilter={brandFilter}
+            setBrandFilter={setBrandFilter}
+            brandOptions={brandOptions}
+            typeFilter={typeFilter}
+            setTypeFilter={setTypeFilter}
+            typeOptions={typeOptions}
           />
 
           <Text size="sm" c="dimmed">
@@ -344,16 +572,50 @@ export default function PaintDefinitionsAdminPage() {
           </Text>
 
           {visible.length === 0 ? (
-            <Text c="dimmed">No paints match your search.</Text>
+            <Text c="dimmed">No paints match your filters.</Text>
           ) : (
             <ResponsiveTable highlightOnHover fitOnMobile>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Name</Table.Th>
-                  <Table.Th visibleFrom="sm">Brand</Table.Th>
-                  <Table.Th visibleFrom="sm">Type</Table.Th>
-                  <Table.Th visibleFrom="sm">Dataset Id</Table.Th>
-                  <Table.Th visibleFrom="sm">Used by</Table.Th>
+                  <SortableHeader
+                    label="Name"
+                    field="name"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
+                  <SortableHeader
+                    label="Brand"
+                    field="brand"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                    visibleFrom="sm"
+                  />
+                  <SortableHeader
+                    label="Type"
+                    field="type"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                    visibleFrom="sm"
+                  />
+                  <SortableHeader
+                    label="Dataset Id"
+                    field="externalId"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                    visibleFrom="sm"
+                  />
+                  <SortableHeader
+                    label="Used by"
+                    field="usageCount"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                    visibleFrom="sm"
+                  />
                   <Table.Th />
                 </Table.Tr>
               </Table.Thead>
