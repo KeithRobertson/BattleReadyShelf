@@ -3,6 +3,7 @@ import {
   ActionIcon,
   Alert,
   Badge,
+  Box,
   Button,
   Checkbox,
   Group,
@@ -107,6 +108,70 @@ function DraftStatusBadge({ diff }: Readonly<{ diff: DraftDiff | undefined }>) {
     <Badge variant="light" color="blue">
       {diff.changeCount === 1 ? "1 change" : `${diff.changeCount} changes`}
     </Badge>
+  );
+}
+
+function SelectAllCheckbox({
+  label,
+  allIds,
+  selectedIds,
+  onToggle,
+}: Readonly<{
+  label: string;
+  allIds: string[];
+  selectedIds: Set<string>;
+  onToggle: (ids: string[], checked: boolean) => void;
+}>) {
+  if (allIds.length === 0) return null;
+  const selectedCount = allIds.filter((id) => selectedIds.has(id)).length;
+  return (
+    <Checkbox
+      aria-label={label}
+      checked={selectedCount === allIds.length}
+      indeterminate={selectedCount > 0 && selectedCount < allIds.length}
+      onChange={(e) => onToggle(allIds, e.currentTarget.checked)}
+    />
+  );
+}
+
+function FactionGroupSection({
+  groupKey,
+  label,
+  itemCount,
+  selectLabel,
+  allIds,
+  selectedIds,
+  onToggleSelect,
+  children,
+}: Readonly<{
+  groupKey: string;
+  label: string;
+  itemCount: number;
+  selectLabel: string;
+  allIds: string[];
+  selectedIds: Set<string>;
+  onToggleSelect: (ids: string[], checked: boolean) => void;
+  children: React.ReactNode;
+}>) {
+  return (
+    <Accordion.Item value={groupKey}>
+      <Group gap="xs" wrap="nowrap" pr="xs">
+        <Box onClick={(event) => event.stopPropagation()}>
+          <SelectAllCheckbox label={selectLabel} allIds={allIds} selectedIds={selectedIds} onToggle={onToggleSelect} />
+        </Box>
+        <Accordion.Control flex={1}>
+          <Group gap="xs">
+            <Text fw={500} size="sm">
+              {label}
+            </Text>
+            <Badge variant="light" size="sm">
+              {itemCount}
+            </Badge>
+          </Group>
+        </Accordion.Control>
+      </Group>
+      <Accordion.Panel>{children}</Accordion.Panel>
+    </Accordion.Item>
   );
 }
 
@@ -459,6 +524,14 @@ export default function ModelDefinitionsAdminPage() {
     () => groupByFaction(modelDefinitions, factionsById),
     [modelDefinitions, factionsById],
   );
+  const allDraftIds = useMemo(
+    () => drafts.map((draft) => draft.id).filter((id): id is string => Boolean(id)),
+    [drafts],
+  );
+  const allPublishedIds = useMemo(
+    () => modelDefinitions.map((definition) => definition.id).filter((id): id is string => Boolean(id)),
+    [modelDefinitions],
+  );
 
   return (
     <Stack gap="md">
@@ -506,7 +579,15 @@ export default function ModelDefinitionsAdminPage() {
           {drafts.length > 0 && (
             <div>
               <Group justify="space-between" mb="xs">
-                <Title order={4}>Open drafts</Title>
+                <Group gap="xs">
+                  <SelectAllCheckbox
+                    label="Select all drafts"
+                    allIds={allDraftIds}
+                    selectedIds={selectedDraftIds}
+                    onToggle={toggleDraftGroupSelected}
+                  />
+                  <Title order={4}>Open drafts</Title>
+                </Group>
                 {selectedDraftIds.size > 0 && (
                   <Group gap="xs">
                     <Button
@@ -531,24 +612,31 @@ export default function ModelDefinitionsAdminPage() {
                   </Group>
                 )}
               </Group>
-              <Stack gap="md">
+              <Accordion multiple defaultValue={[]} variant="separated">
                 {draftGroups.map((group) => {
-                  const groupDraftIds = group.items.map((d) => d.id ?? "");
-                  const groupSelectedCount = groupDraftIds.filter((id) => selectedDraftIds.has(id)).length;
+                  const groupDraftIds = group.items.map((d) => d.id ?? "").filter(Boolean);
+                  const groupLabel = group.faction?.name ?? UNCATEGORISED_LABEL;
+                  const groupKey = group.key || "uncategorised";
                   return (
-                    <div key={group.key}>
-                      <Text fw={500} size="sm" c="dimmed" mb={4}>
-                        {group.faction?.name ?? UNCATEGORISED_LABEL}
-                      </Text>
+                    <FactionGroupSection
+                      key={groupKey}
+                      groupKey={groupKey}
+                      label={groupLabel}
+                      itemCount={group.items.length}
+                      selectLabel={`Select all drafts in ${groupLabel}`}
+                      allIds={groupDraftIds}
+                      selectedIds={selectedDraftIds}
+                      onToggleSelect={toggleDraftGroupSelected}
+                    >
                       <ResponsiveTable striped withTableBorder verticalSpacing="xs">
                         <Table.Thead>
                           <Table.Tr>
                             <Table.Th style={{ width: 32 }}>
-                              <Checkbox
-                                aria-label={`Select all drafts in ${group.faction?.name ?? UNCATEGORISED_LABEL}`}
-                                checked={groupDraftIds.length > 0 && groupSelectedCount === groupDraftIds.length}
-                                indeterminate={groupSelectedCount > 0 && groupSelectedCount < groupDraftIds.length}
-                                onChange={(e) => toggleDraftGroupSelected(groupDraftIds, e.currentTarget.checked)}
+                              <SelectAllCheckbox
+                                label={`Select all drafts in ${groupLabel}`}
+                                allIds={groupDraftIds}
+                                selectedIds={selectedDraftIds}
+                                onToggle={toggleDraftGroupSelected}
                               />
                             </Table.Th>
                             <Table.Th>Name</Table.Th>
@@ -621,16 +709,24 @@ export default function ModelDefinitionsAdminPage() {
                           })}
                         </Table.Tbody>
                       </ResponsiveTable>
-                    </div>
+                    </FactionGroupSection>
                   );
                 })}
-              </Stack>
+              </Accordion>
             </div>
           )}
 
           <div>
             <Group justify="space-between" mb="xs">
-              <Title order={4}>Published</Title>
+              <Group gap="xs">
+                <SelectAllCheckbox
+                  label="Select all published model definitions"
+                  allIds={allPublishedIds}
+                  selectedIds={selectedModelDefinitionIds}
+                  onToggle={toggleModelDefinitionGroupSelected}
+                />
+                <Title order={4}>Published</Title>
+              </Group>
               {selectedModelDefinitionIds.size > 0 && (
                 <Button
                   size="xs"
@@ -647,30 +743,23 @@ export default function ModelDefinitionsAdminPage() {
             {modelDefinitions.length === 0 ? (
               <Text c="dimmed">No model definitions exist yet.</Text>
             ) : (
-              <Stack gap="md">
+              <Accordion multiple defaultValue={[]} variant="separated">
                 {modelDefinitionGroups.map((group) => {
-                  const groupModelDefinitionIds = group.items.map((md) => md.id ?? "");
-                  const groupSelectedCount = groupModelDefinitionIds.filter((id) =>
-                    selectedModelDefinitionIds.has(id),
-                  ).length;
+                  const groupModelDefinitionIds = group.items.map((md) => md.id ?? "").filter(Boolean);
+                  const groupLabel = group.faction?.name ?? UNCATEGORISED_LABEL;
+                  const groupKey = group.key || "uncategorised";
                   return (
-                    <div key={group.key}>
-                      <Group gap="xs" mb={4}>
-                        <Checkbox
-                          aria-label={`Select all in ${group.faction?.name ?? UNCATEGORISED_LABEL}`}
-                          checked={
-                            groupModelDefinitionIds.length > 0 && groupSelectedCount === groupModelDefinitionIds.length
-                          }
-                          indeterminate={groupSelectedCount > 0 && groupSelectedCount < groupModelDefinitionIds.length}
-                          onChange={(e) =>
-                            toggleModelDefinitionGroupSelected(groupModelDefinitionIds, e.currentTarget.checked)
-                          }
-                        />
-                        <Text fw={500} size="sm" c="dimmed">
-                          {group.faction?.name ?? UNCATEGORISED_LABEL}
-                        </Text>
-                      </Group>
-                      <Accordion multiple defaultValue={group.items.map((md) => md.id ?? "")} variant="separated">
+                    <FactionGroupSection
+                      key={groupKey}
+                      groupKey={groupKey}
+                      label={groupLabel}
+                      itemCount={group.items.length}
+                      selectLabel={`Select all in ${groupLabel}`}
+                      allIds={groupModelDefinitionIds}
+                      selectedIds={selectedModelDefinitionIds}
+                      onToggleSelect={toggleModelDefinitionGroupSelected}
+                    >
+                      <Accordion multiple defaultValue={[]} variant="separated">
                         {group.items.map((md) => {
                           const attachmentSlots = md.attachmentSlots ?? [];
                           const wargearOptions = md.wargearOptions ?? [];
@@ -735,10 +824,10 @@ export default function ModelDefinitionsAdminPage() {
                           );
                         })}
                       </Accordion>
-                    </div>
+                    </FactionGroupSection>
                   );
                 })}
-              </Stack>
+              </Accordion>
             )}
           </div>
         </Stack>
