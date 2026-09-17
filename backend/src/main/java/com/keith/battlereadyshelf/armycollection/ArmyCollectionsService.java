@@ -1,10 +1,14 @@
 package com.keith.battlereadyshelf.armycollection;
 
+import com.keith.battlereadyshelf.collectionmodel.CollectionModelEntity;
+import com.keith.battlereadyshelf.collectionmodel.CollectionModelImageRepository;
 import com.keith.battlereadyshelf.collectionmodel.CollectionModelRepository;
 import com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus;
+import com.keith.battlereadyshelf.collectionmodel.ImageVariant;
 import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.ArmyCollection;
+import com.keith.battlereadyshelf.storage.PresignedUrlService;
 import com.keith.battlereadyshelf.user.User;
 import com.keith.battlereadyshelf.user.UserRepository;
 
@@ -26,9 +30,11 @@ import java.util.stream.Collectors;
 public class ArmyCollectionsService {
     private final ArmyCollectionRepository armyCollectionRepository;
     private final CollectionModelRepository collectionModelRepository;
+    private final CollectionModelImageRepository collectionModelImageRepository;
     private final ModelDefinitionGroupPositionRepository modelDefinitionGroupPositionRepository;
     private final UserRepository userRepository;
     private final ArmyCollectionMapper armyCollectionMapper;
+    private final PresignedUrlService presignedUrlService;
 
     public List<ArmyCollection> getAllArmyCollections(UUID userId) {
         var armyCollections =
@@ -104,6 +110,38 @@ public class ArmyCollectionsService {
         var countsByCollectionId = countModelsByStatus(List.of(armyCollectionId));
         var usersById = getUsersById(userId);
         return toDtoWithCounts(saved, countsByCollectionId, usersById);
+    }
+
+    /**
+     * Deletes an army collection the user owns, including its models and paint recipes. Image rows
+     * cascade in Postgres; the R2 objects they point at are removed first because the database
+     * cannot reach object storage on its own.
+     */
+    @Transactional
+    public void deleteArmyCollection(UUID userId, UUID armyCollectionId) {
+        requireOwnedArmyCollection(userId, armyCollectionId);
+
+        var modelIds =
+                collectionModelRepository.findAllByArmyCollectionId(armyCollectionId).stream()
+                        .map(CollectionModelEntity::getId)
+                        .toList();
+        if (!modelIds.isEmpty()) {
+            collectionModelImageRepository
+                    .findAllByCollectionModelIdIn(modelIds)
+                    .forEach(
+                            image -> {
+                                deleteVariantIfPresent(image.getLarge());
+                                deleteVariantIfPresent(image.getThumbnail());
+                            });
+        }
+
+        armyCollectionRepository.deleteById(armyCollectionId);
+    }
+
+    private void deleteVariantIfPresent(ImageVariant variant) {
+        if (variant != null && variant.getStorageKey() != null) {
+            presignedUrlService.deleteObject(variant.getStorageKey());
+        }
     }
 
     /**

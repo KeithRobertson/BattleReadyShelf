@@ -4,7 +4,9 @@ import { CollectionsContent } from "@/components/collections/CollectionsContent.
 import { CollectionsError } from "@/components/collections/CollectionsError.tsx";
 import { CollectionsHeader } from "@/components/collections/CollectionsHeader.tsx";
 import { CreateCollectionModal } from "@/components/collections/CreateCollectionModal.tsx";
+import DeleteCollectionModal from "@/components/collections/DeleteCollectionModal.tsx";
 import { useCollections } from "@/hooks/collections/useCollections.tsx";
+import useDeleteCollection from "@/hooks/collections/useDeleteCollection.ts";
 
 export default function CollectionsPage() {
   const { isAuthenticated } = useAuth();
@@ -26,6 +28,7 @@ export default function CollectionsPage() {
     handleDragEnd,
     dragSensors,
   } = useCollections();
+  const deletion = useDeleteCollection();
 
   return (
     <Stack gap="md">
@@ -38,6 +41,7 @@ export default function CollectionsPage() {
         collections={collections}
         dragSensors={dragSensors}
         handleDragEnd={handleDragEnd}
+        onDelete={deletion.requestDelete}
       />
 
       <CreateCollectionModal
@@ -51,6 +55,8 @@ export default function CollectionsPage() {
         setIsPublic={setIsPublic}
         handleCreate={handleCreate}
       />
+
+      <DeleteCollectionModal deletion={deletion} />
     </Stack>
   );
 }

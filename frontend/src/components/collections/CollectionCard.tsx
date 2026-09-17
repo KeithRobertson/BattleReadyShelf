@@ -1,6 +1,6 @@
 import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
-import { Badge, Card, Group, Stack, Text, UnstyledButton } from "@mantine/core";
-import { IconChevronRight, IconGripVertical, IconUser } from "@tabler/icons-react";
+import { ActionIcon, Badge, Card, Group, Stack, Text, UnstyledButton } from "@mantine/core";
+import { IconChevronRight, IconGripVertical, IconTrash, IconUser } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import { CollectionStatsPanel } from "@/components/collections/CollectionStatsPanel.tsx";
 import type { ArmyCollection, CollectionModelStatus } from "@/generated";
@@ -10,9 +10,15 @@ export type CollectionCardProps = Readonly<{
   collection: ArmyCollection;
   dragHandleProps?: { attributes: DraggableAttributes; listeners: DraggableSyntheticListeners };
   showCreator?: boolean;
+  onDelete?: (collection: ArmyCollection) => void;
 }>;
 
-export default function CollectionCard({ collection, dragHandleProps, showCreator = false }: CollectionCardProps) {
+export default function CollectionCard({
+  collection,
+  dragHandleProps,
+  showCreator = false,
+  onDelete,
+}: CollectionCardProps) {
   const navigate = useNavigate();
   const modelCount = collection.modelCount;
   const emptyCounts: Record<CollectionModelStatus, number> = COLLECTION_MODEL_STATUSES.reduce(
@@ -82,6 +88,17 @@ export default function CollectionCard({ collection, dragHandleProps, showCreato
             </Group>
           </Group>
         </UnstyledButton>
+        {onDelete && (
+          <ActionIcon
+            color="red"
+            variant="subtle"
+            aria-label={`Delete ${collection.name}`}
+            onClick={() => onDelete(collection)}
+            style={{ alignSelf: "center" }}
+          >
+            <IconTrash size={16} />
+          </ActionIcon>
+        )}
       </Group>
     </Card>
   );

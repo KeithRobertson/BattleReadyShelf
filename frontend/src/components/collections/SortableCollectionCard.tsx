@@ -3,9 +3,12 @@ import { CSS } from "@dnd-kit/utilities";
 import CollectionCard from "@/components/collections/CollectionCard.tsx";
 import type { ArmyCollection } from "@/generated";
 
-export type SortableCollectionCardProps = Readonly<{ collection: ArmyCollection }>;
+export type SortableCollectionCardProps = Readonly<{
+  collection: ArmyCollection;
+  onDelete?: (collection: ArmyCollection) => void;
+}>;
 
-export function SortableCollectionCard({ collection }: SortableCollectionCardProps) {
+export function SortableCollectionCard({ collection, onDelete }: SortableCollectionCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: collection.id ?? "",
   });
@@ -19,7 +22,7 @@ export function SortableCollectionCard({ collection }: SortableCollectionCardPro
         opacity: isDragging ? 0.6 : 1,
       }}
     >
-      <CollectionCard collection={collection} dragHandleProps={{ attributes, listeners }} />
+      <CollectionCard collection={collection} dragHandleProps={{ attributes, listeners }} onDelete={onDelete} />
     </div>
   );
 }

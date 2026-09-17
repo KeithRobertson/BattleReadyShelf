@@ -11,9 +11,16 @@ export type CollectionsContentProps = Readonly<{
   collections: ArmyCollection[];
   dragSensors: SensorDescriptor<SensorOptions>[];
   handleDragEnd: (event: DragEndEvent) => void;
+  onDelete?: (collection: ArmyCollection) => void;
 }>;
 
-export function CollectionsContent({ state, collections, dragSensors, handleDragEnd }: CollectionsContentProps) {
+export function CollectionsContent({
+  state,
+  collections,
+  dragSensors,
+  handleDragEnd,
+  onDelete,
+}: CollectionsContentProps) {
   if (state === "auth-loading") return <Loader />;
 
   if (state === "unauthenticated")
@@ -32,7 +39,7 @@ export function CollectionsContent({ state, collections, dragSensors, handleDrag
       <SortableContext items={collections.map((c) => c.id ?? "")} strategy={verticalListSortingStrategy}>
         <Stack gap="md">
           {collections.map((c) => (
-            <SortableCollectionCard key={c.id} collection={c} />
+            <SortableCollectionCard key={c.id} collection={c} onDelete={onDelete} />
           ))}
         </Stack>
       </SortableContext>

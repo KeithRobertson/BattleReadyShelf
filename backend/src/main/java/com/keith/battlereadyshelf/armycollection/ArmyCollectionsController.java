@@ -68,6 +68,14 @@ public class ArmyCollectionsController implements ArmyCollectionsApi {
     }
 
     @Override
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Void> deleteArmyCollection(UUID armyCollectionId) {
+        var currentUser = authenticatedUserProvider.getCurrentUser();
+        armyCollectionsService.deleteArmyCollection(currentUser.id(), armyCollectionId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
     public ResponseEntity<List<ArmyCollection>> reorderArmyCollections(
             ReorderArmyCollectionsRequest reorderArmyCollectionsRequest) {
         var currentUser = authenticatedUserProvider.getCurrentUser();

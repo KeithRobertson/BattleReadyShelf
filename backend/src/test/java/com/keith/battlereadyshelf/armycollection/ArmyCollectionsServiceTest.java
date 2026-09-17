@@ -7,8 +7,14 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.keith.battlereadyshelf.collectionmodel.CollectionModelEntity;
+import com.keith.battlereadyshelf.collectionmodel.CollectionModelImageEntity;
+import com.keith.battlereadyshelf.collectionmodel.CollectionModelImageRepository;
 import com.keith.battlereadyshelf.collectionmodel.CollectionModelRepository;
+import com.keith.battlereadyshelf.collectionmodel.ImageVariant;
+import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.ArmyCollection;
+import com.keith.battlereadyshelf.storage.PresignedUrlService;
 import com.keith.battlereadyshelf.user.User;
 import com.keith.battlereadyshelf.user.UserRepository;
 
@@ -29,8 +35,10 @@ import java.util.UUID;
 class ArmyCollectionsServiceTest {
     @Mock private ArmyCollectionRepository armyCollectionRepository;
     @Mock private CollectionModelRepository collectionModelRepository;
+    @Mock private CollectionModelImageRepository collectionModelImageRepository;
     @Mock private ModelDefinitionGroupPositionRepository modelDefinitionGroupPositionRepository;
     @Mock private UserRepository userRepository;
+    @Mock private PresignedUrlService presignedUrlService;
 
     @Captor private ArgumentCaptor<ArmyCollectionEntity> armyCollectionEntityCaptor;
 
@@ -42,9 +50,11 @@ class ArmyCollectionsServiceTest {
                 new ArmyCollectionsService(
                         armyCollectionRepository,
                         collectionModelRepository,
+                        collectionModelImageRepository,
                         modelDefinitionGroupPositionRepository,
                         userRepository,
-                        new ArmyCollectionMapperImpl());
+                        new ArmyCollectionMapperImpl(),
+                        presignedUrlService);
         lenient()
                 .when(
                         modelDefinitionGroupPositionRepository
@@ -580,6 +590,69 @@ class ArmyCollectionsServiceTest {
                         () ->
                                 armyCollectionsService.reorderModelDefinitionGroups(
                                         userId, armyCollectionId, List.of(UUID.randomUUID())))
-                .isInstanceOf(com.keith.battlereadyshelf.error.NotFoundException.class);
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void deleteArmyCollection_deletesCollectionAndCleansUpImages_whenOwnedByUser() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelRepository.findAllByArmyCollectionId(armyCollectionId))
+                .thenReturn(
+                        List.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .build()));
+        when(collectionModelImageRepository.findAllByCollectionModelIdIn(
+                        List.of(collectionModelId)))
+                .thenReturn(
+                        List.of(
+                                CollectionModelImageEntity.builder()
+                                        .id(UUID.randomUUID())
+                                        .collectionModelId(collectionModelId)
+                                        .large(
+                                                ImageVariant.builder()
+                                                        .storageKey("large-key")
+                                                        .build())
+                                        .thumbnail(
+                                                ImageVariant.builder()
+                                                        .storageKey("thumbnail-key")
+                                                        .build())
+                                        .build()));
+
+        armyCollectionsService.deleteArmyCollection(userId, armyCollectionId);
+
+        verify(presignedUrlService).deleteObject("large-key");
+        verify(presignedUrlService).deleteObject("thumbnail-key");
+        verify(armyCollectionRepository).deleteById(armyCollectionId);
+    }
+
+    @Test
+    void deleteArmyCollection_throwsNotFound_whenNotOwnedByUser() {
+        var userId = UUID.randomUUID();
+        var otherUserId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(otherUserId)
+                                        .name("Someone else's collection")
+                                        .build()));
+
+        assertThatThrownBy(
+                        () -> armyCollectionsService.deleteArmyCollection(userId, armyCollectionId))
+                .isInstanceOf(NotFoundException.class);
     }
 }
