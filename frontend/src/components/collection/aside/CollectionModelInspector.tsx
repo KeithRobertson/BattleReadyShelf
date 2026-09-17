@@ -1,5 +1,6 @@
-import { Badge, Button, Group, Image, Stack, Text, Title } from "@mantine/core";
+import { Badge, Button, Group, Stack, Text, Title } from "@mantine/core";
 import { IconArrowLeft, IconCalendar, IconPhoto } from "@tabler/icons-react";
+import { InspectorImageLibrary } from "@/components/collection/aside/InspectorImageLibrary.tsx";
 import PaintRecipeSummary from "@/components/collection/paint/PaintRecipeSummary.tsx";
 import ModelDefinitionOriginBadge from "@/components/modeldefinitions/ModelDefinitionOriginBadge.tsx";
 import type { CollectionModel, PaintRecipe } from "@/generated";
@@ -50,18 +51,7 @@ export function CollectionModelInspector({ model, recipes, onBack }: CollectionM
       </div>
 
       {images.length > 0 ? (
-        <Stack gap="xs">
-          {images.map((image) => (
-            <Image
-              key={image.id}
-              src={image.largeUrl ?? image.thumbnailUrl}
-              alt={displayName}
-              radius="sm"
-              fit="contain"
-              mah={240}
-            />
-          ))}
-        </Stack>
+        <InspectorImageLibrary key={model.id} images={images} alt={displayName} />
       ) : (
         <Group
           justify="center"
