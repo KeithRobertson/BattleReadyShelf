@@ -74,6 +74,71 @@ function AttachmentSlotsEditor({ slots, setSlots, onSlotRemoved }: AttachmentSlo
   );
 }
 
+type SlotChoice = Readonly<{ value: string; label: string }>;
+
+type WargearOptionRowProps = Readonly<{
+  option: EditableOption;
+  isMobile: boolean;
+  slotChoices: SlotChoice[];
+  wargearDefinitions: WargearDefinition[];
+  onUpdate: (changes: Partial<EditableOption>) => void;
+  onRemove: () => void;
+}>;
+
+function WargearOptionRow({
+  option,
+  isMobile,
+  slotChoices,
+  wargearDefinitions,
+  onUpdate,
+  onRemove,
+}: WargearOptionRowProps) {
+  const flex = isMobile ? "1 1 100%" : "1 1 180px";
+  return (
+    // Below `sm` the picker and slot select each take a full line, with the default/delete
+    // controls beneath them. Flex wrapping alone does not achieve this: a phone viewport is
+    // ~400-500px CSS pixels, so both ~180px bases fit on one row and the row never wraps,
+    // leaving the four controls squeezed together as they are on desktop.
+    <Group align="flex-end" wrap="wrap" gap="xs">
+      <Box flex={flex} miw={isMobile ? 0 : 180}>
+        <WargearOptionPicker
+          definitions={wargearDefinitions}
+          value={{ wargearDefinitionId: option.wargearDefinitionId, name: option.name }}
+          onChange={(selection) =>
+            onUpdate({
+              wargearDefinitionId: selection.wargearDefinitionId,
+              name: selection.name,
+            })
+          }
+        />
+      </Box>
+      <MultiSelect
+        flex={flex}
+        miw={isMobile ? 0 : 180}
+        placeholder="Can attach to"
+        data={slotChoices}
+        value={option.attachmentSlotIds}
+        onChange={(value) => onUpdate({ attachmentSlotIds: value })}
+      />
+      <Group gap="xs" wrap="nowrap">
+        <Checkbox
+          label="Default"
+          checked={option.isDefault}
+          onChange={(e) => onUpdate({ isDefault: e.currentTarget.checked })}
+        />
+        <ActionIcon
+          color="red"
+          variant="subtle"
+          aria-label={`Remove option ${option.name || "(unnamed)"}`}
+          onClick={onRemove}
+        >
+          <IconTrash size={16} />
+        </ActionIcon>
+      </Group>
+    </Group>
+  );
+}
+
 type WargearOptionsEditorProps = Readonly<{
   options: EditableOption[];
   setOptions: Dispatch<SetStateAction<EditableOption[]>>;
@@ -97,12 +162,19 @@ function WargearOptionsEditor({ options, setOptions, slots, wargearDefinitions }
           size="xs"
           variant="light"
           onClick={() =>
-            setOptions((current) => [...current, { id: newId(), name: "", isDefault: false, attachmentSlotIds: [] }])
+            setOptions((current) => [
+              ...current,
+              { id: newId(), name: "", isDefault: false, attachmentSlotIds: [] },
+            ])
           }
         >
           Add option
         </Button>
       </Group>
+      <Text size="xs" c="dimmed" mb="xs">
+        Can attach to is eligibility: listing both arms means the item may go in either, not that
+        one copy occupies both. Two-handed occupancy is chosen per miniature when filling a slot.
+      </Text>
       {options.length === 0 ? (
         <Text c="dimmed" size="sm">
           No wargear options.
@@ -110,47 +182,15 @@ function WargearOptionsEditor({ options, setOptions, slots, wargearDefinitions }
       ) : (
         <Stack gap="xs">
           {options.map((option) => (
-            // Below `sm` the picker and slot select each take a full line, with the default/delete
-            // controls beneath them. Flex wrapping alone does not achieve this: a phone viewport is
-            // ~400-500px CSS pixels, so both ~180px bases fit on one row and the row never wraps,
-            // leaving the four controls squeezed together as they are on desktop.
-            <Group key={option.id} align="flex-end" wrap="wrap" gap="xs">
-              <Box flex={isMobile ? "1 1 100%" : "1 1 180px"} miw={isMobile ? 0 : 180}>
-                <WargearOptionPicker
-                  definitions={wargearDefinitions}
-                  value={{ wargearDefinitionId: option.wargearDefinitionId, name: option.name }}
-                  onChange={(selection) =>
-                    updateOption(option.id, {
-                      wargearDefinitionId: selection.wargearDefinitionId,
-                      name: selection.name,
-                    })
-                  }
-                />
-              </Box>
-              <MultiSelect
-                flex={isMobile ? "1 1 100%" : "1 1 180px"}
-                miw={isMobile ? 0 : 180}
-                placeholder="Fills slot(s)"
-                data={slotChoices}
-                value={option.attachmentSlotIds}
-                onChange={(value) => updateOption(option.id, { attachmentSlotIds: value })}
-              />
-              <Group gap="xs" wrap="nowrap">
-                <Checkbox
-                  label="Default"
-                  checked={option.isDefault}
-                  onChange={(e) => updateOption(option.id, { isDefault: e.currentTarget.checked })}
-                />
-                <ActionIcon
-                  color="red"
-                  variant="subtle"
-                  aria-label={`Remove option ${option.name || "(unnamed)"}`}
-                  onClick={() => setOptions((current) => current.filter((o) => o.id !== option.id))}
-                >
-                  <IconTrash size={16} />
-                </ActionIcon>
-              </Group>
-            </Group>
+            <WargearOptionRow
+              key={option.id}
+              option={option}
+              isMobile={isMobile}
+              slotChoices={slotChoices}
+              wargearDefinitions={wargearDefinitions}
+              onUpdate={(changes) => updateOption(option.id, changes)}
+              onRemove={() => setOptions((current) => current.filter((row) => row.id !== option.id))}
+            />
           ))}
         </Stack>
       )}

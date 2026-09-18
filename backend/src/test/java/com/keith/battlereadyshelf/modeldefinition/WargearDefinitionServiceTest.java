@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.keith.battlereadyshelf.definitiondraft.Definition;
 import com.keith.battlereadyshelf.definitiondraft.DefinitionPublishAuditService;
 import com.keith.battlereadyshelf.definitiondraft.ProposalOrigin;
+import com.keith.battlereadyshelf.definitionexport.ExportSchema;
 import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.generated.model.WargearDefinitionExport;
 import com.keith.battlereadyshelf.generated.model.WargearExportItem;
@@ -66,7 +67,7 @@ class WargearDefinitionServiceTest {
 
         var result = service.exportWargearDefinitions();
 
-        assertThat(result.getSchemaVersion()).isEqualTo(4);
+        assertThat(result.getSchemaVersion()).isEqualTo(ExportSchema.CURRENT_VERSION);
         assertThat(result.getWargear())
                 .extracting(WargearExportItem::getId)
                 .containsExactly("boltgun", "zzz_relic_blade");

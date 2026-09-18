@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.keith.battlereadyshelf.definitiondraft.Definition;
 import com.keith.battlereadyshelf.definitiondraft.DefinitionPublishAuditService;
 import com.keith.battlereadyshelf.definitiondraft.ProposalOrigin;
+import com.keith.battlereadyshelf.definitionexport.ExportSchema;
 import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.generated.model.Faction;
 import com.keith.battlereadyshelf.generated.model.HiddenDefinitionType;
@@ -125,7 +126,7 @@ class FactionDefinitionServiceTest {
 
         var result = service.exportFactions();
 
-        assertThat(result.getSchemaVersion()).isEqualTo(4);
+        assertThat(result.getSchemaVersion()).isEqualTo(ExportSchema.CURRENT_VERSION);
         assertThat(result.getFactions())
                 .extracting(FactionExportItem::getId)
                 .containsExactly("aeldari", "asuryani");

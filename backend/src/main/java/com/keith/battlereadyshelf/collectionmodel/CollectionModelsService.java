@@ -228,6 +228,7 @@ public class CollectionModelsService {
                                                                                 .isBlank()
                                                                 ? selection.getCustomLabel().trim()
                                                                 : null)
+                                                .linkGroupId(selection.getLinkGroupId())
                                                 .build())
                         .toList();
         collectionModelWargearSelectionRepository.saveAll(newSelections);

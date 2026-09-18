@@ -9,6 +9,7 @@ import { ModelCardStatus } from "@/components/collection/group/model/ModelCardSt
 import { ModelCardWargear } from "@/components/collection/group/model/ModelCardWargear.tsx";
 import { ModelImageSection } from "@/components/collection/group/model/ModelImageSection.tsx";
 import type { CollectionModel, CollectionModelStatus } from "@/generated";
+import type { WargearSlotUpdate } from "@/utils/collection/applyWargearSelection.ts";
 import isFromInteractiveTarget from "@/utils/collection/isFromInteractiveTarget.ts";
 import { COLLECTION_MODEL_STATUS_BACKGROUNDS } from "@/utils/collectionModelStatus.ts";
 
@@ -26,10 +27,7 @@ export type ModelCardProps = Readonly<{
   onDeleteModel: () => void;
   onUpdateFinishedOn: (finishedOn: string | null) => void;
   onUpdateDescription: (description: string) => void;
-  onUpdateWargearSelection: (
-    attachmentSlotId: string,
-    update: { wargearOptionId?: string | null; customLabel?: string | null },
-  ) => void;
+  onUpdateWargearSelection: (attachmentSlotId: string, update: WargearSlotUpdate) => void;
   onUpdateStatus: (status: CollectionModelStatus) => void;
   onChangeModelDefinition: (modelDefinitionId: string) => void;
 
@@ -153,7 +151,7 @@ function ModelCard({
     setIsUpdatingStatus(false);
   }
 
-  function commitWargear(slotId: string, update: { wargearOptionId?: string | null; customLabel?: string | null }) {
+  function commitWargear(slotId: string, update: WargearSlotUpdate) {
     setUpdatingWargearSlotId(slotId);
     onUpdateWargearSelection(slotId, update);
     setUpdatingWargearSlotId(null);

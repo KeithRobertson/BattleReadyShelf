@@ -2,6 +2,14 @@ import { ActionIcon, Badge, Group, Loader, Select, Stack, TextInput } from "@man
 import { IconCheck, IconPencil } from "@tabler/icons-react";
 import React from "react";
 import type { AttachmentSlot, CollectionModel, WargearOption } from "@/generated";
+import type { WargearSlotUpdate } from "@/utils/collection/applyWargearSelection.ts";
+import {
+  CUSTOM_WARGEAR_VALUE,
+  linkedPartnerTitle,
+  pickerValueToUpdate,
+  wargearPickerData,
+  wargearPickerValue,
+} from "@/utils/collection/wargearSlotPicker.ts";
 
 export type ModelCardWargearProps = Readonly<{
   model: CollectionModel;
@@ -12,13 +20,11 @@ export type ModelCardWargearProps = Readonly<{
   customLabelDraftsBySlot: Record<string, string>;
   isEditingWargear: boolean;
   updatingWargearSlotId: string | null;
-  commitWargear: (slotId: string, update: { wargearOptionId?: string | null; customLabel?: string | null }) => void;
+  commitWargear: (slotId: string, update: WargearSlotUpdate) => void;
   setCustomWargearModeBySlot: (customWargearModeBySlot: Record<string, boolean>) => void;
   setCustomLabelDraftsBySlot: (customLabelDraftsBySlot: Record<string, string>) => void;
   setIsEditingWargear: (isEditingWargear: boolean) => void;
 }>;
-
-const CUSTOM_WARGEAR_VALUE = "__custom__";
 
 function wargearBadgeColor(optionName: string | undefined, customLabel: string | null | undefined): string {
   if (optionName) return "blue";
@@ -40,21 +46,19 @@ export const ModelCardWargear = React.memo(function ModelCardWargear({
   setCustomLabelDraftsBySlot,
   setIsEditingWargear,
 }: ModelCardWargearProps) {
+  const slotOrder = attachmentSlots.map((slot) => slot.id).filter((id): id is string => Boolean(id));
+
   return (
     attachmentSlots.length > 0 &&
     (isEditingWargear ? (
       <Stack gap={4} align="flex-end" style={{ width: "100%" }}>
         {attachmentSlots.map((slot) => {
-          const slotOptions = wargearOptions.filter((option) => option.attachmentSlotIds?.includes(slot.id ?? ""));
           const currentSelection = model.wargearSelections?.find((s) => s.attachmentSlotId === slot.id);
           const isUpdatingThisSlot = updatingWargearSlotId === slot.id;
           const slotId = slot.id ?? "";
-          const isCustom = customWargearModeBySlot[slotId] ?? !!currentSelection?.customLabel;
-          const selectData = [
-            ...slotOptions.map((option) => ({ value: option.id ?? "", label: option.name ?? "" })),
-            { value: CUSTOM_WARGEAR_VALUE, label: "Custom..." },
-          ];
-          const selectValue = isCustom ? CUSTOM_WARGEAR_VALUE : (currentSelection?.wargearOptionId ?? null);
+          const pickerValue = wargearPickerValue(slotId, slotOrder, model);
+          const isCustom = customWargearModeBySlot[slotId] ?? pickerValue === CUSTOM_WARGEAR_VALUE;
+          const selectValue = isCustom ? CUSTOM_WARGEAR_VALUE : pickerValue;
 
           function commitCustomLabel() {
             const label = (customLabelDraftsBySlot[slotId] ?? "").trim();
@@ -71,11 +75,12 @@ export const ModelCardWargear = React.memo(function ModelCardWargear({
                 label={slot.name}
                 placeholder="Unassigned"
                 clearable
-                data={selectData}
+                data={wargearPickerData(slotId, attachmentSlots, wargearOptions, model)}
                 value={selectValue}
                 onChange={(value) => {
                   if (!slotId) return;
-                  if (value === CUSTOM_WARGEAR_VALUE) {
+                  const update = pickerValueToUpdate(value);
+                  if (update === "custom") {
                     setCustomWargearModeBySlot({
                       ...customWargearModeBySlot,
                       [slotId]: true,
@@ -90,7 +95,7 @@ export const ModelCardWargear = React.memo(function ModelCardWargear({
                     ...customWargearModeBySlot,
                     [slotId]: false,
                   });
-                  commitWargear(slotId, { wargearOptionId: value, customLabel: null });
+                  commitWargear(slotId, update);
                 }}
                 disabled={isUpdatingThisSlot}
                 rightSection={isUpdatingThisSlot ? <Loader size={12} /> : undefined}
@@ -137,7 +142,10 @@ export const ModelCardWargear = React.memo(function ModelCardWargear({
                 variant="light"
                 color={wargearBadgeColor(optionName, currentSelection?.customLabel)}
                 size="sm"
-                title={currentSelection?.customLabel ? "Custom..." : undefined}
+                title={
+                  linkedPartnerTitle(slot.id ?? "", attachmentSlots, model) ??
+                  (currentSelection?.customLabel ? "Custom..." : undefined)
+                }
               >
                 {slot.name}: {displayLabel ?? "Unassigned"}
               </Badge>

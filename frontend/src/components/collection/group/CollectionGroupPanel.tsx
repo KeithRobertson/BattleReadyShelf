@@ -7,6 +7,7 @@ import type { CollectionModelStatus } from "@/generated";
 import { useModelActions } from "@/hooks/collections/models/useModelActions.ts";
 import type { ModelGroup } from "@/hooks/collections/useGroupedModels.ts";
 import { useAppAside } from "@/hooks/useAsideContent.ts";
+import type { WargearSlotUpdate } from "@/utils/collection/applyWargearSelection.ts";
 import getSelectedInGroup from "@/utils/collection/getSelectedInGroup.ts";
 
 export type CollectionGroupPanelProps = Readonly<{
@@ -59,10 +60,9 @@ export const CollectionGroupPanel = React.memo(function CollectionGroupPanel({ g
                 onDeleteModel={() => actions.deleteModel(model.id)}
                 onUpdateFinishedOn={(finishedOn: string | null) => actions.updateFinishedOn(model.id, finishedOn)}
                 onUpdateDescription={(description: string) => actions.updateDescription(model.id, description)}
-                onUpdateWargearSelection={(
-                  slotId: string,
-                  update: { wargearOptionId?: string | null; customLabel?: string | null },
-                ) => actions.updateWargearSelection(model, slotId, update)}
+                onUpdateWargearSelection={(slotId: string, update: WargearSlotUpdate) =>
+                  actions.updateWargearSelection(model, slotId, update)
+                }
                 onUpdateStatus={(status: CollectionModelStatus) => actions.updateStatus(model.id, status)}
                 onChangeModelDefinition={(modelDefinitionId: string) =>
                   actions.changeModelDefinition(model.id, modelDefinitionId)

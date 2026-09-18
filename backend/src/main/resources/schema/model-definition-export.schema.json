@@ -90,7 +90,7 @@
     },
     "wargearOptionExportItem": {
       "type": "object",
-      "description": "One model's use of a shared wargear definition: which slot(s) it fills on this model and whether it is part of the default loadout. The item's name lives on the wargear definition, not here.",
+      "description": "One model's use of a shared wargear definition: which slots it may be placed in on this model, and whether it is part of the default loadout. Occupancy (whether two slots share one physical item) is recorded on the collection loadout, not here. The item's name lives on the wargear definition, not here.",
       "properties": {
         "id": {
           "type": "string",
@@ -109,7 +109,8 @@
         },
         "slotIds": {
           "type": "array",
-          "description": "The id(s) of the attachment slot(s), from this same modelDefinitionExportItem's 'attachmentSlots', this option fills.",
+          "minItems": 1,
+          "description": "Attachment slot ids, from this same modelDefinitionExportItem's 'attachmentSlots', this option may be placed in. Listing more than one slot is eligibility, not occupancy.",
           "items": { "type": "string" }
         }
       },

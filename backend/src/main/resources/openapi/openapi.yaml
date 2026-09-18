@@ -3036,8 +3036,9 @@ components:
         attachmentSlotIds:
           type: array
           description: >-
-            The slot(s) this wargear option fills. An option filling more than one slot (e.g. a
-            two-handed weapon) consumes all of those slots at once.
+            Slots this option may be placed in. Listing more than one slot is eligibility, not
+            occupancy: a plague knife listed on both arms can be a separate item in each hand.
+            Whether two slots share one physical item is recorded on the collection loadout.
           items:
             type: string
             format: uuid
@@ -3144,7 +3145,7 @@ components:
           type: boolean
         attachmentSlotIds:
           type: array
-          description: The draft attachment slot id(s) this option fills.
+          description: Draft slot id(s) this option may be placed in.
           items:
             type: string
             format: uuid
@@ -3212,6 +3213,7 @@ components:
           type: boolean
         attachmentSlotIds:
           type: array
+          description: Slot id(s) this option may be placed in.
           items:
             type: string
             format: uuid
@@ -3997,7 +3999,9 @@ components:
                 type: boolean
               slotIds:
                 type: array
-                description: The id(s) of the attachment slot(s), from this same item, this option fills.
+                description: >-
+                  Attachment slot ids, from this same item, this option may be placed in.
+                  Listing more than one slot is eligibility, not occupancy.
                 items:
                   type: string
             required: [ id, isDefault, slotIds ]
@@ -4127,6 +4131,14 @@ components:
             conversion). Mutually exclusive with wargearOptionId: setting both on the same
             selection is rejected. Custom labels are personal to this collection model and are
             not considered by army list validation.
+        linkGroupId:
+          type: string
+          format: uuid
+          description: >-
+            Shared by every slot one physical item occupies. Set when a slot is filled as the
+            same item already attached to another slot. Two fills with the same linkGroupId
+            count as one weapon, including a kitbash custom label held in both hands. The same
+            option with different (or absent) group ids is two items.
       required: [ attachmentSlotId ]
     CollectionModelStatus:
       type: string

@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useCollectionContext } from "@/components/collection/context/CollectionContext.ts";
 import type { CollectionModel, CollectionModelStatus } from "@/generated";
+import type { WargearSlotUpdate } from "@/utils/collection/applyWargearSelection.ts";
 
 export function useModelActions() {
   const { selection, deletion, modelImages, collectionModels } = useCollectionContext();
@@ -46,7 +47,7 @@ export function useModelActions() {
     (
       model: CollectionModel,
       slotId: string,
-      update: { wargearOptionId?: string | null; customLabel?: string | null },
+      update: WargearSlotUpdate,
     ) => collectionModels.updateWargearSelection(model, slotId, update),
     [collectionModels],
   );

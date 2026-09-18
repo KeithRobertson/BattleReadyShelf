@@ -481,14 +481,16 @@ public class ModelDefinitionDraftService {
                                                             .map(
                                                                     o ->
                                                                             new ModelDefinitionExportItemWargearOptionsInner(
-                                                                                            wargearSourceId(o),
-                                                                                            o.isDefault(),
-                                                                                            o.getAttachmentSlots().stream()
-                                                                                                    .map(
-                                                                                                            s ->
-                                                                                                                    slotSourceIdById.get(
-                                                                                                                            s.getId()))
-                                                                                                    .toList()))
+                                                                                    wargearSourceId(o),
+                                                                                    o.isDefault(),
+                                                                                    o.getAttachmentSlots().stream()
+                                                                                            .map(
+                                                                                                    slot ->
+                                                                                                            slotSourceIdById
+                                                                                                                    .get(
+                                                                                                                            slot
+                                                                                                                                    .getId()))
+                                                                                            .toList()))
                                                             .toList())
                                             .description(md.getDescription());
                                 })

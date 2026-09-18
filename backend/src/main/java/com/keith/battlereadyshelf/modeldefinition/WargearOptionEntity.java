@@ -22,14 +22,15 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * One model definition's use of a {@link WargearDefinitionEntity}, and the attachment slot(s) it
- * fills on that model. An option filling more than one slot (e.g. a two-handed weapon) consumes
- * all of those slots at once. This is not an exhaustive/enforced catalog - it exists to describe
- * common/default loadouts; users remain free to put anything they like into a slot.
+ * One model definition's use of a {@link WargearDefinitionEntity} on that model. {@code
+ * attachmentSlots} are where the item <em>may</em> go (eligibility). Listing more than one slot
+ * does not mean one copy occupies all of them; whether two slots share one physical item is
+ * recorded on the collection loadout. This is not an exhaustive/enforced catalog - it exists to
+ * describe common/default loadouts; users remain free to put anything they like into a slot.
  *
  * <p>The wargear's identity and name live on the shared definition, so the same item used by many
- * models is named once. Only what varies per model - the slots it fills and whether it is part of
- * the default loadout - is stored here.
+ * models is named once. Only what varies per model - eligible slots and whether it is part of the
+ * default loadout - is stored here.
  */
 @Entity
 @Table(name = "wargear_options")

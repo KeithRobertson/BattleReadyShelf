@@ -9,6 +9,7 @@ import {
   updateCollectionModel,
 } from "@/generated";
 import { COLLECTION_MODELS_KEY } from "@/queryKeys.ts";
+import applyWargearSelection, { type WargearSlotUpdate } from "@/utils/collection/applyWargearSelection.ts";
 import isInitialLoad from "@/utils/isInitialLoad.ts";
 
 // Shared instance, not `data ?? []`: a failed query has no data, and a fresh array every render
@@ -126,21 +127,12 @@ export default function useCollectionModels(collectionId: string | undefined) {
   function updateWargearSelection(
     model: CollectionModel,
     attachmentSlotId: string,
-    update: { wargearOptionId?: string | null; customLabel?: string | null },
+    update: WargearSlotUpdate,
   ) {
     if (!model.id) {
       throw new Error("Model ID is required");
     }
-    const otherSelections = (model.wargearSelections ?? []).filter((s) => s.attachmentSlotId !== attachmentSlotId);
-
-    const wargearSelections = [
-      ...otherSelections,
-      {
-        attachmentSlotId,
-        wargearOptionId: update.wargearOptionId ?? undefined,
-        customLabel: update.customLabel ?? undefined,
-      },
-    ];
+    const wargearSelections = applyWargearSelection(model, attachmentSlotId, update);
 
     updateModel(model.id, { wargearSelections });
   }

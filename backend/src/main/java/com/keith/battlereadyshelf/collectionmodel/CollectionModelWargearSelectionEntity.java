@@ -47,4 +47,11 @@ public class CollectionModelWargearSelectionEntity {
      */
     @Column(name = "custom_label")
     private String customLabel;
+
+    /**
+     * Shared by every slot one physical item occupies. Distinct (or null) group ids mean distinct
+     * items, even when they use the same wargear option.
+     */
+    @Column(name = "link_group_id")
+    private UUID linkGroupId;
 }

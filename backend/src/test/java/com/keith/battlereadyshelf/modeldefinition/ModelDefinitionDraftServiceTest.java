@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.keith.battlereadyshelf.definitionexport.ExportSchema;
 import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.factiondefinition.FactionDefinitionService;
 import com.keith.battlereadyshelf.factiondefinition.FactionEntity;
@@ -138,7 +139,7 @@ class ModelDefinitionDraftServiceTest {
 
         var result = service.exportModelDefinitions();
 
-        assertThat(result.getSchemaVersion()).isEqualTo(4);
+        assertThat(result.getSchemaVersion()).isEqualTo(ExportSchema.CURRENT_VERSION);
         // Factions and wargear are exported from their own admin pages, so a model definition
         // document carries only references to them.
         assertThat(result.getFactions()).isNull();
