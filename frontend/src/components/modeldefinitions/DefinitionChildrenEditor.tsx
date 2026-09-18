@@ -1,9 +1,9 @@
 import { ActionIcon, Box, Button, Checkbox, Group, MultiSelect, Stack, Text, TextInput, Title } from "@mantine/core";
 import { IconTrash } from "@tabler/icons-react";
 import type { Dispatch, SetStateAction } from "react";
+import DefaultLoadoutWarning from "@/components/modeldefinitions/DefaultLoadoutWarning.tsx";
 import type { EditableOption, EditableSlot } from "@/components/modeldefinitions/definitionChildren.ts";
 import { DEFAULT_SLOT_TYPE, newId } from "@/components/modeldefinitions/definitionChildren.ts";
-import DefaultLoadoutWarning from "@/components/modeldefinitions/DefaultLoadoutWarning.tsx";
 import WargearOptionPicker from "@/components/modeldefinitions/WargearOptionPicker.tsx";
 import type { WargearDefinition } from "@/generated";
 import useIsMobile from "@/hooks/useIsMobile.ts";
@@ -77,6 +77,13 @@ function AttachmentSlotsEditor({ slots, setSlots, onSlotRemoved }: AttachmentSlo
 
 type SlotChoice = Readonly<{ value: string; label: string }>;
 
+function nextDefaultSlotIds(isDefault: boolean, option: EditableOption): string[] {
+  if (!isDefault) {
+    return [];
+  }
+  return option.defaultAttachmentSlotIds.length > 0 ? option.defaultAttachmentSlotIds : option.attachmentSlotIds;
+}
+
 type WargearOptionRowProps = Readonly<{
   option: EditableOption;
   isMobile: boolean;
@@ -95,60 +102,88 @@ function WargearOptionRow({
   onRemove,
 }: WargearOptionRowProps) {
   const flex = isMobile ? "1 1 100%" : "1 1 180px";
+  const eligibleChoices = slotChoices.filter((choice) => option.attachmentSlotIds.includes(choice.value));
+  const defaultSlotIds = option.defaultAttachmentSlotIds;
+
   return (
-    // Below `sm` the picker and slot select each take a full line, with the default/delete
-    // controls beneath them. Flex wrapping alone does not achieve this: a phone viewport is
-    // ~400-500px CSS pixels, so both ~180px bases fit on one row and the row never wraps,
-    // leaving the four controls squeezed together as they are on desktop.
-    <Group align="flex-end" wrap="wrap" gap="xs">
-      <Box flex={flex} miw={isMobile ? 0 : 180}>
-        <WargearOptionPicker
-          definitions={wargearDefinitions}
-          value={{ wargearDefinitionId: option.wargearDefinitionId, name: option.name }}
-          onChange={(selection) =>
+    <Stack gap={6}>
+      <Group align="flex-end" wrap="wrap" gap="xs">
+        <Box flex={flex} miw={isMobile ? 0 : 180}>
+          <WargearOptionPicker
+            definitions={wargearDefinitions}
+            value={{ wargearDefinitionId: option.wargearDefinitionId, name: option.name }}
+            onChange={(selection) =>
+              onUpdate({
+                wargearDefinitionId: selection.wargearDefinitionId,
+                name: selection.name,
+              })
+            }
+          />
+        </Box>
+        <MultiSelect
+          flex={flex}
+          miw={isMobile ? 0 : 180}
+          placeholder="Can attach to"
+          data={slotChoices}
+          value={option.attachmentSlotIds}
+          onChange={(value) => {
+            const nextDefaults = option.defaultAttachmentSlotIds.filter((id) => value.includes(id));
             onUpdate({
-              wargearDefinitionId: selection.wargearDefinitionId,
-              name: selection.name,
-            })
-          }
-        />
-      </Box>
-      <MultiSelect
-        flex={flex}
-        miw={isMobile ? 0 : 180}
-        placeholder="Can attach to"
-        data={slotChoices}
-        value={option.attachmentSlotIds}
-        onChange={(value) =>
-          onUpdate({ attachmentSlotIds: value, isDefaultLinked: value.length >= 2 ? option.isDefaultLinked : false })
-        }
-      />
-      <Group gap="xs" wrap="nowrap">
-        <Checkbox
-          label="Default"
-          checked={option.isDefault}
-          onChange={(e) => {
-            const isDefault = e.currentTarget.checked;
-            onUpdate({ isDefault, isDefaultLinked: isDefault ? option.isDefaultLinked : false });
+              attachmentSlotIds: value,
+              defaultAttachmentSlotIds: nextDefaults,
+              isDefaultLinked: nextDefaults.length >= 2 ? option.isDefaultLinked : false,
+            });
           }}
         />
-        {option.isDefault && option.attachmentSlotIds.length >= 2 && (
+        <Group gap="xs" wrap="nowrap">
           <Checkbox
-            label="One item in these slots"
-            checked={option.isDefaultLinked}
-            onChange={(e) => onUpdate({ isDefaultLinked: e.currentTarget.checked })}
+            label="Default"
+            checked={option.isDefault}
+            onChange={(e) => {
+              const isDefault = e.currentTarget.checked;
+              onUpdate({
+                isDefault,
+                defaultAttachmentSlotIds: nextDefaultSlotIds(isDefault, option),
+                isDefaultLinked: isDefault ? option.isDefaultLinked : false,
+              });
+            }}
           />
-        )}
-        <ActionIcon
-          color="red"
-          variant="subtle"
-          aria-label={`Remove option ${option.name || "(unnamed)"}`}
-          onClick={onRemove}
-        >
-          <IconTrash size={16} />
-        </ActionIcon>
+          <ActionIcon
+            color="red"
+            variant="subtle"
+            aria-label={`Remove option ${option.name || "(unnamed)"}`}
+            onClick={onRemove}
+          >
+            <IconTrash size={16} />
+          </ActionIcon>
+        </Group>
       </Group>
-    </Group>
+      {option.isDefault && (
+        <Group align="flex-end" wrap="wrap" gap="xs">
+          <MultiSelect
+            flex={flex}
+            miw={isMobile ? 0 : 180}
+            label="Default in"
+            placeholder="Which slots the default loadout fills"
+            data={eligibleChoices}
+            value={defaultSlotIds}
+            onChange={(value) =>
+              onUpdate({
+                defaultAttachmentSlotIds: value,
+                isDefaultLinked: value.length >= 2 ? option.isDefaultLinked : false,
+              })
+            }
+          />
+          {defaultSlotIds.length >= 2 && (
+            <Checkbox
+              label="One item in these slots"
+              checked={option.isDefaultLinked}
+              onChange={(e) => onUpdate({ isDefaultLinked: e.currentTarget.checked })}
+            />
+          )}
+        </Group>
+      )}
+    </Stack>
   );
 }
 
@@ -177,7 +212,14 @@ function WargearOptionsEditor({ options, setOptions, slots, wargearDefinitions }
           onClick={() =>
             setOptions((current) => [
               ...current,
-              { id: newId(), name: "", isDefault: false, isDefaultLinked: false, attachmentSlotIds: [] },
+              {
+                id: newId(),
+                name: "",
+                isDefault: false,
+                isDefaultLinked: false,
+                attachmentSlotIds: [],
+                defaultAttachmentSlotIds: [],
+              },
             ])
           }
         >
@@ -185,8 +227,8 @@ function WargearOptionsEditor({ options, setOptions, slots, wargearDefinitions }
         </Button>
       </Group>
       <Text size="xs" c="dimmed" mb="xs">
-        Can attach to is eligibility: listing both arms means the item may go in either, not that one copy occupies
-        both. Tick Default to fill those slots on a new miniature. Tick One item in these slots for a two-handed
+        Can attach to is eligibility: listing both arms means the item may go in either. Tick Default, then Default in,
+        to choose which of those slots a new miniature starts with. Tick One item in these slots for a two-handed
         default. Two-handed occupancy on a specific miniature is still chosen when filling a slot.
       </Text>
       <DefaultLoadoutWarning slots={slots} options={options} />
@@ -240,10 +282,12 @@ export default function DefinitionChildrenEditor({
     setOptions((current) =>
       current.map((option) => {
         const attachmentSlotIds = option.attachmentSlotIds.filter((id) => id !== slotId);
+        const defaultAttachmentSlotIds = option.defaultAttachmentSlotIds.filter((id) => id !== slotId);
         return {
           ...option,
           attachmentSlotIds,
-          isDefaultLinked: attachmentSlotIds.length >= 2 ? option.isDefaultLinked : false,
+          defaultAttachmentSlotIds,
+          isDefaultLinked: defaultAttachmentSlotIds.length >= 2 ? option.isDefaultLinked : false,
         };
       }),
     );

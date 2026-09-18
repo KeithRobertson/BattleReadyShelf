@@ -3,20 +3,21 @@ import { IconLink } from "@tabler/icons-react";
 import DefaultLoadoutWarning from "@/components/modeldefinitions/DefaultLoadoutWarning.tsx";
 import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import type { AttachmentSlot, WargearOption } from "@/generated";
+import defaultOccupancySlotIds from "@/utils/modeldefinitions/defaultOccupancySlotIds.ts";
 
 type ModelDefinitionSlotTableProps = Readonly<{
   attachmentSlots: AttachmentSlot[];
   wargearOptions: WargearOption[];
 }>;
 
-function defaultBadgeTitle(option: WargearOption): string | undefined {
-  if (!option.isDefault) {
+function defaultBadgeTitle(option: WargearOption, slotId: string): string | undefined {
+  if (!defaultOccupancySlotIds(option).includes(slotId)) {
     return undefined;
   }
   return option.isDefaultLinked ? "Default, one item in these slots" : "Default";
 }
 
-function WargearBadges({ options }: Readonly<{ options: WargearOption[] }>) {
+function WargearBadges({ slotId, options }: Readonly<{ slotId: string; options: WargearOption[] }>) {
   if (options.length === 0) {
     return (
       <Text c="dimmed" size="sm">
@@ -27,17 +28,20 @@ function WargearBadges({ options }: Readonly<{ options: WargearOption[] }>) {
 
   return (
     <Group gap={4}>
-      {options.map((option) => (
-        <Badge
-          key={option.id}
-          variant={option.isDefault ? "filled" : "light"}
-          size="sm"
-          leftSection={option.isDefault && option.isDefaultLinked ? <IconLink size={12} /> : undefined}
-          title={defaultBadgeTitle(option)}
-        >
-          {option.name}
-        </Badge>
-      ))}
+      {options.map((option) => {
+        const isDefaultHere = defaultOccupancySlotIds(option).includes(slotId);
+        return (
+          <Badge
+            key={option.id}
+            variant={isDefaultHere ? "filled" : "light"}
+            size="sm"
+            leftSection={isDefaultHere && option.isDefaultLinked ? <IconLink size={12} /> : undefined}
+            title={defaultBadgeTitle(option, slotId)}
+          >
+            {option.name}
+          </Badge>
+        );
+      })}
     </Group>
   );
 }
@@ -68,6 +72,7 @@ export default function ModelDefinitionSlotTable({ attachmentSlots, wargearOptio
               <Table.Td>{slot.name}</Table.Td>
               <Table.Td>
                 <WargearBadges
+                  slotId={slot.id ?? ""}
                   options={wargearOptions.filter((option) => option.attachmentSlotIds?.includes(slot.id ?? ""))}
                 />
               </Table.Td>

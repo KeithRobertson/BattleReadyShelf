@@ -162,6 +162,11 @@ public class ModelDefinitionDraftService {
                                     option.getAttachmentSlots().stream()
                                             .map(slot -> draftSlotByPublishedSlotId.get(slot.getId()))
                                             .collect(Collectors.toCollection(ArrayList::new)))
+                            .defaultAttachmentSlots(
+                                    option.getDefaultAttachmentSlots().stream()
+                                            .map(slot -> draftSlotByPublishedSlotId.get(slot.getId()))
+                                            .filter(java.util.Objects::nonNull)
+                                            .collect(Collectors.toCollection(java.util.LinkedHashSet::new)))
                             .build();
             wargearOptionDraftRepository.save(draftOption);
         }
@@ -418,6 +423,11 @@ public class ModelDefinitionDraftService {
                             .map(slot -> publishedSlotByDraftSlotId.get(slot.getId()))
                             .filter(java.util.Objects::nonNull)
                             .collect(Collectors.toCollection(ArrayList::new)));
+            publishedOption.setDefaultAttachmentSlots(
+                    draftOption.getDefaultAttachmentSlots().stream()
+                            .map(slot -> publishedSlotByDraftSlotId.get(slot.getId()))
+                            .filter(java.util.Objects::nonNull)
+                            .collect(Collectors.toCollection(java.util.LinkedHashSet::new)));
             wargearOptionRepository.save(publishedOption);
         }
     }
@@ -494,7 +504,21 @@ public class ModelDefinitionDraftService {
                                                                                                                                     .getId()))
                                                                                             .toList())
                                                                                     .isDefaultLinked(
-                                                                                            o.isDefaultLinked()))
+                                                                                            o.isDefaultLinked())
+                                                                                    .defaultSlotIds(
+                                                                                            o.getDefaultAttachmentSlots()
+                                                                                                    .stream()
+                                                                                                    .map(
+                                                                                                            slot ->
+                                                                                                                    slotSourceIdById
+                                                                                                                            .get(
+                                                                                                                                    slot
+                                                                                                                                            .getId()))
+                                                                                                    .filter(
+                                                                                                            java.util
+                                                                                                                            .Objects
+                                                                                                                    ::nonNull)
+                                                                                                    .toList()))
                                                             .toList())
                                             .description(md.getDescription());
                                 })
@@ -635,7 +659,7 @@ public class ModelDefinitionDraftService {
                         .sorted()
                         .toList(),
                 item.getWargearOptions().stream()
-                        .map(o -> optionKey(o.getId(), Boolean.TRUE.equals(o.getIsDefault()), Boolean.TRUE.equals(o.getIsDefaultLinked()), o.getSlotIds()))
+                        .map(o -> optionKey(o.getId(), Boolean.TRUE.equals(o.getIsDefault()), Boolean.TRUE.equals(o.getIsDefaultLinked()), o.getSlotIds(), o.getDefaultSlotIds()))
                         .sorted()
                         .toList());
     }
@@ -677,6 +701,9 @@ public class ModelDefinitionDraftService {
                                                             o.isDefault(),
                                                             o.isDefaultLinked(),
                                                             o.getAttachmentSlots().stream()
+                                                                    .map(s -> slotSourceIdById.get(s.getId()))
+                                                                    .toList(),
+                                                            o.getDefaultAttachmentSlots().stream()
                                                                     .map(s -> slotSourceIdById.get(s.getId()))
                                                                     .toList()))
                                     .sorted()
@@ -723,6 +750,9 @@ public class ModelDefinitionDraftService {
                                                             o.isDefaultLinked(),
                                                             o.getAttachmentSlots().stream()
                                                                     .map(s -> slotSourceIdById.get(s.getId()))
+                                                                    .toList(),
+                                                            o.getDefaultAttachmentSlots().stream()
+                                                                    .map(s -> slotSourceIdById.get(s.getId()))
                                                                     .toList()))
                                     .sorted()
                                     .toList()));
@@ -741,13 +771,44 @@ public class ModelDefinitionDraftService {
      * spells the same wargear id differently in different models.
      */
     private static String optionKey(
-            String sourceId, boolean isDefault, boolean isDefaultLinked, List<String> slotSourceIds) {
+            String sourceId,
+            boolean isDefault,
+            boolean isDefaultLinked,
+            List<String> slotSourceIds,
+            List<String> defaultSlotSourceIds) {
         return String.join(
                 "\u001f",
                 sourceId,
                 Boolean.toString(isDefault),
                 Boolean.toString(isDefaultLinked),
-                slotSourceIds.stream().sorted().collect(Collectors.joining(",")));
+                slotSourceIds == null
+                        ? ""
+                        : slotSourceIds.stream().sorted().collect(Collectors.joining(",")),
+                defaultSlotSourceIds == null
+                        ? ""
+                        : defaultSlotSourceIds.stream()
+                                .filter(java.util.Objects::nonNull)
+                                .sorted()
+                                .collect(Collectors.joining(",")));
+    }
+
+    private static LinkedHashSet<AttachmentSlotDraftEntity> importedDefaultSlots(
+            ModelDefinitionExportItemWargearOptionsInner optionItem,
+            List<AttachmentSlotDraftEntity> eligible,
+            Map<String, AttachmentSlotDraftEntity> slotBySourceId) {
+        if (!Boolean.TRUE.equals(optionItem.getIsDefault()) || optionItem.getDefaultSlotIds() == null) {
+            return new LinkedHashSet<>();
+        }
+        var eligibleIds =
+                eligible.stream().map(AttachmentSlotDraftEntity::getId).collect(Collectors.toSet());
+        var resolved = new LinkedHashSet<AttachmentSlotDraftEntity>();
+        for (var slotId : optionItem.getDefaultSlotIds()) {
+            var slot = slotBySourceId.get(slotId);
+            if (slot != null && eligibleIds.contains(slot.getId())) {
+                resolved.add(slot);
+            }
+        }
+        return resolved;
     }
 
     /**
@@ -996,6 +1057,8 @@ public class ModelDefinitionDraftService {
                             .isDefault(Boolean.TRUE.equals(optionItem.getIsDefault()))
                             .defaultLinked(Boolean.TRUE.equals(optionItem.getIsDefaultLinked()))
                             .attachmentSlots(slots)
+                            .defaultAttachmentSlots(
+                                    importedDefaultSlots(optionItem, slots, slotBySourceId))
                             .build());
         }
 
@@ -1053,6 +1116,12 @@ public class ModelDefinitionDraftService {
                 existing.setDefault(Boolean.TRUE.equals(optionReq.getIsDefault()));
                 existing.setDefaultLinked(Boolean.TRUE.equals(optionReq.getIsDefaultLinked()));
                 existing.setAttachmentSlots(slots);
+                existing.setDefaultAttachmentSlots(
+                        DefaultAttachmentSlots.resolve(
+                                Boolean.TRUE.equals(optionReq.getIsDefault()),
+                                optionReq.getDefaultAttachmentSlotIds(),
+                                slots,
+                                resolvedSlotByRequestId));
                 wargearOptionDraftRepository.save(existing);
             } else {
                 wargearOptionDraftRepository.save(
@@ -1062,6 +1131,12 @@ public class ModelDefinitionDraftService {
                                 .isDefault(Boolean.TRUE.equals(optionReq.getIsDefault()))
                                 .defaultLinked(Boolean.TRUE.equals(optionReq.getIsDefaultLinked()))
                                 .attachmentSlots(slots)
+                                .defaultAttachmentSlots(
+                                        DefaultAttachmentSlots.resolve(
+                                                Boolean.TRUE.equals(optionReq.getIsDefault()),
+                                                optionReq.getDefaultAttachmentSlotIds(),
+                                                slots,
+                                                resolvedSlotByRequestId))
                                 .build());
             }
         }

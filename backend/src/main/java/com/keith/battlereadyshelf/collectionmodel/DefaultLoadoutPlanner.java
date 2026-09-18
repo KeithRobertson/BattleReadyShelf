@@ -4,10 +4,12 @@ import com.keith.battlereadyshelf.modeldefinition.AttachmentSlotEntity;
 import com.keith.battlereadyshelf.modeldefinition.WargearOptionEntity;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -27,7 +29,7 @@ public final class DefaultLoadoutPlanner {
         var defaults = options.stream().filter(WargearOptionEntity::isDefault).toList();
         Map<UUID, List<WargearOptionEntity>> optionsBySlot = new HashMap<>();
         for (var option : defaults) {
-            for (var slotId : slotIdsOf(option)) {
+            for (var slotId : occupancySlotIds(option)) {
                 optionsBySlot.computeIfAbsent(slotId, key -> new ArrayList<>()).add(option);
             }
         }
@@ -46,7 +48,7 @@ public final class DefaultLoadoutPlanner {
             if (option.getId() == null || !occupiesLinked(option)) {
                 continue;
             }
-            var slotIds = slotIdsOf(option);
+            var slotIds = occupancySlotIds(option);
             if (slotIds.stream()
                     .anyMatch(slotId -> ambiguousSlots.contains(slotId) || assignedSlots.contains(slotId))) {
                 continue;
@@ -62,7 +64,7 @@ public final class DefaultLoadoutPlanner {
             if (option.getId() == null || occupiesLinked(option)) {
                 continue;
             }
-            for (var slotId : slotIdsOf(option)) {
+            for (var slotId : occupancySlotIds(option)) {
                 if (ambiguousSlots.contains(slotId) || assignedSlots.contains(slotId)) {
                     continue;
                 }
@@ -99,14 +101,29 @@ public final class DefaultLoadoutPlanner {
     }
 
     private static boolean occupiesLinked(WargearOptionEntity option) {
-        return option.isDefaultLinked() && slotIdsOf(option).size() >= 2;
+        return option.isDefaultLinked() && occupancySlotIds(option).size() >= 2;
     }
 
-    private static List<UUID> slotIdsOf(WargearOptionEntity option) {
-        return option.getAttachmentSlots().stream()
-                .map(AttachmentSlotEntity::getId)
-                .filter(id -> id != null)
-                .distinct()
-                .toList();
+    /**
+     * Slots this default fills. An explicit default-slot list wins; otherwise every eligible slot
+     * is occupied, which is what catalogue rows without {@code defaultSlotIds} described.
+     */
+    static List<UUID> occupancySlotIds(WargearOptionEntity option) {
+        if (!option.isDefault()) {
+            return List.of();
+        }
+        var eligible = idsOf(option.getAttachmentSlots());
+        var specified = idsOf(option.getDefaultAttachmentSlots());
+        if (specified.isEmpty()) {
+            return eligible;
+        }
+        return specified.stream().filter(eligible::contains).toList();
+    }
+
+    private static List<UUID> idsOf(Collection<AttachmentSlotEntity> slots) {
+        if (slots == null) {
+            return List.of();
+        }
+        return slots.stream().map(AttachmentSlotEntity::getId).filter(Objects::nonNull).distinct().toList();
     }
 }

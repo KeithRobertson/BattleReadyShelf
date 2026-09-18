@@ -73,6 +73,17 @@ class DefaultLoadoutPlannerTest {
     }
 
     @Test
+    void usesSpecifiedDefaultSlotsWhenEligibilityOverlaps() {
+        var boltgun = option("boltgun", false, List.of(left, right), List.of(right));
+        var knife = option("knife", false, List.of(left, right), List.of(left));
+
+        assertThat(DefaultLoadoutPlanner.plan(List.of(boltgun, knife)))
+                .containsExactly(
+                        new DefaultLoadoutPlanner.PlannedSelection(rightId, boltgun.getId(), null),
+                        new DefaultLoadoutPlanner.PlannedSelection(leftId, knife.getId(), null));
+    }
+
+    @Test
     void ignoresNonDefaultOptions() {
         var spare = option("spare", false, left);
         spare.setDefault(false);
@@ -104,6 +115,14 @@ class DefaultLoadoutPlannerTest {
     }
 
     private WargearOptionEntity option(String name, boolean defaultLinked, AttachmentSlotEntity... slots) {
+        return option(name, defaultLinked, List.of(slots), List.of());
+    }
+
+    private WargearOptionEntity option(
+            String name,
+            boolean defaultLinked,
+            List<AttachmentSlotEntity> eligible,
+            List<AttachmentSlotEntity> defaultSlots) {
         return WargearOptionEntity.builder()
                 .id(UUID.randomUUID())
                 .wargearDefinition(
@@ -113,7 +132,8 @@ class DefaultLoadoutPlannerTest {
                                 .build())
                 .isDefault(true)
                 .defaultLinked(defaultLinked)
-                .attachmentSlots(List.of(slots))
+                .attachmentSlots(eligible)
+                .defaultAttachmentSlots(new java.util.LinkedHashSet<>(defaultSlots))
                 .build();
     }
 }

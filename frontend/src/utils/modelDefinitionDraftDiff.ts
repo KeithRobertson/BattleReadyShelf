@@ -52,6 +52,7 @@ interface ComparableOption extends NamedChild {
   isDefault: boolean;
   isDefaultLinked?: boolean;
   attachmentSlotIds: string[];
+  defaultAttachmentSlotIds?: string[];
 }
 
 /**
@@ -189,6 +190,9 @@ function wargearOptionComparator<S extends ComparableSlot>(
     const slotsMoved =
       [...(previous.attachmentSlotIds ?? [])].sort((a, b) => a.localeCompare(b)).join("|") !==
       currentSlotIdentity(current.attachmentSlotIds);
+    const defaultSlotsMoved =
+      [...(previous.defaultAttachmentSlotIds ?? [])].sort((a, b) => a.localeCompare(b)).join("|") !==
+      currentSlotIdentity(current.defaultAttachmentSlotIds);
 
     return [
       fieldChange("Name", previous.name, current.name),
@@ -198,6 +202,13 @@ function wargearOptionComparator<S extends ComparableSlot>(
         previous.isDefaultLinked ? "Yes" : "No",
         current.isDefaultLinked ? "Yes" : "No",
       ),
+      defaultSlotsMoved
+        ? {
+            label: "Default in",
+            before: slotLabel(previous.defaultAttachmentSlotIds, baseSlotNameById),
+            after: slotLabel(current.defaultAttachmentSlotIds, currentSlotNameById),
+          }
+        : null,
       slotsMoved
         ? {
             label: "Slots",

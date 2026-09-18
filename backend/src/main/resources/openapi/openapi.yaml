@@ -3038,15 +3038,23 @@ components:
         isDefaultLinked:
           type: boolean
           description: >-
-            When true with isDefault, every eligible slot starts occupied by this one physical
-            item (a two-handed default). Ignored when isDefault is false.
+            When true with isDefault, the default occupancy slots start as one physical item
+            (a two-handed default). Ignored when isDefault is false.
         attachmentSlotIds:
           type: array
           description: >-
             Slots this option may be placed in. Listing more than one slot is eligibility, not
             occupancy: a plague knife listed on both arms can be a separate item in each hand.
             Whether two slots share one physical item is recorded on the collection loadout,
-            except for a linked default which occupies every listed slot as one item.
+            except for a linked default which occupies every default occupancy slot as one item.
+          items:
+            type: string
+            format: uuid
+        defaultAttachmentSlotIds:
+          type: array
+          description: >-
+            Slots this option occupies in the default loadout. Must be a subset of
+            attachmentSlotIds. Empty or omitted with isDefault means every eligible slot.
           items:
             type: string
             format: uuid
@@ -3154,11 +3162,19 @@ components:
         isDefaultLinked:
           type: boolean
           description: >-
-            When true with isDefault, the default loadout occupies every eligible slot as one
-            physical item. Ignored when isDefault is false.
+            When true with isDefault, the default occupancy slots start as one physical item.
+            Ignored when isDefault is false.
         attachmentSlotIds:
           type: array
           description: Draft slot id(s) this option may be placed in.
+          items:
+            type: string
+            format: uuid
+        defaultAttachmentSlotIds:
+          type: array
+          description: >-
+            Draft slot id(s) this option occupies in the default loadout. Empty or omitted with
+            isDefault means every eligible slot.
           items:
             type: string
             format: uuid
@@ -3227,11 +3243,19 @@ components:
         isDefaultLinked:
           type: boolean
           description: >-
-            When true with isDefault, the default loadout occupies every eligible slot as one
-            physical item. Omitted or false means each eligible slot gets its own copy.
+            When true with isDefault, the default occupancy slots start as one physical item.
+            Omitted or false means each occupancy slot gets its own copy.
         attachmentSlotIds:
           type: array
           description: Slot id(s) this option may be placed in.
+          items:
+            type: string
+            format: uuid
+        defaultAttachmentSlotIds:
+          type: array
+          description: >-
+            Slot id(s) this option occupies in the default loadout. Must be a subset of
+            attachmentSlotIds. Empty or omitted with isDefault means every eligible slot.
           items:
             type: string
             format: uuid
@@ -4018,14 +4042,20 @@ components:
               isDefaultLinked:
                 type: boolean
                 description: >-
-                  When true with isDefault, the default loadout occupies every eligible slot as
-                  one physical item. Omitted or false means each eligible slot gets its own copy.
+                  When true with isDefault, the default occupancy slots start as one physical
+                  item. Omitted or false means each occupancy slot gets its own copy.
               slotIds:
                 type: array
                 description: >-
                   Attachment slot ids, from this same item, this option may be placed in.
-                  Listing more than one slot is eligibility, not occupancy, except when
-                  isDefaultLinked is true.
+                  Listing more than one slot is eligibility, not occupancy.
+                items:
+                  type: string
+              defaultSlotIds:
+                type: array
+                description: >-
+                  Slot ids this option occupies in the default loadout. Must be a subset of
+                  slotIds. Omitted with isDefault means every eligible slot.
                 items:
                   type: string
             required: [ id, isDefault, slotIds ]

@@ -4,7 +4,11 @@ import slotsWithMultipleDefaults from "@/utils/modeldefinitions/slotsWithMultipl
 
 type DefaultLoadoutWarningProps = Readonly<{
   slots: ReadonlyArray<{ id?: string; name?: string }>;
-  options: ReadonlyArray<{ isDefault?: boolean; attachmentSlotIds?: string[] }>;
+  options: ReadonlyArray<{
+    isDefault?: boolean;
+    attachmentSlotIds?: string[];
+    defaultAttachmentSlotIds?: string[];
+  }>;
 }>;
 
 /** Permissive: overlapping defaults still save, but new miniatures leave those slots empty. */

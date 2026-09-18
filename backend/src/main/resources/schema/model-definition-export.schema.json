@@ -90,7 +90,7 @@
     },
     "wargearOptionExportItem": {
       "type": "object",
-      "description": "One model's use of a shared wargear definition: which slots it may be placed in on this model, and whether it is part of the default loadout. Occupancy is a collection-loadout fact except for a linked default, which occupies every listed slot as one item. The item's name lives on the wargear definition, not here.",
+      "description": "One model's use of a shared wargear definition: which slots it may be placed in on this model, and whether it is part of the default loadout. defaultSlotIds says which eligible slots that default occupies; omitted with isDefault means every eligible slot. A linked default occupies those slots as one item. The item's name lives on the wargear definition, not here.",
       "properties": {
         "id": {
           "type": "string",
@@ -109,12 +109,18 @@
         },
         "isDefaultLinked": {
           "type": "boolean",
-          "description": "When true with isDefault, the default loadout occupies every eligible slot as one physical item. Omitted or false means each eligible slot gets its own copy."
+          "description": "When true with isDefault, the default occupancy slots start as one physical item. Omitted or false means each occupancy slot gets its own copy."
         },
         "slotIds": {
           "type": "array",
           "minItems": 1,
-          "description": "Attachment slot ids, from this same modelDefinitionExportItem's 'attachmentSlots', this option may be placed in. Listing more than one slot is eligibility, not occupancy, except when isDefaultLinked is true.",
+          "description": "Attachment slot ids, from this same modelDefinitionExportItem's 'attachmentSlots', this option may be placed in. Listing more than one slot is eligibility, not occupancy.",
+          "items": { "type": "string" }
+        },
+        "defaultSlotIds": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Slot ids this option occupies in the default loadout. Must be a subset of slotIds. Omitted with isDefault means every eligible slot.",
           "items": { "type": "string" }
         }
       },

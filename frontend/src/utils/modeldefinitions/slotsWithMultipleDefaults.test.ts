@@ -30,6 +30,18 @@ describe("slotsWithMultipleDefaults", () => {
     ).toEqual(["Left Arm", "Right Arm"]);
   });
 
+  it("uses default occupancy slots, not mere eligibility", () => {
+    expect(
+      slotsWithMultipleDefaults(
+        [left, right],
+        [
+          { isDefault: true, attachmentSlotIds: [left.id, right.id], defaultAttachmentSlotIds: [right.id] },
+          { isDefault: true, attachmentSlotIds: [left.id, right.id], defaultAttachmentSlotIds: [left.id] },
+        ],
+      ),
+    ).toEqual([]);
+  });
+
   it("treats no defaults as fine", () => {
     expect(slotsWithMultipleDefaults([left], [{ isDefault: false, attachmentSlotIds: [left.id] }])).toEqual([]);
   });

@@ -30,6 +30,7 @@ public interface ModelDefinitionMapper {
     AttachmentSlot toDto(AttachmentSlotEntity entity);
 
     @Mapping(target = "attachmentSlotIds", source = "attachmentSlots")
+    @Mapping(target = "defaultAttachmentSlotIds", source = "defaultAttachmentSlots")
     @Mapping(target = "isDefault", source = "default")
     @Mapping(target = "isDefaultLinked", source = "defaultLinked")
     @Mapping(target = "name", source = "wargearDefinition.name")
@@ -48,6 +49,7 @@ public interface ModelDefinitionMapper {
     AttachmentSlotDraft toDto(AttachmentSlotDraftEntity entity);
 
     @Mapping(target = "attachmentSlotIds", source = "attachmentSlots")
+    @Mapping(target = "defaultAttachmentSlotIds", source = "defaultAttachmentSlots")
     @Mapping(target = "isDefault", source = "default")
     @Mapping(target = "isDefaultLinked", source = "defaultLinked")
     @Mapping(target = "name", source = "wargearDefinition.name")

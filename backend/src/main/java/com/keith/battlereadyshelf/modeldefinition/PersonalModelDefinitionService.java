@@ -254,6 +254,11 @@ public class PersonalModelDefinitionService {
                                             .map(slot -> personalSlotBySharedSlotId.get(slot.getId()))
                                             .filter(Objects::nonNull)
                                             .collect(Collectors.toCollection(ArrayList::new)))
+                            .defaultAttachmentSlots(
+                                    sharedOption.getDefaultAttachmentSlots().stream()
+                                            .map(slot -> personalSlotBySharedSlotId.get(slot.getId()))
+                                            .filter(Objects::nonNull)
+                                            .collect(Collectors.toCollection(java.util.LinkedHashSet::new)))
                             .build());
         }
     }
@@ -280,6 +285,7 @@ public class PersonalModelDefinitionService {
 
         for (var option : existingOptions.values()) {
             option.setAttachmentSlots(new ArrayList<>());
+            option.setDefaultAttachmentSlots(new java.util.LinkedHashSet<>());
             wargearOptionRepository.save(option);
         }
         var removedOptions =
@@ -306,6 +312,12 @@ public class PersonalModelDefinitionService {
             option.setDefault(Boolean.TRUE.equals(optionRequest.getIsDefault()));
             option.setDefaultLinked(Boolean.TRUE.equals(optionRequest.getIsDefaultLinked()));
             option.setAttachmentSlots(slots);
+            option.setDefaultAttachmentSlots(
+                    DefaultAttachmentSlots.resolve(
+                            Boolean.TRUE.equals(optionRequest.getIsDefault()),
+                            optionRequest.getDefaultAttachmentSlotIds(),
+                            slots,
+                            resolvedSlotByRequestId));
             wargearOptionRepository.save(option);
         }
     }

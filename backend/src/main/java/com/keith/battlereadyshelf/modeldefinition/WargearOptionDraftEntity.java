@@ -18,7 +18,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -63,4 +65,12 @@ public class WargearOptionDraftEntity {
             joinColumns = @JoinColumn(name = "wargear_option_draft_id"),
             inverseJoinColumns = @JoinColumn(name = "attachment_slot_draft_id"))
     private List<AttachmentSlotDraftEntity> attachmentSlots = new ArrayList<>();
+
+    @Builder.Default
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "wargear_option_default_slot_drafts",
+            joinColumns = @JoinColumn(name = "wargear_option_draft_id"),
+            inverseJoinColumns = @JoinColumn(name = "attachment_slot_draft_id"))
+    private Set<AttachmentSlotDraftEntity> defaultAttachmentSlots = new LinkedHashSet<>();
 }

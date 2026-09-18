@@ -18,7 +18,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -29,8 +31,8 @@ import java.util.UUID;
  * describe common/default loadouts; users remain free to put anything they like into a slot.
  *
  * <p>The wargear's identity and name live on the shared definition, so the same item used by many
- * models is named once. Only what varies per model - eligible slots, whether it is part of the
- * default loadout, and whether that default occupies those slots as one item - is stored here.
+ * models is named once. Only what varies per model - eligible slots, which of those the default
+ * loadout occupies, and whether that default is one physical item - is stored here.
  */
 @Entity
 @Table(name = "wargear_options")
@@ -65,8 +67,8 @@ public class WargearOptionEntity {
     private boolean isDefault;
 
     /**
-     * When true with {@link #isDefault}, every eligible slot starts occupied by this one physical
-     * item (a two-handed default). Independent defaults still fill each eligible slot separately.
+     * When true with {@link #isDefault}, the default occupancy slots start as one physical item
+     * (a two-handed default). Independent defaults still fill each occupancy slot separately.
      */
     @Column(name = "is_default_linked", nullable = false)
     private boolean defaultLinked;
@@ -78,4 +80,16 @@ public class WargearOptionEntity {
             joinColumns = @JoinColumn(name = "wargear_option_id"),
             inverseJoinColumns = @JoinColumn(name = "attachment_slot_id"))
     private List<AttachmentSlotEntity> attachmentSlots = new ArrayList<>();
+
+    /**
+     * Slots this option occupies in the default loadout. Empty with {@link #isDefault} means every
+     * eligible slot, matching catalogue rows that predate this column.
+     */
+    @Builder.Default
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "wargear_option_default_slots",
+            joinColumns = @JoinColumn(name = "wargear_option_id"),
+            inverseJoinColumns = @JoinColumn(name = "attachment_slot_id"))
+    private Set<AttachmentSlotEntity> defaultAttachmentSlots = new LinkedHashSet<>();
 }

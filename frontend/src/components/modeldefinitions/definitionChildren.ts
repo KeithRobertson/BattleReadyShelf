@@ -15,6 +15,7 @@ export interface EditableOption {
   isDefault: boolean;
   isDefaultLinked: boolean;
   attachmentSlotIds: string[];
+  defaultAttachmentSlotIds: string[];
 }
 
 export function newId(): string {
@@ -42,6 +43,7 @@ interface SourceOption {
   isDefault: boolean;
   isDefaultLinked?: boolean;
   attachmentSlotIds: string[];
+  defaultAttachmentSlotIds?: string[];
 }
 
 export function toEditableSlots(slots: SourceSlot[]): EditableSlot[] {
@@ -56,6 +58,7 @@ export function toEditableOptions(options: SourceOption[]): EditableOption[] {
     isDefault: option.isDefault,
     isDefaultLinked: option.isDefaultLinked ?? false,
     attachmentSlotIds: option.attachmentSlotIds,
+    defaultAttachmentSlotIds: option.defaultAttachmentSlotIds ?? [],
   }));
 }
 
@@ -82,6 +85,7 @@ export function toUpsertRequest(
       isDefault: option.isDefault,
       isDefaultLinked: option.isDefaultLinked,
       attachmentSlotIds: option.attachmentSlotIds,
+      defaultAttachmentSlotIds: option.isDefault ? option.defaultAttachmentSlotIds : [],
     })),
   };
 }

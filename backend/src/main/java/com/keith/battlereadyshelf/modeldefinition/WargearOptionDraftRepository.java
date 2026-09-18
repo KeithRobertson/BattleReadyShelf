@@ -23,6 +23,7 @@ public interface WargearOptionDraftRepository extends JpaRepository<WargearOptio
             "select distinct o from WargearOptionDraftEntity o"
                     + " join fetch o.wargearDefinition"
                     + " left join fetch o.attachmentSlots"
+                    + " left join fetch o.defaultAttachmentSlots"
                     + " where o.modelDefinitionDraftId in :modelDefinitionDraftIds")
     List<WargearOptionDraftEntity> findAllByModelDefinitionDraftIdIn(List<UUID> modelDefinitionDraftIds);
 

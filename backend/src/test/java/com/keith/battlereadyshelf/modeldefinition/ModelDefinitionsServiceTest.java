@@ -250,7 +250,8 @@ class ModelDefinitionsServiceTest {
                                                 new WargearOption("Boltgun", true, List.of(leftArmId))
                                                         .id(boltgunId)
                                                         .wargearDefinitionId(boltgunDefinition.getId())
-                                                        .isDefaultLinked(false))));
+                                                        .isDefaultLinked(false)
+                                                        .defaultAttachmentSlotIds(List.of()))));
     }
 
     @Test
