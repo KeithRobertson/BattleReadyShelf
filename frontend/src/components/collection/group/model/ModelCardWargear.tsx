@@ -1,8 +1,10 @@
-import { ActionIcon, Badge, Group, Loader, Select, Stack, TextInput } from "@mantine/core";
+import { ActionIcon, Group, Loader, Select, Stack, TextInput } from "@mantine/core";
 import { IconCheck, IconPencil } from "@tabler/icons-react";
 import React from "react";
+import { WargearLoadoutBadge } from "@/components/collection/WargearLoadoutBadge.tsx";
 import type { AttachmentSlot, CollectionModel, WargearOption } from "@/generated";
 import type { WargearSlotUpdate } from "@/utils/collection/applyWargearSelection.ts";
+import loadoutDisplayItems from "@/utils/collection/loadoutDisplayItems.ts";
 import {
   CUSTOM_WARGEAR_VALUE,
   linkedPartnerTitle,
@@ -25,12 +27,6 @@ export type ModelCardWargearProps = Readonly<{
   setCustomLabelDraftsBySlot: (customLabelDraftsBySlot: Record<string, string>) => void;
   setIsEditingWargear: (isEditingWargear: boolean) => void;
 }>;
-
-function wargearBadgeColor(optionName: string | undefined, customLabel: string | null | undefined): string {
-  if (optionName) return "blue";
-  if (customLabel) return "grape";
-  return "gray";
-}
 
 export const ModelCardWargear = React.memo(function ModelCardWargear({
   model,
@@ -75,6 +71,7 @@ export const ModelCardWargear = React.memo(function ModelCardWargear({
                 label={slot.name}
                 placeholder="Unassigned"
                 clearable
+                description={linkedPartnerTitle(slotId, attachmentSlots, model)}
                 data={wargearPickerData(slotId, attachmentSlots, wargearOptions, model)}
                 value={selectValue}
                 onChange={(value) => {
@@ -132,25 +129,9 @@ export const ModelCardWargear = React.memo(function ModelCardWargear({
     ) : (
       <Group gap={4} wrap="nowrap" justify="flex-end" style={{ width: "100%" }}>
         <Group gap={4} justify="flex-end" wrap="wrap" style={{ flex: 1 }}>
-          {attachmentSlots.map((slot) => {
-            const currentSelection = model.wargearSelections?.find((s) => s.attachmentSlotId === slot.id);
-            const optionName = wargearOptions.find((option) => option.id === currentSelection?.wargearOptionId)?.name;
-            const displayLabel = optionName ?? currentSelection?.customLabel;
-            return (
-              <Badge
-                key={slot.id}
-                variant="light"
-                color={wargearBadgeColor(optionName, currentSelection?.customLabel)}
-                size="sm"
-                title={
-                  linkedPartnerTitle(slot.id ?? "", attachmentSlots, model) ??
-                  (currentSelection?.customLabel ? "Custom..." : undefined)
-                }
-              >
-                {slot.name}: {displayLabel ?? "Unassigned"}
-              </Badge>
-            );
-          })}
+          {loadoutDisplayItems(attachmentSlots, model, wargearOptions).map((item) => (
+            <WargearLoadoutBadge key={item.key} item={item} />
+          ))}
         </Group>
         {editMode && (
           <ActionIcon size="sm" variant="subtle" title="Edit loadout" onClick={() => setIsEditingWargear(true)}>

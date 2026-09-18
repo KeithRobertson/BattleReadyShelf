@@ -2,9 +2,11 @@ import { Badge, Button, Group, Stack, Text, Title } from "@mantine/core";
 import { IconArrowLeft, IconCalendar, IconPhoto } from "@tabler/icons-react";
 import { InspectorImageLibrary } from "@/components/collection/aside/InspectorImageLibrary.tsx";
 import PaintRecipeSummary from "@/components/collection/paint/PaintRecipeSummary.tsx";
+import { WargearLoadoutBadge } from "@/components/collection/WargearLoadoutBadge.tsx";
 import ModelDefinitionOriginBadge from "@/components/modeldefinitions/ModelDefinitionOriginBadge.tsx";
 import type { CollectionModel, PaintRecipe } from "@/generated";
 import effectivePaintRecipes from "@/utils/collection/effectivePaintRecipes.ts";
+import loadoutDisplayItems from "@/utils/collection/loadoutDisplayItems.ts";
 import { COLLECTION_MODEL_STATUS_COLORS, COLLECTION_MODEL_STATUS_LABELS } from "@/utils/collectionModelStatus.ts";
 
 export type CollectionModelInspectorProps = Readonly<{
@@ -12,12 +14,6 @@ export type CollectionModelInspectorProps = Readonly<{
   recipes: PaintRecipe[];
   onBack: () => void;
 }>;
-
-function wargearBadgeColor(optionName: string | undefined, customLabel: string | null | undefined): string {
-  if (optionName) return "blue";
-  if (customLabel) return "grape";
-  return "gray";
-}
 
 export function CollectionModelInspector({ model, recipes, onBack }: CollectionModelInspectorProps) {
   const displayName = model.name?.trim() || "Unnamed";
@@ -84,28 +80,11 @@ export function CollectionModelInspector({ model, recipes, onBack }: CollectionM
           <Text size="sm" fw={600}>
             Loadout
           </Text>
-          {attachmentSlots.map((slot) => {
-            const currentSelection = model.wargearSelections?.find(
-              (selection) => selection.attachmentSlotId === slot.id,
-            );
-            const optionName = wargearOptions.find((option) => option.id === currentSelection?.wargearOptionId)?.name;
-            const displayLabel = optionName ?? currentSelection?.customLabel;
-            return (
-              <Group key={slot.id} justify="space-between" gap={8} wrap="nowrap">
-                <Text size="xs" c="dimmed" truncate>
-                  {slot.name}
-                </Text>
-                <Badge
-                  variant="light"
-                  color={wargearBadgeColor(optionName, currentSelection?.customLabel)}
-                  size="sm"
-                  title={currentSelection?.customLabel ? "Custom..." : undefined}
-                >
-                  {displayLabel ?? "Unassigned"}
-                </Badge>
-              </Group>
-            );
-          })}
+          <Group gap={4} wrap="wrap">
+            {loadoutDisplayItems(attachmentSlots, model, wargearOptions).map((item) => (
+              <WargearLoadoutBadge key={item.key} item={item} />
+            ))}
+          </Group>
         </Stack>
       )}
 
