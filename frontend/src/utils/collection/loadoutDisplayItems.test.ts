@@ -4,7 +4,12 @@ import loadoutDisplayItems from "@/utils/collection/loadoutDisplayItems.ts";
 
 const left: AttachmentSlot = { id: "left-arm", name: "Left Arm", type: "arm" };
 const right: AttachmentSlot = { id: "right-arm", name: "Right Arm", type: "arm" };
-const knife: WargearOption = { id: "knife", name: "Plagueknife", isDefault: false, attachmentSlotIds: [left.id ?? "", right.id ?? ""] };
+const knife: WargearOption = {
+  id: "knife",
+  name: "Plagueknife",
+  isDefault: false,
+  attachmentSlotIds: [left.id ?? "", right.id ?? ""],
+};
 const cleaver: WargearOption = {
   id: "cleaver",
   name: "Great Plague Cleaver",

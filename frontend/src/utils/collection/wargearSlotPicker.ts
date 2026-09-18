@@ -43,11 +43,7 @@ function representativeSlotId(
   return slotOrder.find((id) => bySlot.get(id)?.linkGroupId === groupId);
 }
 
-export function wargearPickerValue(
-  slotId: string,
-  slotOrder: string[],
-  model: CollectionModel,
-): string | null {
+export function wargearPickerValue(slotId: string, slotOrder: string[], model: CollectionModel): string | null {
   const bySlot = selectionsBySlot(model);
   const selection = bySlot.get(slotId);
   if (!selection || !isFilled(selection)) {

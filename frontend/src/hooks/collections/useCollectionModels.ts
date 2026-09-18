@@ -124,11 +124,7 @@ export default function useCollectionModels(collectionId: string | undefined) {
    */
   const changeModelDefinition = (id: string, modelDefinitionId: string) => updateModel(id, { modelDefinitionId });
 
-  function updateWargearSelection(
-    model: CollectionModel,
-    attachmentSlotId: string,
-    update: WargearSlotUpdate,
-  ) {
+  function updateWargearSelection(model: CollectionModel, attachmentSlotId: string, update: WargearSlotUpdate) {
     if (!model.id) {
       throw new Error("Model ID is required");
     }

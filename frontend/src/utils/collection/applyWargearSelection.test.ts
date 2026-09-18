@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CollectionModel, WargearOption } from "@/generated";
 import applyWargearSelection from "@/utils/collection/applyWargearSelection.ts";
+import wargearNamesOnModel from "@/utils/collection/wargearNamesOnModel.ts";
 import {
   CUSTOM_WARGEAR_VALUE,
   newOptionValue,
@@ -9,7 +10,6 @@ import {
   wargearPickerData,
   wargearPickerValue,
 } from "@/utils/collection/wargearSlotPicker.ts";
-import wargearNamesOnModel from "@/utils/collection/wargearNamesOnModel.ts";
 
 const left = "left-arm";
 const right = "right-arm";
@@ -49,11 +49,9 @@ describe("applyWargearSelection", () => {
   });
 
   it("treats two independent fills of the same option as two items", () => {
-    const next = applyWargearSelection(
-      model([knife], [{ attachmentSlotId: left, wargearOptionId: "knife" }]),
-      right,
-      { wargearOptionId: "knife" },
-    );
+    const next = applyWargearSelection(model([knife], [{ attachmentSlotId: left, wargearOptionId: "knife" }]), right, {
+      wargearOptionId: "knife",
+    });
 
     expect(next).toEqual(
       expect.arrayContaining([

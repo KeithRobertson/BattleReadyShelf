@@ -68,11 +68,7 @@ export function CollectionStatsPanel({
             label={COLLECTION_MODEL_STATUS_LABELS[entry.status]}
             count={entry.count}
             active={activeStatuses.includes(entry.status)}
-            onClick={
-              onStatusClick && entry.count > 0
-                ? () => onStatusClick(entry.status)
-                : undefined
-            }
+            onClick={onStatusClick && entry.count > 0 ? () => onStatusClick(entry.status) : undefined}
             leading={statusDot(entry.status)}
             fullWidth={index === 0}
           />

@@ -162,18 +162,15 @@ function WargearOptionsEditor({ options, setOptions, slots, wargearDefinitions }
           size="xs"
           variant="light"
           onClick={() =>
-            setOptions((current) => [
-              ...current,
-              { id: newId(), name: "", isDefault: false, attachmentSlotIds: [] },
-            ])
+            setOptions((current) => [...current, { id: newId(), name: "", isDefault: false, attachmentSlotIds: [] }])
           }
         >
           Add option
         </Button>
       </Group>
       <Text size="xs" c="dimmed" mb="xs">
-        Can attach to is eligibility: listing both arms means the item may go in either, not that
-        one copy occupies both. Two-handed occupancy is chosen per miniature when filling a slot.
+        Can attach to is eligibility: listing both arms means the item may go in either, not that one copy occupies
+        both. Two-handed occupancy is chosen per miniature when filling a slot.
       </Text>
       {options.length === 0 ? (
         <Text c="dimmed" size="sm">

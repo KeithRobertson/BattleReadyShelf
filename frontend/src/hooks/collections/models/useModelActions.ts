@@ -44,11 +44,8 @@ export function useModelActions() {
   );
 
   const updateWargearSelection = useCallback(
-    (
-      model: CollectionModel,
-      slotId: string,
-      update: WargearSlotUpdate,
-    ) => collectionModels.updateWargearSelection(model, slotId, update),
+    (model: CollectionModel, slotId: string, update: WargearSlotUpdate) =>
+      collectionModels.updateWargearSelection(model, slotId, update),
     [collectionModels],
   );
 
