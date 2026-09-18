@@ -3032,13 +3032,21 @@ components:
           description: Resolved from the shared wargear definition; edit it there to rename it everywhere.
         isDefault:
           type: boolean
-          description: Whether this option is part of the model's default loadout.
+          description: >-
+            Whether this option is part of the model's default loadout. A slot claimed by more
+            than one default is left unassigned when a miniature is added.
+        isDefaultLinked:
+          type: boolean
+          description: >-
+            When true with isDefault, every eligible slot starts occupied by this one physical
+            item (a two-handed default). Ignored when isDefault is false.
         attachmentSlotIds:
           type: array
           description: >-
             Slots this option may be placed in. Listing more than one slot is eligibility, not
             occupancy: a plague knife listed on both arms can be a separate item in each hand.
-            Whether two slots share one physical item is recorded on the collection loadout.
+            Whether two slots share one physical item is recorded on the collection loadout,
+            except for a linked default which occupies every listed slot as one item.
           items:
             type: string
             format: uuid
@@ -3143,6 +3151,11 @@ components:
           description: Resolved from the shared wargear definition; edit it there to rename it everywhere.
         isDefault:
           type: boolean
+        isDefaultLinked:
+          type: boolean
+          description: >-
+            When true with isDefault, the default loadout occupies every eligible slot as one
+            physical item. Ignored when isDefault is false.
         attachmentSlotIds:
           type: array
           description: Draft slot id(s) this option may be placed in.
@@ -3211,6 +3224,11 @@ components:
             renaming the existing one - rename via the wargear definition itself.
         isDefault:
           type: boolean
+        isDefaultLinked:
+          type: boolean
+          description: >-
+            When true with isDefault, the default loadout occupies every eligible slot as one
+            physical item. Omitted or false means each eligible slot gets its own copy.
         attachmentSlotIds:
           type: array
           description: Slot id(s) this option may be placed in.
@@ -3997,11 +4015,17 @@ components:
                   older documents, where it names the wargear this option refers to.
               isDefault:
                 type: boolean
+              isDefaultLinked:
+                type: boolean
+                description: >-
+                  When true with isDefault, the default loadout occupies every eligible slot as
+                  one physical item. Omitted or false means each eligible slot gets its own copy.
               slotIds:
                 type: array
                 description: >-
                   Attachment slot ids, from this same item, this option may be placed in.
-                  Listing more than one slot is eligibility, not occupancy.
+                  Listing more than one slot is eligibility, not occupancy, except when
+                  isDefaultLinked is true.
                 items:
                   type: string
             required: [ id, isDefault, slotIds ]

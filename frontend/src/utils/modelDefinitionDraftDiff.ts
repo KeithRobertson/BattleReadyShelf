@@ -50,6 +50,7 @@ interface ComparableSlot extends NamedChild {
 /** Satisfied by both `WargearOption` and `WargearOptionDraft`. */
 interface ComparableOption extends NamedChild {
   isDefault: boolean;
+  isDefaultLinked?: boolean;
   attachmentSlotIds: string[];
 }
 
@@ -192,6 +193,11 @@ function wargearOptionComparator<S extends ComparableSlot>(
     return [
       fieldChange("Name", previous.name, current.name),
       fieldChange("Default loadout", previous.isDefault ? "Yes" : "No", current.isDefault ? "Yes" : "No"),
+      fieldChange(
+        "Default occupies one item",
+        previous.isDefaultLinked ? "Yes" : "No",
+        current.isDefaultLinked ? "Yes" : "No",
+      ),
       slotsMoved
         ? {
             label: "Slots",

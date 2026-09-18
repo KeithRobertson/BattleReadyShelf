@@ -29,8 +29,8 @@ import java.util.UUID;
  * describe common/default loadouts; users remain free to put anything they like into a slot.
  *
  * <p>The wargear's identity and name live on the shared definition, so the same item used by many
- * models is named once. Only what varies per model - eligible slots and whether it is part of the
- * default loadout - is stored here.
+ * models is named once. Only what varies per model - eligible slots, whether it is part of the
+ * default loadout, and whether that default occupies those slots as one item - is stored here.
  */
 @Entity
 @Table(name = "wargear_options")
@@ -63,6 +63,13 @@ public class WargearOptionEntity {
 
     @Column(name = "is_default", nullable = false)
     private boolean isDefault;
+
+    /**
+     * When true with {@link #isDefault}, every eligible slot starts occupied by this one physical
+     * item (a two-handed default). Independent defaults still fill each eligible slot separately.
+     */
+    @Column(name = "is_default_linked", nullable = false)
+    private boolean defaultLinked;
 
     @Builder.Default
     @ManyToMany(fetch = FetchType.LAZY)

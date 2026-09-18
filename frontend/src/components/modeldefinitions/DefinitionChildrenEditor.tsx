@@ -3,6 +3,7 @@ import { IconTrash } from "@tabler/icons-react";
 import type { Dispatch, SetStateAction } from "react";
 import type { EditableOption, EditableSlot } from "@/components/modeldefinitions/definitionChildren.ts";
 import { DEFAULT_SLOT_TYPE, newId } from "@/components/modeldefinitions/definitionChildren.ts";
+import DefaultLoadoutWarning from "@/components/modeldefinitions/DefaultLoadoutWarning.tsx";
 import WargearOptionPicker from "@/components/modeldefinitions/WargearOptionPicker.tsx";
 import type { WargearDefinition } from "@/generated";
 import useIsMobile from "@/hooks/useIsMobile.ts";
@@ -118,14 +119,26 @@ function WargearOptionRow({
         placeholder="Can attach to"
         data={slotChoices}
         value={option.attachmentSlotIds}
-        onChange={(value) => onUpdate({ attachmentSlotIds: value })}
+        onChange={(value) =>
+          onUpdate({ attachmentSlotIds: value, isDefaultLinked: value.length >= 2 ? option.isDefaultLinked : false })
+        }
       />
       <Group gap="xs" wrap="nowrap">
         <Checkbox
           label="Default"
           checked={option.isDefault}
-          onChange={(e) => onUpdate({ isDefault: e.currentTarget.checked })}
+          onChange={(e) => {
+            const isDefault = e.currentTarget.checked;
+            onUpdate({ isDefault, isDefaultLinked: isDefault ? option.isDefaultLinked : false });
+          }}
         />
+        {option.isDefault && option.attachmentSlotIds.length >= 2 && (
+          <Checkbox
+            label="One item in these slots"
+            checked={option.isDefaultLinked}
+            onChange={(e) => onUpdate({ isDefaultLinked: e.currentTarget.checked })}
+          />
+        )}
         <ActionIcon
           color="red"
           variant="subtle"
@@ -162,7 +175,10 @@ function WargearOptionsEditor({ options, setOptions, slots, wargearDefinitions }
           size="xs"
           variant="light"
           onClick={() =>
-            setOptions((current) => [...current, { id: newId(), name: "", isDefault: false, attachmentSlotIds: [] }])
+            setOptions((current) => [
+              ...current,
+              { id: newId(), name: "", isDefault: false, isDefaultLinked: false, attachmentSlotIds: [] },
+            ])
           }
         >
           Add option
@@ -170,8 +186,10 @@ function WargearOptionsEditor({ options, setOptions, slots, wargearDefinitions }
       </Group>
       <Text size="xs" c="dimmed" mb="xs">
         Can attach to is eligibility: listing both arms means the item may go in either, not that one copy occupies
-        both. Two-handed occupancy is chosen per miniature when filling a slot.
+        both. Tick Default to fill those slots on a new miniature. Tick One item in these slots for a two-handed
+        default. Two-handed occupancy on a specific miniature is still chosen when filling a slot.
       </Text>
+      <DefaultLoadoutWarning slots={slots} options={options} />
       {options.length === 0 ? (
         <Text c="dimmed" size="sm">
           No wargear options.
@@ -220,10 +238,14 @@ export default function DefinitionChildrenEditor({
   function removeSlot(slotId: string) {
     setSlots((current) => current.filter((slot) => slot.id !== slotId));
     setOptions((current) =>
-      current.map((option) => ({
-        ...option,
-        attachmentSlotIds: option.attachmentSlotIds.filter((id) => id !== slotId),
-      })),
+      current.map((option) => {
+        const attachmentSlotIds = option.attachmentSlotIds.filter((id) => id !== slotId);
+        return {
+          ...option,
+          attachmentSlotIds,
+          isDefaultLinked: attachmentSlotIds.length >= 2 ? option.isDefaultLinked : false,
+        };
+      }),
     );
   }
 

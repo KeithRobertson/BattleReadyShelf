@@ -53,6 +53,9 @@ public class WargearOptionDraftEntity {
     @Column(name = "is_default", nullable = false)
     private boolean isDefault;
 
+    @Column(name = "is_default_linked", nullable = false)
+    private boolean defaultLinked;
+
     @Builder.Default
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

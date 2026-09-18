@@ -13,6 +13,7 @@ export interface EditableOption {
   wargearDefinitionId?: string;
   name: string;
   isDefault: boolean;
+  isDefaultLinked: boolean;
   attachmentSlotIds: string[];
 }
 
@@ -39,6 +40,7 @@ interface SourceOption {
   wargearDefinitionId?: string;
   name: string;
   isDefault: boolean;
+  isDefaultLinked?: boolean;
   attachmentSlotIds: string[];
 }
 
@@ -52,6 +54,7 @@ export function toEditableOptions(options: SourceOption[]): EditableOption[] {
     wargearDefinitionId: option.wargearDefinitionId,
     name: option.name,
     isDefault: option.isDefault,
+    isDefaultLinked: option.isDefaultLinked ?? false,
     attachmentSlotIds: option.attachmentSlotIds,
   }));
 }
@@ -77,6 +80,7 @@ export function toUpsertRequest(
       wargearDefinitionId: option.wargearDefinitionId,
       name: option.name,
       isDefault: option.isDefault,
+      isDefaultLinked: option.isDefaultLinked,
       attachmentSlotIds: option.attachmentSlotIds,
     })),
   };

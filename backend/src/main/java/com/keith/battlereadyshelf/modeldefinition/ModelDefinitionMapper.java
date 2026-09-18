@@ -31,6 +31,7 @@ public interface ModelDefinitionMapper {
 
     @Mapping(target = "attachmentSlotIds", source = "attachmentSlots")
     @Mapping(target = "isDefault", source = "default")
+    @Mapping(target = "isDefaultLinked", source = "defaultLinked")
     @Mapping(target = "name", source = "wargearDefinition.name")
     @Mapping(target = "externalId", source = "wargearDefinition.externalId")
     @Mapping(target = "wargearDefinitionId", source = "wargearDefinition.id")
@@ -48,6 +49,7 @@ public interface ModelDefinitionMapper {
 
     @Mapping(target = "attachmentSlotIds", source = "attachmentSlots")
     @Mapping(target = "isDefault", source = "default")
+    @Mapping(target = "isDefaultLinked", source = "defaultLinked")
     @Mapping(target = "name", source = "wargearDefinition.name")
     @Mapping(target = "externalId", source = "wargearDefinition.externalId")
     @Mapping(target = "wargearDefinitionId", source = "wargearDefinition.id")

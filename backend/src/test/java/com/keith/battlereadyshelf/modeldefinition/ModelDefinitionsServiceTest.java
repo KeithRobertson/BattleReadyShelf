@@ -249,7 +249,8 @@ class ModelDefinitionsServiceTest {
                                         List.of(
                                                 new WargearOption("Boltgun", true, List.of(leftArmId))
                                                         .id(boltgunId)
-                                                        .wargearDefinitionId(boltgunDefinition.getId()))));
+                                                        .wargearDefinitionId(boltgunDefinition.getId())
+                                                        .isDefaultLinked(false))));
     }
 
     @Test

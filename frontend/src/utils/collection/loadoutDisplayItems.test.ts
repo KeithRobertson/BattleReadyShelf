@@ -32,8 +32,8 @@ describe("loadoutDisplayItems", () => {
       model(
         [knife],
         [
-          { attachmentSlotId: left.id, wargearOptionId: "knife" },
-          { attachmentSlotId: right.id, wargearOptionId: "knife" },
+          { attachmentSlotId: "left-arm", wargearOptionId: "knife" },
+          { attachmentSlotId: "right-arm", wargearOptionId: "knife" },
         ],
       ),
       [knife],
@@ -51,8 +51,8 @@ describe("loadoutDisplayItems", () => {
       model(
         [cleaver],
         [
-          { attachmentSlotId: left.id, wargearOptionId: "cleaver", linkGroupId: "g" },
-          { attachmentSlotId: right.id, wargearOptionId: "cleaver", linkGroupId: "g" },
+          { attachmentSlotId: "left-arm", wargearOptionId: "cleaver", linkGroupId: "g" },
+          { attachmentSlotId: "right-arm", wargearOptionId: "cleaver", linkGroupId: "g" },
         ],
       ),
       [cleaver],

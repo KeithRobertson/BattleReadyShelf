@@ -12,6 +12,7 @@ import com.keith.battlereadyshelf.generated.model.WargearSelection;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionEntity;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionRepository;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionsService;
+import com.keith.battlereadyshelf.modeldefinition.WargearOptionRepository;
 import com.keith.battlereadyshelf.storage.PresignedUrlService;
 
 import jakarta.annotation.Nullable;
@@ -34,6 +35,7 @@ public class CollectionModelsService {
     private final CollectionModelRepository collectionModelRepository;
     private final ArmyCollectionRepository armyCollectionRepository;
     private final ModelDefinitionRepository modelDefinitionRepository;
+    private final WargearOptionRepository wargearOptionRepository;
     private final CollectionModelImageRepository collectionModelImageRepository;
     private final CollectionModelWargearSelectionRepository
             collectionModelWargearSelectionRepository;
@@ -51,6 +53,7 @@ public class CollectionModelsService {
                 collectionModelRepository.findAllByArmyCollectionId(armyCollectionId));
     }
 
+    @Transactional
     public CollectionModel createCollectionModel(
             UUID userId, UUID armyCollectionId, CollectionModel collectionModel) {
         requireOwnedArmyCollection(userId, armyCollectionId);
@@ -62,6 +65,7 @@ public class CollectionModelsService {
                 collectionModelRepository.save(
                         collectionModelMapper.toEntity(
                                 armyCollectionId, modelDefinition, collectionModel));
+        applyDefaultLoadout(savedCollectionModel, modelDefinition.getId());
 
         return toDtoWithImages(savedCollectionModel);
     }
@@ -70,6 +74,7 @@ public class CollectionModelsService {
      * Creates {@code count} unnamed collection models of the given model definition in one go (e.g.
      * adding 60 Poxwalkers at once) so they can be individually named afterwards.
      */
+    @Transactional
     public List<CollectionModel> bulkCreateCollectionModels(
             UUID userId, UUID armyCollectionId, UUID modelDefinitionId, int count, @Nullable com.keith.battlereadyshelf.generated.model.CollectionModelStatus status) {
         requireOwnedArmyCollection(userId, armyCollectionId);
@@ -87,7 +92,9 @@ public class CollectionModelsService {
                         .limit(count)
                         .toList();
 
-        return toDtosWithImages(collectionModelRepository.saveAll(newEntities));
+        var saved = collectionModelRepository.saveAll(newEntities);
+        applyDefaultLoadouts(saved, modelDefinitionId);
+        return toDtosWithImages(saved);
     }
 
     /**
@@ -232,6 +239,28 @@ public class CollectionModelsService {
                                                 .build())
                         .toList();
         collectionModelWargearSelectionRepository.saveAll(newSelections);
+    }
+
+    private void applyDefaultLoadout(CollectionModelEntity collectionModel, UUID modelDefinitionId) {
+        applyDefaultLoadouts(List.of(collectionModel), modelDefinitionId);
+    }
+
+    private void applyDefaultLoadouts(List<CollectionModelEntity> collectionModels, UUID modelDefinitionId) {
+        if (collectionModels.isEmpty()) {
+            return;
+        }
+        var plan =
+                DefaultLoadoutPlanner.plan(
+                        wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(modelDefinitionId)));
+        if (plan.isEmpty()) {
+            return;
+        }
+        collectionModelWargearSelectionRepository.saveAll(
+                collectionModels.stream()
+                        .flatMap(
+                                model ->
+                                        DefaultLoadoutPlanner.selectionsFor(model.getId(), plan).stream())
+                        .toList());
     }
 
     /**

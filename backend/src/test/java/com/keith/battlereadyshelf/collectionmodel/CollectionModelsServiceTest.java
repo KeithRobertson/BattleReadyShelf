@@ -13,10 +13,13 @@ import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.CollectionModel;
 import com.keith.battlereadyshelf.generated.model.CollectionModelStatus;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
+import com.keith.battlereadyshelf.modeldefinition.AttachmentSlotEntity;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionEntity;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionMapperImpl;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionRepository;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionsService;
+import com.keith.battlereadyshelf.modeldefinition.WargearOptionEntity;
+import com.keith.battlereadyshelf.modeldefinition.WargearOptionRepository;
 import com.keith.battlereadyshelf.storage.PresignedUrlService;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +40,7 @@ class CollectionModelsServiceTest {
     @Mock private CollectionModelRepository collectionModelRepository;
     @Mock private ArmyCollectionRepository armyCollectionRepository;
     @Mock private ModelDefinitionRepository modelDefinitionRepository;
+    @Mock private WargearOptionRepository wargearOptionRepository;
     @Mock private CollectionModelImageRepository collectionModelImageRepository;
 
     @Mock
@@ -75,6 +79,7 @@ class CollectionModelsServiceTest {
                         collectionModelRepository,
                         armyCollectionRepository,
                         modelDefinitionRepository,
+                        wargearOptionRepository,
                         collectionModelImageRepository,
                         collectionModelWargearSelectionRepository,
                         new CollectionModelMapperImpl(new ModelDefinitionMapperImpl()),
@@ -289,6 +294,62 @@ class CollectionModelsServiceTest {
                                 .images(List.of())
                                 .status(CollectionModelStatus.BOXED)
                                 .wargearSelections(List.of()));
+    }
+
+    @Test
+    void createCollectionModel_appliesDefaultWargearSelections() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var plagueMarineId = UUID.randomUUID();
+        var createdId = UUID.randomUUID();
+        var leftArmId = UUID.randomUUID();
+        var boltgunId = UUID.randomUUID();
+        var leftArm =
+                AttachmentSlotEntity.builder().id(leftArmId).name("Left Arm").type("arm").build();
+        var boltgun =
+                WargearOptionEntity.builder()
+                        .id(boltgunId)
+                        .isDefault(true)
+                        .attachmentSlots(List.of(leftArm))
+                        .build();
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(modelDefinitionRepository.findById(plagueMarineId))
+                .thenReturn(
+                        Optional.of(
+                                ModelDefinitionEntity.builder()
+                                        .id(plagueMarineId)
+                                        .name("Plague Marine")
+                                        .build()));
+        when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(plagueMarineId)))
+                .thenReturn(List.of(boltgun));
+        when(collectionModelRepository.save(any(CollectionModelEntity.class)))
+                .thenAnswer(
+                        invocation -> {
+                            CollectionModelEntity entity = invocation.getArgument(0);
+                            entity.setId(createdId);
+                            return entity;
+                        });
+
+        collectionModelsService.createCollectionModel(
+                userId, armyCollectionId, new CollectionModel(plagueMarineId));
+
+        verify(collectionModelWargearSelectionRepository).saveAll(selectionCaptor.capture());
+        assertThat(selectionCaptor.getValue())
+                .singleElement()
+                .satisfies(
+                        selection -> {
+                            assertThat(selection.getCollectionModelId()).isEqualTo(createdId);
+                            assertThat(selection.getAttachmentSlotId()).isEqualTo(leftArmId);
+                            assertThat(selection.getWargearOptionId()).isEqualTo(boltgunId);
+                            assertThat(selection.getLinkGroupId()).isNull();
+                        });
     }
 
     @Test

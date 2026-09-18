@@ -157,6 +157,7 @@ public class ModelDefinitionDraftService {
                             .publishedWargearOptionId(option.getId())
                             .wargearDefinition(option.getWargearDefinition())
                             .isDefault(option.isDefault())
+                            .defaultLinked(option.isDefaultLinked())
                             .attachmentSlots(
                                     option.getAttachmentSlots().stream()
                                             .map(slot -> draftSlotByPublishedSlotId.get(slot.getId()))
@@ -411,6 +412,7 @@ public class ModelDefinitionDraftService {
             }
             publishedOption.setWargearDefinition(draftOption.getWargearDefinition());
             publishedOption.setDefault(draftOption.isDefault());
+            publishedOption.setDefaultLinked(draftOption.isDefaultLinked());
             publishedOption.setAttachmentSlots(
                     draftOption.getAttachmentSlots().stream()
                             .map(slot -> publishedSlotByDraftSlotId.get(slot.getId()))
@@ -490,7 +492,9 @@ public class ModelDefinitionDraftService {
                                                                                                                     .get(
                                                                                                                             slot
                                                                                                                                     .getId()))
-                                                                                            .toList()))
+                                                                                            .toList())
+                                                                                    .isDefaultLinked(
+                                                                                            o.isDefaultLinked()))
                                                             .toList())
                                             .description(md.getDescription());
                                 })
@@ -631,7 +635,7 @@ public class ModelDefinitionDraftService {
                         .sorted()
                         .toList(),
                 item.getWargearOptions().stream()
-                        .map(o -> optionKey(o.getId(), Boolean.TRUE.equals(o.getIsDefault()), o.getSlotIds()))
+                        .map(o -> optionKey(o.getId(), Boolean.TRUE.equals(o.getIsDefault()), Boolean.TRUE.equals(o.getIsDefaultLinked()), o.getSlotIds()))
                         .sorted()
                         .toList());
     }
@@ -671,6 +675,7 @@ public class ModelDefinitionDraftService {
                                                     optionKey(
                                                             wargearSourceId(o),
                                                             o.isDefault(),
+                                                            o.isDefaultLinked(),
                                                             o.getAttachmentSlots().stream()
                                                                     .map(s -> slotSourceIdById.get(s.getId()))
                                                                     .toList()))
@@ -715,6 +720,7 @@ public class ModelDefinitionDraftService {
                                                     optionKey(
                                                             wargearSourceId(o),
                                                             o.isDefault(),
+                                                            o.isDefaultLinked(),
                                                             o.getAttachmentSlots().stream()
                                                                     .map(s -> slotSourceIdById.get(s.getId()))
                                                                     .toList()))
@@ -734,11 +740,13 @@ public class ModelDefinitionDraftService {
      * it. Including it here would also make import non-idempotent whenever the source dataset
      * spells the same wargear id differently in different models.
      */
-    private static String optionKey(String sourceId, boolean isDefault, List<String> slotSourceIds) {
+    private static String optionKey(
+            String sourceId, boolean isDefault, boolean isDefaultLinked, List<String> slotSourceIds) {
         return String.join(
                 "\u001f",
                 sourceId,
                 Boolean.toString(isDefault),
+                Boolean.toString(isDefaultLinked),
                 slotSourceIds.stream().sorted().collect(Collectors.joining(",")));
     }
 
@@ -986,6 +994,7 @@ public class ModelDefinitionDraftService {
                                     previous != null ? previous.getPublishedWargearOptionId() : null)
                             .wargearDefinition(wargearDefinitions.get(optionItem.getId()))
                             .isDefault(Boolean.TRUE.equals(optionItem.getIsDefault()))
+                            .defaultLinked(Boolean.TRUE.equals(optionItem.getIsDefaultLinked()))
                             .attachmentSlots(slots)
                             .build());
         }
@@ -1042,6 +1051,7 @@ public class ModelDefinitionDraftService {
             if (existing != null) {
                 existing.setWargearDefinition(wargearDefinition);
                 existing.setDefault(Boolean.TRUE.equals(optionReq.getIsDefault()));
+                existing.setDefaultLinked(Boolean.TRUE.equals(optionReq.getIsDefaultLinked()));
                 existing.setAttachmentSlots(slots);
                 wargearOptionDraftRepository.save(existing);
             } else {
@@ -1050,6 +1060,7 @@ public class ModelDefinitionDraftService {
                                 .modelDefinitionDraftId(draftId)
                                 .wargearDefinition(wargearDefinition)
                                 .isDefault(Boolean.TRUE.equals(optionReq.getIsDefault()))
+                                .defaultLinked(Boolean.TRUE.equals(optionReq.getIsDefaultLinked()))
                                 .attachmentSlots(slots)
                                 .build());
             }

@@ -39,6 +39,7 @@ class CollectionModelImagesServiceTest {
     @Mock private CollectionModelRepository collectionModelRepository;
     @Mock private ArmyCollectionRepository armyCollectionRepository;
     @Mock private ModelDefinitionRepository modelDefinitionRepository;
+    @Mock private com.keith.battlereadyshelf.modeldefinition.WargearOptionRepository wargearOptionRepository;
     @Mock private CollectionModelImageRepository collectionModelImageRepository;
     @Mock private CollectionModelWargearSelectionRepository collectionModelWargearSelectionRepository;
     @Mock private ModelDefinitionsService modelDefinitionsService;
@@ -56,6 +57,7 @@ class CollectionModelImagesServiceTest {
                         collectionModelRepository,
                         armyCollectionRepository,
                         modelDefinitionRepository,
+                        wargearOptionRepository,
                         collectionModelImageRepository,
                         collectionModelWargearSelectionRepository,
                         new CollectionModelMapperImpl(new ModelDefinitionMapperImpl()),

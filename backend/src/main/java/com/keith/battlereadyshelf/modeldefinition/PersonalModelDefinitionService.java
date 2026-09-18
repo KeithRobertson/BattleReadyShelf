@@ -248,6 +248,7 @@ public class PersonalModelDefinitionService {
                             .baseWargearOptionId(sharedOption.getId())
                             .wargearDefinition(sharedOption.getWargearDefinition())
                             .isDefault(sharedOption.isDefault())
+                            .defaultLinked(sharedOption.isDefaultLinked())
                             .attachmentSlots(
                                     sharedOption.getAttachmentSlots().stream()
                                             .map(slot -> personalSlotBySharedSlotId.get(slot.getId()))
@@ -303,6 +304,7 @@ public class PersonalModelDefinitionService {
                             WargearOptionEntity.builder().modelDefinitionId(modelDefinitionId).build());
             option.setWargearDefinition(resolveWargearDefinition(currentUser, optionRequest));
             option.setDefault(Boolean.TRUE.equals(optionRequest.getIsDefault()));
+            option.setDefaultLinked(Boolean.TRUE.equals(optionRequest.getIsDefaultLinked()));
             option.setAttachmentSlots(slots);
             wargearOptionRepository.save(option);
         }
