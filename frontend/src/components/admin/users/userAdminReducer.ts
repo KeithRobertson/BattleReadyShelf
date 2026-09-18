@@ -1,5 +1,7 @@
 import type { UserDto, UserRole } from "@/generated";
 
+export const ASSIGNABLE_ROLES: UserRole[] = ["GUEST", "USER", "ADMIN"];
+
 export type UserAdminState = {
   users: UserDto[];
   loading: boolean;

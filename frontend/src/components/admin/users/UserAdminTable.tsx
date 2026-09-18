@@ -1,7 +1,7 @@
 import { Badge, Checkbox, Select, Table, Text } from "@mantine/core";
+import { ASSIGNABLE_ROLES } from "@/components/admin/users/userAdminReducer.ts";
 import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import type { UserDto, UserRole } from "@/generated";
-import { ASSIGNABLE_ROLES } from "@/pages/UsersAdminPage.tsx";
 
 export type UserAdminTableProps = Readonly<{
   users: UserDto[];

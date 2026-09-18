@@ -12,6 +12,7 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
 import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
+import { AdminHealthAside } from "@/components/admin/aside/AdminHealthAside.tsx";
 import { DefinitionTransferButtons } from "@/components/admin/DefinitionTransferButtons.tsx";
 import PendingChangesPanel, { type PendingChangeRow } from "@/components/admin/PendingChangesPanel.tsx";
 import PublishHistoryModal from "@/components/admin/PublishHistoryModal.tsx";
@@ -31,6 +32,8 @@ import {
   proposeFactionChange,
   publishFactionDraft,
 } from "@/generated";
+import { useAsideContent } from "@/hooks/useAsideContent.ts";
+import { countFactionParents } from "@/utils/admin/catalogueStats";
 
 /** How many model definitions a rename or reparent will carry with it. */
 function factionUsageWarning(usageCount: number) {
@@ -239,6 +242,23 @@ export default function FactionDefinitionsAdminPage() {
         `${result.unchanged} already up to date.`,
     );
   }
+
+  const aside = useMemo(() => {
+    if (!isAdmin || isAuthLoading || loading) return null;
+    return (
+      <AdminHealthAside
+        title="Factions"
+        description="Shared groups for model definitions. Renames and reparents wait here until you accept them."
+        loadFailed={loadFailed}
+        failedMessage="The factions could not be loaded."
+        totalLabel="Total"
+        total={factions.length}
+        pendingCount={drafts.length}
+        lists={[{ title: "Structure", items: countFactionParents(factions) }]}
+      />
+    );
+  }, [isAdmin, isAuthLoading, loading, loadFailed, factions, drafts.length]);
+  useAsideContent(aside);
 
   return (
     <Stack gap="md">

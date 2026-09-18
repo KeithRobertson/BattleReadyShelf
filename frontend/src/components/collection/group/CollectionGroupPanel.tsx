@@ -1,13 +1,12 @@
 import { Accordion, Checkbox, SimpleGrid, Stack } from "@mantine/core";
 import React, { useMemo } from "react";
-import { useOutletContext } from "react-router-dom";
-import type { AppOutletContext } from "@/components/AppOutletContext.ts";
 import { useCollectionContext } from "@/components/collection/context/CollectionContext.ts";
 import ModelCard from "@/components/collection/group/model/ModelCard.tsx";
 import GroupPaintRecipe from "@/components/collection/paint/GroupPaintRecipe.tsx";
 import type { CollectionModelStatus } from "@/generated";
 import { useModelActions } from "@/hooks/collections/models/useModelActions.ts";
 import type { ModelGroup } from "@/hooks/collections/useGroupedModels.ts";
+import { useAppAside } from "@/hooks/useAsideContent.ts";
 import getSelectedInGroup from "@/utils/collection/getSelectedInGroup.ts";
 
 export type CollectionGroupPanelProps = Readonly<{
@@ -16,7 +15,7 @@ export type CollectionGroupPanelProps = Readonly<{
 
 export const CollectionGroupPanel = React.memo(function CollectionGroupPanel({ group }: CollectionGroupPanelProps) {
   const { isEditMode, selection, focus, deletion, modelImages } = useCollectionContext();
-  const { openAside } = useOutletContext<AppOutletContext>();
+  const { openAside } = useAppAside();
   const selectedInGroup = useMemo(
     () => getSelectedInGroup(group, selection.selectedModelIds),
     [group, selection.selectedModelIds],

@@ -1,15 +1,15 @@
-import { Alert, Button, Group, Select, Stack, Text, Title } from "@mantine/core";
+import { Alert, Stack, Text, Title } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useEffect, useMemo, useReducer } from "react";
 import { useAuth } from "@/auth/useAuth";
+import { UsersAdminAside } from "@/components/admin/aside/UsersAdminAside.tsx";
 import { LoadingUserAdmin } from "@/components/admin/users/LoadingUserAdmin.tsx";
 import { UnauthenticatedUserAdmin } from "@/components/admin/users/UnauthenticatedUserAdmin.tsx";
 import { UserAdminTable } from "@/components/admin/users/UserAdminTable.tsx";
 import { initialUserAdminState, userAdminReducer } from "@/components/admin/users/userAdminReducer.ts";
 import type { UserDto, UserRole } from "@/generated";
 import { bulkUpdateUserRoles, getUsers, updateUserRole } from "@/generated";
-
-export const ASSIGNABLE_ROLES: UserRole[] = ["GUEST", "USER", "ADMIN"];
+import { useAsideContent, useOpenAsideOnSelection } from "@/hooks/useAsideContent.ts";
 
 function isEditable(user: UserDto, currentUserId?: string): boolean {
   return user.role !== "SUPERADMIN" && user.id !== currentUserId;
@@ -20,7 +20,11 @@ export default function UsersAdminPage() {
   const [state, dispatch] = useReducer(userAdminReducer, initialUserAdminState);
 
   useEffect(() => {
+    if (isAuthLoading) {
+      return;
+    }
     if (!isAdmin) {
+      dispatch({ type: "loadSuccess", users: [] });
       return;
     }
     const abortController = new AbortController();
@@ -35,7 +39,7 @@ export default function UsersAdminPage() {
         if (!abortController.signal.aborted) dispatch({ type: "loadFailed" });
       });
     return () => abortController.abort();
-  }, [isAdmin]);
+  }, [isAdmin, isAuthLoading]);
 
   const editableUserIds = useMemo(
     () =>
@@ -96,6 +100,34 @@ export default function UsersAdminPage() {
       dispatch({ type: "bulkSavingEnd" });
     }
   }
+
+  useOpenAsideOnSelection(state.selectedIds.size);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: apply uses selectedIds and bulkRole already listed
+  const aside = useMemo(() => {
+    if (!isAdmin || isAuthLoading || state.loading) return null;
+    return (
+      <UsersAdminAside
+        users={state.users}
+        loadFailed={state.loadFailed}
+        selectedCount={state.selectedIds.size}
+        bulkRole={state.bulkRole}
+        bulkSaving={state.bulkSaving}
+        onBulkRoleChange={(role) => dispatch({ type: "setBulkRole", role })}
+        onBulkApply={handleBulkApply}
+      />
+    );
+  }, [
+    isAdmin,
+    isAuthLoading,
+    state.loading,
+    state.users,
+    state.loadFailed,
+    state.selectedIds,
+    state.bulkRole,
+    state.bulkSaving,
+  ]);
+  useAsideContent(aside);
+
   if (isAuthLoading || state.loading) return <LoadingUserAdmin />;
   if (!isAuthenticated || !isAdmin) return <UnauthenticatedUserAdmin />;
   return (
@@ -112,21 +144,6 @@ export default function UsersAdminPage() {
       )}
 
       <Stack gap="sm">
-        {state.selectedIds.size > 0 && (
-          <Group>
-            <Text size="sm">{state.selectedIds.size} selected</Text>
-            <Select
-              data={ASSIGNABLE_ROLES}
-              value={state.bulkRole}
-              onChange={(role) => role && dispatch({ type: "setBulkRole", role: role as UserRole })}
-              allowDeselect={false}
-              w={160}
-            />
-            <Button onClick={handleBulkApply} loading={state.bulkSaving}>
-              Apply to selected
-            </Button>
-          </Group>
-        )}
         <UserAdminTable
           users={state.users}
           selectedIds={state.selectedIds}

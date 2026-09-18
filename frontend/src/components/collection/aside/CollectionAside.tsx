@@ -1,9 +1,8 @@
-import { useEffect } from "react";
-import { useOutletContext } from "react-router-dom";
-import type { AppOutletContext } from "@/components/AppOutletContext.ts";
+import { useEffect, useMemo } from "react";
 import { CollectionAsideSummary } from "@/components/collection/aside/CollectionAsideSummary.tsx";
 import { CollectionModelInspector } from "@/components/collection/aside/CollectionModelInspector.tsx";
 import { useCollectionContext } from "@/components/collection/context/CollectionContext.ts";
+import { useAsideContent } from "@/hooks/useAsideContent.ts";
 
 /**
  * Pushes this collection's aside (summary or focused-model inspector) into the app shell, and
@@ -13,7 +12,6 @@ import { useCollectionContext } from "@/components/collection/context/Collection
  * the panels receive props rather than reading context.
  */
 export default function CollectionAside() {
-  const { setAsideContent } = useOutletContext<AppOutletContext>();
   const { focus, collection, collectionModels, groupedModels, paintRecipes } = useCollectionContext();
 
   const focusedModel = collectionModels.models.find((model) => model.id === focus.focusedModelId) ?? null;
@@ -27,22 +25,18 @@ export default function CollectionAside() {
     }
   }, [focus.focusedModelId, focusedVisible, focus.clearFocus]);
 
-  useEffect(() => {
+  const aside = useMemo(() => {
     if (focusedModel && focusedVisible) {
-      setAsideContent(
-        <CollectionModelInspector model={focusedModel} recipes={paintRecipes.recipes} onBack={focus.clearFocus} />,
-      );
-    } else {
-      setAsideContent(
-        <CollectionAsideSummary
-          collectionName={collection.collection?.name ?? "Collection"}
-          models={collectionModels.models}
-          recipes={paintRecipes.recipes}
-          modelDefinitionOrder={collection.collection?.modelDefinitionOrder ?? []}
-        />,
-      );
+      return <CollectionModelInspector model={focusedModel} recipes={paintRecipes.recipes} onBack={focus.clearFocus} />;
     }
-    return () => setAsideContent(null);
+    return (
+      <CollectionAsideSummary
+        collectionName={collection.collection?.name ?? "Collection"}
+        models={collectionModels.models}
+        recipes={paintRecipes.recipes}
+        modelDefinitionOrder={collection.collection?.modelDefinitionOrder ?? []}
+      />
+    );
   }, [
     focusedModel,
     focusedVisible,
@@ -51,8 +45,8 @@ export default function CollectionAside() {
     collectionModels.models,
     paintRecipes.recipes,
     focus.clearFocus,
-    setAsideContent,
   ]);
+  useAsideContent(aside);
 
   return null;
 }

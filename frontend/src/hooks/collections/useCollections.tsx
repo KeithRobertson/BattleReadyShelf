@@ -4,13 +4,12 @@ import { Stack, Text, Title } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AxiosResponse } from "axios";
-import { useEffect, useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
-import type { AppOutletContext } from "@/components/AppOutletContext.ts";
 import { CollectionStatsPanel } from "@/components/collections/CollectionStatsPanel.tsx";
 import type { ArmyCollection, CollectionModelStatus } from "@/generated";
 import { createArmyCollection, getArmyCollections, reorderArmyCollections } from "@/generated";
+import { useAsideContent } from "@/hooks/useAsideContent.ts";
 import { COLLECTIONS_KEY } from "@/queryKeys.ts";
 import { COLLECTION_MODEL_STATUSES } from "@/utils/collectionModelStatus";
 import isInitialLoad from "@/utils/isInitialLoad.ts";
@@ -33,7 +32,6 @@ const NO_COLLECTIONS: ArmyCollection[] = [];
 
 export function useCollections() {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
-  const { setAsideContent } = useOutletContext<AppOutletContext>();
   const queryClient = useQueryClient();
 
   const isUser = user?.role === "USER" || user?.role === "ADMIN" || user?.role === "SUPERADMIN";
@@ -56,9 +54,7 @@ export function useCollections() {
   });
   const { data: collections = NO_COLLECTIONS, isLoading: collectionsLoading, error } = collectionsQuery;
 
-  useEffect(() => {
-    if (!collections) return;
-
+  const aside = useMemo(() => {
     const totalModels = collections.reduce((sum, c) => sum + (c.modelCount ?? 0), 0);
 
     const totalCountsByStatus = COLLECTION_MODEL_STATUSES.reduce(
@@ -69,16 +65,15 @@ export function useCollections() {
       {} as Record<CollectionModelStatus, number>,
     );
 
-    setAsideContent(
+    return (
       <Stack>
         <Title order={4}>All Collections</Title>
         <Text c="dimmed">Totals across all your collections.</Text>
         <CollectionStatsPanel totalCount={totalModels} countsByStatus={totalCountsByStatus} />
-      </Stack>,
+      </Stack>
     );
-
-    return () => setAsideContent(null);
-  }, [collections, setAsideContent]);
+  }, [collections]);
+  useAsideContent(aside);
 
   const createCollection = useMutation({
     mutationFn: async () =>

@@ -21,6 +21,8 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
 import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
+import { OPEN_DRAFTS_ELEMENT_ID } from "@/components/admin/aside/adminAside.ts";
+import { ModelDefinitionsAdminAside } from "@/components/admin/aside/ModelDefinitionsAdminAside.tsx";
 import { DefinitionTransferButtons } from "@/components/admin/DefinitionTransferButtons.tsx";
 import ModelDefinitionDraftEditor from "@/components/admin/modeldefinitions/ModelDefinitionDraftEditor.tsx";
 import ModelDefinitionSlotTable from "@/components/admin/modeldefinitions/ModelDefinitionSlotTable.tsx";
@@ -46,6 +48,8 @@ import {
   publishModelDefinitionDraft,
   startModelDefinitionDraft,
 } from "@/generated";
+import { useAsideContent, useOpenAsideOnSelection } from "@/hooks/useAsideContent.ts";
+import { countByFaction, countDraftStatuses } from "@/utils/admin/catalogueStats";
 import { type DraftDiff, diffModelDefinitionDraft } from "@/utils/modelDefinitionDraftDiff";
 
 interface FactionGroup<T> {
@@ -538,6 +542,49 @@ export default function ModelDefinitionsAdminPage() {
     () => modelDefinitions.map((definition) => definition.id).filter((id): id is string => Boolean(id)),
     [modelDefinitions],
   );
+  const draftStatusCounts = useMemo(() => countDraftStatuses(diffsByDraftId.values()), [diffsByDraftId]);
+  const publishedByFaction = useMemo(
+    () => countByFaction(modelDefinitions, factionsById),
+    [modelDefinitions, factionsById],
+  );
+
+  useOpenAsideOnSelection(selectedDraftIds.size + selectedModelDefinitionIds.size);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: actions use the selected id sets already listed
+  const aside = useMemo(() => {
+    if (!isAdmin || isAuthLoading || loading) return null;
+    return (
+      <ModelDefinitionsAdminAside
+        loadFailed={loadFailed}
+        publishedCount={modelDefinitions.length}
+        draftCount={drafts.length}
+        draftStatusCounts={draftStatusCounts}
+        publishedByFaction={publishedByFaction}
+        selectedDraftCount={selectedDraftIds.size}
+        selectedPublishedCount={selectedModelDefinitionIds.size}
+        publishingSelected={publishingSelected}
+        discarding={discarding}
+        deletingSelected={deletingSelectedModelDefinitions}
+        onPublishSelected={handlePublishSelected}
+        onDiscardSelected={handleDiscardSelected}
+        onDeleteSelected={handleDeleteSelectedModelDefinitions}
+      />
+    );
+  }, [
+    isAdmin,
+    isAuthLoading,
+    loading,
+    loadFailed,
+    modelDefinitions.length,
+    drafts.length,
+    draftStatusCounts,
+    publishedByFaction,
+    selectedDraftIds,
+    selectedModelDefinitionIds,
+    publishingSelected,
+    discarding,
+    deletingSelectedModelDefinitions,
+  ]);
+  useAsideContent(aside);
 
   return (
     <Stack gap="md">
@@ -590,40 +637,15 @@ export default function ModelDefinitionsAdminPage() {
       <AdminPageGate isAuthLoading={isAuthLoading} isAuthorised={isAuthenticated && isAdmin} loading={loading}>
         <Stack gap="lg">
           {drafts.length > 0 && (
-            <div>
-              <Group justify="space-between" mb="xs">
-                <Group gap="xs">
-                  <SelectAllCheckbox
-                    label="Select all drafts"
-                    allIds={allDraftIds}
-                    selectedIds={selectedDraftIds}
-                    onToggle={toggleDraftGroupSelected}
-                  />
-                  <Title order={4}>Open drafts</Title>
-                </Group>
-                {selectedDraftIds.size > 0 && (
-                  <Group gap="xs">
-                    <Button
-                      size="xs"
-                      color="green"
-                      leftSection={<IconCircleCheck size={14} />}
-                      loading={publishingSelected}
-                      onClick={handlePublishSelected}
-                    >
-                      Publish selected ({selectedDraftIds.size})
-                    </Button>
-                    <Button
-                      size="xs"
-                      color="red"
-                      variant="light"
-                      leftSection={<IconTrash size={14} />}
-                      loading={discarding}
-                      onClick={handleDiscardSelected}
-                    >
-                      Discard selected ({selectedDraftIds.size})
-                    </Button>
-                  </Group>
-                )}
+            <div id={OPEN_DRAFTS_ELEMENT_ID}>
+              <Group mb="xs" gap="xs">
+                <SelectAllCheckbox
+                  label="Select all drafts"
+                  allIds={allDraftIds}
+                  selectedIds={selectedDraftIds}
+                  onToggle={toggleDraftGroupSelected}
+                />
+                <Title order={4}>Open drafts</Title>
               </Group>
               <Accordion multiple defaultValue={[]} variant="separated">
                 {draftGroups.map((group) => {
@@ -730,28 +752,14 @@ export default function ModelDefinitionsAdminPage() {
           )}
 
           <div>
-            <Group justify="space-between" mb="xs">
-              <Group gap="xs">
-                <SelectAllCheckbox
-                  label="Select all published model definitions"
-                  allIds={allPublishedIds}
-                  selectedIds={selectedModelDefinitionIds}
-                  onToggle={toggleModelDefinitionGroupSelected}
-                />
-                <Title order={4}>Published</Title>
-              </Group>
-              {selectedModelDefinitionIds.size > 0 && (
-                <Button
-                  size="xs"
-                  color="red"
-                  variant="light"
-                  leftSection={<IconTrash size={14} />}
-                  loading={deletingSelectedModelDefinitions}
-                  onClick={handleDeleteSelectedModelDefinitions}
-                >
-                  Delete selected ({selectedModelDefinitionIds.size})
-                </Button>
-              )}
+            <Group mb="xs" gap="xs">
+              <SelectAllCheckbox
+                label="Select all published model definitions"
+                allIds={allPublishedIds}
+                selectedIds={selectedModelDefinitionIds}
+                onToggle={toggleModelDefinitionGroupSelected}
+              />
+              <Title order={4}>Published</Title>
             </Group>
             {modelDefinitions.length === 0 ? (
               // Silent when the load failed: the alert above already explains the empty list, and

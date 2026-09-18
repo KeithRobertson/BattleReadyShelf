@@ -1,5 +1,6 @@
 import { Alert, Badge, Button, Card, Group, Stack, Table, Text, Title } from "@mantine/core";
 import { IconArrowRight, IconCheck, IconHistory, IconInfoCircle, IconX } from "@tabler/icons-react";
+import { PENDING_CHANGES_ELEMENT_ID } from "@/components/admin/aside/adminAside.ts";
 import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import type { ProposalOrigin } from "@/generated";
 
@@ -109,7 +110,7 @@ export default function PendingChangesPanel({
   if (rows.length === 0) return null;
 
   return (
-    <Card withBorder padding="md">
+    <Card withBorder padding="md" id={PENDING_CHANGES_ELEMENT_ID}>
       <Stack gap="sm">
         <div>
           <Title order={4}>{title}</Title>

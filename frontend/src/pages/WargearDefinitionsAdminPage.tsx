@@ -3,6 +3,7 @@ import { IconAlertCircle, IconAlertTriangle, IconCircleCheck, IconSearch } from 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
 import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
+import { AdminHealthAside } from "@/components/admin/aside/AdminHealthAside.tsx";
 import { DefinitionTransferButtons } from "@/components/admin/DefinitionTransferButtons.tsx";
 import PendingChangesPanel, { type PendingChangeRow } from "@/components/admin/PendingChangesPanel.tsx";
 import PublishHistoryModal from "@/components/admin/PublishHistoryModal.tsx";
@@ -20,6 +21,8 @@ import {
   publishWargearDefinitionDraft,
   updateWargearDefinition,
 } from "@/generated";
+import { useAsideContent } from "@/hooks/useAsideContent.ts";
+import { unusedCount as countUnused, duplicateNames } from "@/utils/admin/catalogueStats";
 
 function matchesSearch(definition: WargearDefinition, search: string) {
   const term = search.trim().toLowerCase();
@@ -48,19 +51,6 @@ function toPendingRow(draft: WargearDefinitionDraft): PendingChangeRow {
     usageCount: draft.usageCount,
     fields: [{ label: "Name", before: draft.currentName, after: draft.proposedName }],
   };
-}
-
-/** Names that more than one definition shares - a hint that two rows should probably be one. */
-function duplicateNames(definitions: WargearDefinition[]) {
-  const counts = new Map<string, number>();
-  definitions.forEach((definition) => {
-    const key = definition.name.toLowerCase();
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  });
-  return definitions
-    .filter((definition) => (counts.get(definition.name.toLowerCase()) ?? 0) > 1)
-    .map((definition) => definition.name)
-    .filter((name, index, all) => all.indexOf(name) === index);
 }
 
 export default function WargearDefinitionsAdminPage() {
@@ -131,10 +121,7 @@ export default function WargearDefinitionsAdminPage() {
     if (draft?.wargearDefinitionId) history.open(draft.wargearDefinitionId, draft.currentName);
   }
 
-  const unusedCount = useMemo(
-    () => definitions.filter((definition) => (definition.usageCount ?? 0) === 0).length,
-    [definitions],
-  );
+  const unusedCount = useMemo(() => countUnused(definitions), [definitions]);
 
   async function handleRename(name: string) {
     const definition = renaming;
@@ -200,6 +187,31 @@ export default function WargearDefinitionsAdminPage() {
         `${result.unchanged} already up to date.`,
     );
   }
+
+  const aside = useMemo(() => {
+    if (!isAdmin || isAuthLoading || loading) return null;
+    return (
+      <AdminHealthAside
+        title="Wargear"
+        description="Shared names referenced by model definitions. Renames wait here until you accept them."
+        loadFailed={loadFailed}
+        failedMessage="The wargear definitions could not be loaded."
+        totalLabel="Total"
+        total={definitions.length}
+        pendingCount={drafts.length}
+        lists={[
+          {
+            title: "Usage",
+            items: [
+              { key: "unused", label: "Unused", count: unusedCount },
+              { key: "duplicates", label: "Duplicate names", count: duplicates.length },
+            ],
+          },
+        ]}
+      />
+    );
+  }, [isAdmin, isAuthLoading, loading, loadFailed, definitions.length, drafts.length, unusedCount, duplicates.length]);
+  useAsideContent(aside);
 
   return (
     <Stack gap="md">

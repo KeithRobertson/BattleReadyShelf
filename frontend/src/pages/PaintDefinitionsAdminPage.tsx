@@ -28,6 +28,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
 import AdminPageGate from "@/components/admin/AdminPageGate.tsx";
+import { AdminHealthAside } from "@/components/admin/aside/AdminHealthAside.tsx";
 import { DefinitionTransferButtons } from "@/components/admin/DefinitionTransferButtons.tsx";
 import PendingChangesPanel, { type PendingChangeRow } from "@/components/admin/PendingChangesPanel.tsx";
 import PublishHistoryModal from "@/components/admin/PublishHistoryModal.tsx";
@@ -52,6 +53,8 @@ import {
   proposePaintChange,
   publishPaintDraft,
 } from "@/generated";
+import { useAsideContent } from "@/hooks/useAsideContent.ts";
+import { unusedCount as countUnused, paintBrandCounts, paintTypeCounts } from "@/utils/admin/catalogueStats";
 
 const NONE_FILTER = "__none__";
 
@@ -409,7 +412,9 @@ export default function PaintDefinitionsAdminPage() {
     if (draft?.paintId) history.open(draft.paintId, draft.currentName);
   }
 
-  const unusedCount = useMemo(() => paints.filter((paint) => (paint.usageCount ?? 0) === 0).length, [paints]);
+  const unusedCount = useMemo(() => countUnused(paints), [paints]);
+  const brandCounts = useMemo(() => paintBrandCounts(paints), [paints]);
+  const typeCounts = useMemo(() => paintTypeCounts(paints), [paints]);
 
   async function handleCreate(values: PaintFormValues) {
     setNotice(null);
@@ -502,6 +507,30 @@ export default function PaintDefinitionsAdminPage() {
         `${result.unchanged} already up to date.`,
     );
   }
+
+  const aside = useMemo(() => {
+    if (!isAdmin || isAuthLoading || loading) return null;
+    return (
+      <AdminHealthAside
+        title="Paints"
+        description="Shared catalogue entries for recipe building. Changes wait here until you accept them."
+        loadFailed={loadFailed}
+        failedMessage="The paint catalogue could not be loaded."
+        totalLabel="Total"
+        total={paints.length}
+        pendingCount={drafts.length}
+        lists={[
+          {
+            title: "Usage",
+            items: [{ key: "unused", label: "Unused by recipes", count: unusedCount }],
+          },
+          { title: "By brand", items: brandCounts, hideEmpty: true },
+          { title: "By type", items: typeCounts, hideEmpty: true },
+        ]}
+      />
+    );
+  }, [isAdmin, isAuthLoading, loading, loadFailed, paints.length, drafts.length, unusedCount, brandCounts, typeCounts]);
+  useAsideContent(aside);
 
   return (
     <Stack gap="md">
