@@ -30,7 +30,9 @@ import {
   matchesVisibility,
 } from "@/components/mydefinitions/catalogueVisibility";
 import HideDefinitionButton, { HiddenBadge } from "@/components/mydefinitions/HideDefinitionButton.tsx";
+import { PersonalCatalogueAside } from "@/components/mydefinitions/PersonalCatalogueAside.tsx";
 import PersonalModelDefinitionEditor from "@/components/mydefinitions/PersonalModelDefinitionEditor.tsx";
+import { countMineOrigins, countPickerVisibility } from "@/components/mydefinitions/personalCatalogueStats";
 import PageGate from "@/components/PageGate.tsx";
 import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import type { Faction, ModelDefinition, WargearDefinition } from "@/generated";
@@ -45,6 +47,7 @@ import {
   getSharedModelDefinitions,
   setDefinitionsHidden,
 } from "@/generated";
+import { useAsideContent } from "@/hooks/useAsideContent.ts";
 import { MODEL_DEFINITIONS_KEY } from "@/queryKeys.ts";
 import { type DraftDiff, diffPersonalModelDefinition } from "@/utils/modelDefinitionDraftDiff";
 
@@ -483,6 +486,27 @@ export default function MyModelDefinitionsPage() {
     () => factions.filter((faction) => !faction.hidden || faction.id === editing?.factionId),
     [factions, editing],
   );
+
+  const aside = useMemo(() => {
+    if (isAuthLoading || loading) return null;
+    const customisedBaseIds = new Set(mine.map((definition) => definition.baseModelDefinitionId).filter(Boolean));
+    const uncustomisedShared = shared.filter((definition) => !customisedBaseIds.has(definition.id));
+    return (
+      <PersonalCatalogueAside
+        title="Your models"
+        description="Types you have added or customised, and how many you have taken out of pickers."
+        authorised={isAuthenticated}
+        unauthorisedMessage="Sign in to create and customise your own model definitions."
+        loadFailed={loadFailed}
+        failedMessage="Your model definitions could not be loaded."
+        mineCount={mine.length}
+        origins={countMineOrigins(mine, (definition) => definition.baseModelDefinitionId)}
+        sharedCount={shared.length}
+        pickerVisibility={countPickerVisibility(mine, uncustomisedShared)}
+      />
+    );
+  }, [isAuthLoading, loading, isAuthenticated, loadFailed, mine, shared]);
+  useAsideContent(aside);
 
   return (
     <Stack gap="md">

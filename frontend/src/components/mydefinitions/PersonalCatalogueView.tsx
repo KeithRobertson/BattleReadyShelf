@@ -11,9 +11,15 @@ import {
   matchesVisibility,
 } from "@/components/mydefinitions/catalogueVisibility";
 import HideDefinitionButton, { HiddenBadge } from "@/components/mydefinitions/HideDefinitionButton.tsx";
+import {
+  PersonalCatalogueAside,
+  type PersonalCatalogueAsideList,
+} from "@/components/mydefinitions/PersonalCatalogueAside.tsx";
+import { countMineOrigins, countPickerVisibility } from "@/components/mydefinitions/personalCatalogueStats";
 import type { PersonalDefinition } from "@/components/mydefinitions/usePersonalCatalogue.ts";
 import PageGate from "@/components/PageGate.tsx";
 import ResponsiveTable from "@/components/ResponsiveTable.tsx";
+import { useAsideContent } from "@/hooks/useAsideContent.ts";
 import type { DraftDiff } from "@/utils/modelDefinitionDraftDiff";
 
 /** One extra column between the name and the origin badges, rendered per row. */
@@ -277,6 +283,9 @@ type PersonalCatalogueViewProps<T extends PersonalDefinition> = Readonly<{
   onSetHidden: (ids: readonly string[], hidden: boolean) => void;
   /** Extra controls that only one catalogue needs, e.g. hide-by-brand on paints. */
   tools?: ReactNode;
+  asideTitle: string;
+  asideDescription: string;
+  asideLists?: readonly PersonalCatalogueAsideList[];
   /** Modals the page owns, rendered inside this layout so it can stay the page's only root. */
   children?: ReactNode;
 }>;
@@ -313,6 +322,9 @@ export default function PersonalCatalogueView<T extends PersonalDefinition>({
   onRemove,
   onSetHidden,
   tools,
+  asideTitle,
+  asideDescription,
+  asideLists,
   children,
 }: PersonalCatalogueViewProps<T>) {
   const [search, setSearch] = useState("");
@@ -331,6 +343,40 @@ export default function PersonalCatalogueView<T extends PersonalDefinition>({
   }, [shared, mine, search, visibility, baseIdOf]);
 
   const bulk = bulkHiddenIntent(customisableShared);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: baseIdOf is an inline getter; mine/shared already refresh the panel
+  const aside = useMemo(() => {
+    if (isAuthLoading || loading) return null;
+    const customisedBaseIds = new Set(mine.map(baseIdOf).filter(Boolean));
+    const uncustomisedShared = shared.filter((item) => !customisedBaseIds.has(item.id));
+    return (
+      <PersonalCatalogueAside
+        title={asideTitle}
+        description={asideDescription}
+        authorised={isAuthenticated}
+        unauthorisedMessage={unauthorisedMessage}
+        loadFailed={loadFailed}
+        failedMessage="This list could not be loaded."
+        mineCount={mine.length}
+        origins={countMineOrigins(mine, baseIdOf)}
+        sharedCount={shared.length}
+        pickerVisibility={countPickerVisibility(mine, uncustomisedShared)}
+        extraLists={asideLists}
+      />
+    );
+  }, [
+    isAuthLoading,
+    loading,
+    isAuthenticated,
+    unauthorisedMessage,
+    loadFailed,
+    mine,
+    shared,
+    asideTitle,
+    asideDescription,
+    asideLists,
+  ]);
+  useAsideContent(aside);
 
   return (
     <Stack gap="md">

@@ -1,14 +1,31 @@
 import { SegmentedControl, Stack, Text, Title } from "@mantine/core";
-import { useReducer } from "react";
+import { useMemo, useReducer } from "react";
 import { useAuth } from "@/auth/useAuth";
+import { AsidePanel } from "@/components/aside/AsidePanel.tsx";
 import { LoadingSettings } from "@/components/settings/LoadingSettings.tsx";
+import { SettingsAside } from "@/components/settings/SettingsAside.tsx";
 import { settingsReducer } from "@/components/settings/settingsReducer.ts";
 import { UnauthenticatedSettings } from "@/components/settings/UnauthenticatedSettings.tsx";
 import type { ThemePreference } from "@/generated";
+import { useAsideContent } from "@/hooks/useAsideContent.ts";
 
 export default function SettingsPage() {
   const { user, isAuthenticated, isLoading, setThemePreference } = useAuth();
   const [state, dispatch] = useReducer(settingsReducer, { isSaving: false });
+
+  const aside = useMemo(() => {
+    if (isLoading) return null;
+    if (!isAuthenticated || !user) {
+      return (
+        <AsidePanel
+          title="Account"
+          description="Sign in with Google to see your email, role, and appearance preference."
+        />
+      );
+    }
+    return <SettingsAside user={user} />;
+  }, [isLoading, isAuthenticated, user]);
+  useAsideContent(aside);
 
   async function handleChange(value: ThemePreference) {
     dispatch({ type: "startSaving" });

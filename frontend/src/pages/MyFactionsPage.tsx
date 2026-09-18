@@ -151,6 +151,8 @@ export default function MyFactionsPage() {
       onCustomise={handleCustomise}
       onRemove={(faction) => catalogue.handleRemove(faction.id ?? "")}
       onSetHidden={catalogue.handleSetHidden}
+      asideTitle="Your factions"
+      asideDescription="Factions you have added or customised, and how many you have taken out of pickers."
     >
       <FactionFormModal
         opened={editing.mode !== "closed"}

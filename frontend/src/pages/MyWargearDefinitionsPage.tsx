@@ -139,6 +139,8 @@ export default function MyWargearDefinitionsPage() {
       onCustomise={handleCustomise}
       onRemove={(definition) => catalogue.handleRemove(definition.id ?? "")}
       onSetHidden={catalogue.handleSetHidden}
+      asideTitle="Your wargear"
+      asideDescription="Wargear you have named or renamed, and how many you have taken out of pickers."
     >
       <WargearNameModal
         opened={editing.mode !== "closed"}

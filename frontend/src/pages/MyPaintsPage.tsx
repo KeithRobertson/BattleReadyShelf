@@ -1,6 +1,7 @@
 import { Group, Text } from "@mantine/core";
 import { useMemo, useState } from "react";
 import DefinitionDiffModal, { PERSONAL_DIFF_LABELS } from "@/components/definitions/DefinitionDiffModal.tsx";
+import { isHidden } from "@/components/mydefinitions/catalogueVisibility";
 import HidePaintsByGroup from "@/components/mydefinitions/HidePaintsByGroup.tsx";
 import PaintFormModal, { type PaintFormValues, paintTypeLabel } from "@/components/mydefinitions/PaintFormModal.tsx";
 import PersonalCatalogueView, {
@@ -11,6 +12,7 @@ import PaintSwatch from "@/components/paints/PaintSwatch.tsx";
 import type { Paint } from "@/generated";
 import { createMyPaint, customisePaint, deleteMyPaint, getMyPaints, getSharedPaints, updateMyPaint } from "@/generated";
 import { PAINTS_KEY } from "@/queryKeys.ts";
+import { paintBrandCounts } from "@/utils/admin/catalogueStats";
 import { diffFields, fieldChange } from "@/utils/personalFieldDiff";
 
 const DIFF_LABELS = {
@@ -66,6 +68,16 @@ export default function MyPaintsPage() {
 
   const catalogue = usePersonalCatalogue<Paint>(api, "PAINT", CACHED_QUERY_KEYS);
   const { mine, shared, upsertMine, notifyChanged } = catalogue;
+  const hiddenByBrand = useMemo(
+    () => [
+      {
+        title: "Hidden by brand",
+        items: paintBrandCounts([...mine, ...shared].filter(isHidden)),
+        hideEmpty: true,
+      },
+    ],
+    [mine, shared],
+  );
 
   const [editing, setEditing] = useState<Editing>({ mode: "closed" });
   const [diffTarget, setDiffTarget] = useState<Paint | null>(null);
@@ -151,6 +163,9 @@ export default function MyPaintsPage() {
           onSetHidden={catalogue.handleSetHidden}
         />
       }
+      asideTitle="Your paints"
+      asideDescription="Paints you have added or customised, and how many you have taken out of pickers."
+      asideLists={hiddenByBrand}
     >
       <PaintFormModal
         opened={editing.mode !== "closed"}
