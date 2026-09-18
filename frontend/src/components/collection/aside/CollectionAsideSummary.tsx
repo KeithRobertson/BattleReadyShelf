@@ -1,16 +1,30 @@
-import { Divider, Group, Stack, Text, Title } from "@mantine/core";
+import { Divider, Stack, Text, Title } from "@mantine/core";
+import { AsideFilterRow } from "@/components/aside/AsideFilterRow.tsx";
 import { CollectionStatsPanel } from "@/components/collections/CollectionStatsPanel.tsx";
 import type { CollectionModel, CollectionModelStatus, PaintRecipe } from "@/generated";
 import describePaint from "@/utils/collection/describePaint.ts";
 import effectivePaintIds from "@/utils/collection/effectivePaintIds.ts";
+import exclusiveFilterValue from "@/utils/collection/exclusiveFilterValue.ts";
 import wargearNamesOnModel, { normalizeWargearName } from "@/utils/collection/wargearNamesOnModel.ts";
 import { COLLECTION_MODEL_STATUSES } from "@/utils/collectionModelStatus.ts";
+
+export type CollectionAsideFilters = Readonly<{
+  statusFilter: CollectionModelStatus[];
+  setStatusFilter: (value: CollectionModelStatus[]) => void;
+  typeFilter: string[];
+  setTypeFilter: (value: string[]) => void;
+  paintFilter: string[];
+  setPaintFilter: (value: string[]) => void;
+  wargearFilter: string[];
+  setWargearFilter: (value: string[]) => void;
+}>;
 
 export type CollectionAsideSummaryProps = Readonly<{
   collectionName: string;
   models: CollectionModel[];
   recipes: PaintRecipe[];
   modelDefinitionOrder: string[];
+  filters: CollectionAsideFilters;
 }>;
 
 type CountItem = { key: string; label: string; count: number };
@@ -90,7 +104,17 @@ function wargearCounts(models: CollectionModel[]): CountItem[] {
   return [...used.values()].toSorted((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
 }
 
-function CountList({ title, items }: Readonly<{ title: string; items: CountItem[] }>) {
+function CountList({
+  title,
+  items,
+  activeKeys,
+  onSelect,
+}: Readonly<{
+  title: string;
+  items: CountItem[];
+  activeKeys: string[];
+  onSelect: (key: string) => void;
+}>) {
   if (items.length === 0) return null;
   return (
     <Stack gap={4}>
@@ -98,14 +122,13 @@ function CountList({ title, items }: Readonly<{ title: string; items: CountItem[
         {title}
       </Text>
       {items.map((item) => (
-        <Group key={item.key} justify="space-between" gap={8} wrap="nowrap">
-          <Text size="xs" c="dimmed" truncate>
-            {item.label}
-          </Text>
-          <Text size="xs" fw={600}>
-            {item.count}
-          </Text>
-        </Group>
+        <AsideFilterRow
+          key={item.key}
+          label={item.label}
+          count={item.count}
+          active={activeKeys.includes(item.key)}
+          onClick={() => onSelect(item.key)}
+        />
       ))}
     </Stack>
   );
@@ -116,20 +139,49 @@ export function CollectionAsideSummary({
   models,
   recipes,
   modelDefinitionOrder,
+  filters,
 }: CollectionAsideSummaryProps) {
+  function clearAllFilters() {
+    filters.setStatusFilter([]);
+    filters.setTypeFilter([]);
+    filters.setPaintFilter([]);
+    filters.setWargearFilter([]);
+  }
+
   return (
     <Stack gap="md">
       <div>
         <Title order={4}>{collectionName}</Title>
         <Text c="dimmed" size="sm">
-          Overview of this collection. Click a model to inspect it.
+          Overview of this collection. Click a summary to filter, or a model to inspect it.
         </Text>
       </div>
-      <CollectionStatsPanel totalCount={models.length} countsByStatus={countsByStatus(models)} />
+      <CollectionStatsPanel
+        totalCount={models.length}
+        countsByStatus={countsByStatus(models)}
+        activeStatuses={filters.statusFilter}
+        onStatusClick={(status) => filters.setStatusFilter(exclusiveFilterValue(filters.statusFilter, status))}
+        onTotalClick={clearAllFilters}
+      />
       <Divider />
-      <CountList title="By type" items={typeCounts(models, modelDefinitionOrder)} />
-      <CountList title="Paints" items={paintCounts(models, recipes)} />
-      <CountList title="Wargear" items={wargearCounts(models)} />
+      <CountList
+        title="By type"
+        items={typeCounts(models, modelDefinitionOrder)}
+        activeKeys={filters.typeFilter}
+        onSelect={(key) => filters.setTypeFilter(exclusiveFilterValue(filters.typeFilter, key))}
+      />
+      <CountList
+        title="Paints"
+        items={paintCounts(models, recipes)}
+        activeKeys={filters.paintFilter}
+        onSelect={(key) => filters.setPaintFilter(exclusiveFilterValue(filters.paintFilter, key))}
+      />
+      <CountList
+        title="Wargear"
+        items={wargearCounts(models)}
+        activeKeys={filters.wargearFilter}
+        onSelect={(key) => filters.setWargearFilter(exclusiveFilterValue(filters.wargearFilter, key))}
+      />
     </Stack>
   );
 }

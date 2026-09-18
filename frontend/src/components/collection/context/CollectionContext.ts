@@ -2,6 +2,7 @@ import { createContext, useContext } from "react";
 import type { CollectionModelStatus } from "@/generated";
 import type { CollectionHook } from "@/hooks/collections/useCollection.ts";
 import type { CollectionEditing } from "@/hooks/collections/useCollectionEditing.ts";
+import type { CollectionModelFilters } from "@/hooks/collections/useCollectionModelFilters.ts";
 import type { CollectionModels } from "@/hooks/collections/useCollectionModels.ts";
 import type { ModelDeletion } from "@/hooks/collections/useDeleteConfirmation.ts";
 import type { GroupDrag } from "@/hooks/collections/useGroupDrag.ts";
@@ -27,6 +28,8 @@ export interface CollectionContextValue {
   isEditMode: boolean;
   setIsEditMode: (v: boolean) => void;
   statusFilter: CollectionModelStatus[];
+  setStatusFilter: (value: CollectionModelStatus[]) => void;
+  modelFilters: CollectionModelFilters;
   openGroups: string[];
   setOpenGroups: (openGroups: string[]) => void;
 }

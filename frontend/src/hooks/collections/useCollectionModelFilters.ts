@@ -18,9 +18,49 @@ function paintsByIdFromRecipes(recipes: PaintRecipe[]): Map<string, Paint> {
   return paintsById;
 }
 
+function matchesTypeFilter(model: CollectionModel, typeFilter: string[]): boolean {
+  if (typeFilter.length === 0) {
+    return true;
+  }
+  return typeFilter.includes(model.modelDefinitionId ?? "unknown");
+}
+
+function matchesPaintFilter(model: CollectionModel, paintFilter: string[], recipes: PaintRecipe[]): boolean {
+  if (paintFilter.length === 0) {
+    return true;
+  }
+  const ids = effectivePaintIds(model, recipes);
+  return paintFilter.some((paintId) => ids.has(paintId));
+}
+
+function matchesWargearFilter(model: CollectionModel, wargearFilter: string[]): boolean {
+  if (wargearFilter.length === 0) {
+    return true;
+  }
+  const names = new Set(wargearNamesOnModel(model).map(normalizeWargearName));
+  return wargearFilter.some((name) => names.has(name));
+}
+
 export default function useCollectionModelFilters(models: CollectionModel[], recipes: PaintRecipe[]) {
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [paintFilter, setPaintFilter] = useState<string[]>([]);
   const [wargearFilter, setWargearFilter] = useState<string[]>([]);
+
+  const typeOptions = useMemo(() => {
+    const byType = new Map<string, { label: string; count: number }>();
+    for (const model of models) {
+      const value = model.modelDefinitionId ?? "unknown";
+      const existing = byType.get(value);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        byType.set(value, { label: model.modelDefinition?.name ?? "Unknown type", count: 1 });
+      }
+    }
+    return [...byType.entries()]
+      .map(([value, { label, count }]) => ({ value, label: `${label} (${count})`, name: label }))
+      .toSorted((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  }, [models]);
 
   const paintOptions = useMemo(() => {
     const paintsById = paintsByIdFromRecipes(recipes);
@@ -66,33 +106,23 @@ export default function useCollectionModelFilters(models: CollectionModel[], rec
   }, [models]);
 
   const modelMatchesFilters = useCallback(
-    (model: CollectionModel) => {
-      if (paintFilter.length > 0) {
-        const ids = effectivePaintIds(model, recipes);
-        if (!paintFilter.some((paintId) => ids.has(paintId))) {
-          return false;
-        }
-      }
-
-      if (wargearFilter.length > 0) {
-        const names = new Set(wargearNamesOnModel(model).map(normalizeWargearName));
-        if (!wargearFilter.some((name) => names.has(name))) {
-          return false;
-        }
-      }
-
-      return true;
-    },
-    [paintFilter, recipes, wargearFilter],
+    (model: CollectionModel) =>
+      matchesTypeFilter(model, typeFilter) &&
+      matchesPaintFilter(model, paintFilter, recipes) &&
+      matchesWargearFilter(model, wargearFilter),
+    [paintFilter, recipes, typeFilter, wargearFilter],
   );
 
-  const isFiltered = paintFilter.length > 0 || wargearFilter.length > 0;
+  const isFiltered = typeFilter.length > 0 || paintFilter.length > 0 || wargearFilter.length > 0;
 
   return {
+    typeFilter,
+    setTypeFilter,
     paintFilter,
     setPaintFilter,
     wargearFilter,
     setWargearFilter,
+    typeOptions,
     paintOptions,
     wargearOptions,
     modelMatchesFilters,

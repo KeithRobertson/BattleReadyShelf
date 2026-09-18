@@ -1,5 +1,6 @@
-import { Divider, Group, Stack, Text } from "@mantine/core";
+import { Divider, Stack } from "@mantine/core";
 import { IconStack2 } from "@tabler/icons-react";
+import { AsideFilterRow } from "@/components/aside/AsideFilterRow.tsx";
 import type { CollectionModelStatus } from "@/generated";
 import {
   COLLECTION_MODEL_STATUS_COLORS,
@@ -10,55 +11,46 @@ import {
 export type CollectionStatsPanelProps = Readonly<{
   totalCount: number;
   countsByStatus: Record<CollectionModelStatus, number>;
+  activeStatuses?: CollectionModelStatus[];
+  onStatusClick?: (status: CollectionModelStatus) => void;
+  onTotalClick?: () => void;
 }>;
 
-export function CollectionStatsPanel({ totalCount, countsByStatus }: CollectionStatsPanelProps) {
+export function CollectionStatsPanel({
+  totalCount,
+  countsByStatus,
+  activeStatuses = [],
+  onStatusClick,
+  onTotalClick,
+}: CollectionStatsPanelProps) {
   const statusEntries = COLLECTION_MODEL_STATUSES.map((status) => ({
     status,
     count: countsByStatus[status] ?? 0,
   }));
 
-  const renderStatusCell = (entry: (typeof statusEntries)[number], fullWidth = false) => (
-    <Group
-      key={entry.status}
-      justify="space-between"
-      gap={8}
-      wrap="nowrap"
-      style={{ gridColumn: fullWidth ? "1 / -1" : undefined }}
-    >
-      <Group gap={6} wrap="nowrap">
-        <span
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            backgroundColor: COLLECTION_MODEL_STATUS_COLORS[entry.status],
-            flexShrink: 0,
-          }}
-        />
-        <Text size="xs" c="dimmed">
-          {COLLECTION_MODEL_STATUS_LABELS[entry.status]}
-        </Text>
-      </Group>
-      <Text size="xs" fw={600}>
-        {entry.count}
-      </Text>
-    </Group>
-  );
+  function statusDot(status: CollectionModelStatus) {
+    return (
+      <span
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: "50%",
+          backgroundColor: COLLECTION_MODEL_STATUS_COLORS[status],
+          flexShrink: 0,
+        }}
+      />
+    );
+  }
 
   return (
     <Stack gap={2} miw={200}>
-      <Group justify="space-between" gap={8} wrap="nowrap">
-        <Group gap={4} wrap="nowrap">
-          <IconStack2 size={14} stroke={1.5} />
-          <Text size="xs" c="dimmed">
-            Total
-          </Text>
-        </Group>
-        <Text fw={700} size="sm">
-          {totalCount}
-        </Text>
-      </Group>
+      <AsideFilterRow
+        label="Total"
+        count={totalCount}
+        onClick={onTotalClick}
+        actionTitle="Clear filters"
+        leading={<IconStack2 size={14} stroke={1.5} />}
+      />
 
       <Divider my={2} />
 
@@ -70,8 +62,21 @@ export function CollectionStatsPanel({ totalCount, countsByStatus }: CollectionS
           rowGap: 2,
         }}
       >
-        {renderStatusCell(statusEntries[0], true)}
-        {statusEntries.slice(1).map((entry) => renderStatusCell(entry))}
+        {statusEntries.map((entry, index) => (
+          <AsideFilterRow
+            key={entry.status}
+            label={COLLECTION_MODEL_STATUS_LABELS[entry.status]}
+            count={entry.count}
+            active={activeStatuses.includes(entry.status)}
+            onClick={
+              onStatusClick && entry.count > 0
+                ? () => onStatusClick(entry.status)
+                : undefined
+            }
+            leading={statusDot(entry.status)}
+            fullWidth={index === 0}
+          />
+        ))}
       </div>
     </Stack>
   );

@@ -102,6 +102,8 @@ export default function CollectionPage() {
       isEditMode={isEditMode}
       setIsEditMode={setIsEditMode}
       statusFilter={statusFilter}
+      setStatusFilter={setStatusFilter}
+      modelFilters={modelFilters}
       openGroups={openGroups}
       setOpenGroups={setOpenGroups}
     >
@@ -151,6 +153,9 @@ export default function CollectionPage() {
                   isEditMode={isEditMode}
                   statusFilter={statusFilter}
                   setStatusFilter={setStatusFilter}
+                  typeFilter={modelFilters.typeFilter}
+                  setTypeFilter={modelFilters.setTypeFilter}
+                  typeOptions={modelFilters.typeOptions}
                   paintFilter={modelFilters.paintFilter}
                   setPaintFilter={modelFilters.setPaintFilter}
                   paintOptions={modelFilters.paintOptions}

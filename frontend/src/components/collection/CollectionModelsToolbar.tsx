@@ -43,6 +43,10 @@ export type CollectionModelsToolbarProps = Readonly<{
   statusFilter: CollectionModelStatus[];
   setStatusFilter: (value: CollectionModelStatus[]) => void;
 
+  typeFilter: string[];
+  setTypeFilter: (value: string[]) => void;
+  typeOptions: FilterOption[];
+
   paintFilter: string[];
   setPaintFilter: (value: string[]) => void;
   paintOptions: FilterOption[];
@@ -77,6 +81,9 @@ export function CollectionModelsToolbar({
   isEditMode,
   statusFilter,
   setStatusFilter,
+  typeFilter,
+  setTypeFilter,
+  typeOptions,
   paintFilter,
   setPaintFilter,
   paintOptions,
@@ -90,7 +97,8 @@ export function CollectionModelsToolbar({
   deletion,
 }: CollectionModelsToolbarProps) {
   const shownCount = groupedModels.groupedModels.reduce((sum, g) => sum + g.models.length, 0);
-  const isFiltered = statusFilter.length > 0 || paintFilter.length > 0 || wargearFilter.length > 0;
+  const isFiltered =
+    statusFilter.length > 0 || typeFilter.length > 0 || paintFilter.length > 0 || wargearFilter.length > 0;
 
   const toggleStatusFilter = useCallback(
     (status: CollectionModelStatus) => {
@@ -146,6 +154,20 @@ export function CollectionModelsToolbar({
           size="xs"
           clearable
         />
+
+        {typeOptions.length > 0 && (
+          <MultiSelect
+            label="Filter by type"
+            placeholder={typeFilter.length === 0 ? "All" : undefined}
+            data={typeOptions}
+            value={typeFilter}
+            onChange={setTypeFilter}
+            w={220}
+            size="xs"
+            searchable
+            clearable
+          />
+        )}
 
         {paintOptions.length > 0 && (
           <MultiSelect

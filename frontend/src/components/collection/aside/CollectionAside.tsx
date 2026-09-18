@@ -12,7 +12,8 @@ import { useAsideContent } from "@/hooks/useAsideContent.ts";
  * the panels receive props rather than reading context.
  */
 export default function CollectionAside() {
-  const { focus, collection, collectionModels, groupedModels, paintRecipes } = useCollectionContext();
+  const { focus, collection, collectionModels, groupedModels, paintRecipes, statusFilter, setStatusFilter, modelFilters } =
+    useCollectionContext();
 
   const focusedModel = collectionModels.models.find((model) => model.id === focus.focusedModelId) ?? null;
   const focusedVisible = groupedModels.groupedModels.some((group) =>
@@ -35,6 +36,16 @@ export default function CollectionAside() {
         models={collectionModels.models}
         recipes={paintRecipes.recipes}
         modelDefinitionOrder={collection.collection?.modelDefinitionOrder ?? []}
+        filters={{
+          statusFilter,
+          setStatusFilter,
+          typeFilter: modelFilters.typeFilter,
+          setTypeFilter: modelFilters.setTypeFilter,
+          paintFilter: modelFilters.paintFilter,
+          setPaintFilter: modelFilters.setPaintFilter,
+          wargearFilter: modelFilters.wargearFilter,
+          setWargearFilter: modelFilters.setWargearFilter,
+        }}
       />
     );
   }, [
@@ -45,6 +56,9 @@ export default function CollectionAside() {
     collectionModels.models,
     paintRecipes.recipes,
     focus.clearFocus,
+    statusFilter,
+    setStatusFilter,
+    modelFilters,
   ]);
   useAsideContent(aside);
 
