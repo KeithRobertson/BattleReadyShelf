@@ -14,7 +14,9 @@ import com.keith.battlereadyshelf.generated.model.FactionDraft;
 import com.keith.battlereadyshelf.generated.model.FactionExport;
 import com.keith.battlereadyshelf.generated.model.FactionExportItem;
 import com.keith.battlereadyshelf.generated.model.FactionImportResult;
+import com.keith.battlereadyshelf.generated.model.HiddenDefinitionType;
 import com.keith.battlereadyshelf.generated.model.UpdateFactionRequest;
+import com.keith.battlereadyshelf.hiddendefinition.HiddenDefinitionService;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionRepository;
 import com.keith.battlereadyshelf.security.AuthenticatedUserProvider;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
@@ -57,6 +59,7 @@ public class FactionDefinitionService {
     private final DefinitionPublishAuditService definitionPublishAuditService;
     private final FactionCycleGuard factionCycleGuard;
     private final AuthenticatedUserProvider authenticatedUserProvider;
+    private final HiddenDefinitionService hiddenDefinitionService;
 
     /**
      * Lists the shared factions, for admin tooling such as grouping model definitions by faction.
@@ -75,6 +78,10 @@ public class FactionDefinitionService {
      *
      * <p>As with model definitions, a customisation is listed <em>alongside</em> the faction it was
      * forked from rather than replacing it; callers tell them apart using {@code ownerUserId}.
+     *
+     * <p>Factions the user has hidden are left out entirely. This list is what the faction filter and
+     * the model picker's grouping are built from, and a hidden faction has no models left to group:
+     * hiding one hides everything beneath it.
      */
     public List<Faction> getVisibleFactions() {
         var ownerUserId =
@@ -86,9 +93,11 @@ public class FactionDefinitionService {
             return getSharedFactions();
         }
 
+        var hidden = hiddenDefinitionService.hiddenIds(HiddenDefinitionType.FACTION, ownerUserId);
         return Stream.concat(
                         factionRepository.findAllByOwnerUserIdIsNull().stream(),
                         factionRepository.findAllByOwnerUserId(ownerUserId).stream())
+                .filter(faction -> !hidden.contains(faction.getId()))
                 .map(factionDefinitionMapper::toDto)
                 .toList();
     }

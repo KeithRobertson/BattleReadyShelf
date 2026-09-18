@@ -19,6 +19,17 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
 import DefinitionDiffModal, { PERSONAL_DIFF_LABELS } from "@/components/definitions/DefinitionDiffModal.tsx";
+import CatalogueMineBody from "@/components/mydefinitions/CatalogueMineBody.tsx";
+import CatalogueVisibilityFilter from "@/components/mydefinitions/CatalogueVisibilityFilter.tsx";
+import {
+  bulkHiddenIntent,
+  type CatalogueVisibility,
+  isHidden,
+  markHidden,
+  matchesSearch,
+  matchesVisibility,
+} from "@/components/mydefinitions/catalogueVisibility";
+import HideDefinitionButton, { HiddenBadge } from "@/components/mydefinitions/HideDefinitionButton.tsx";
 import PersonalModelDefinitionEditor from "@/components/mydefinitions/PersonalModelDefinitionEditor.tsx";
 import PageGate from "@/components/PageGate.tsx";
 import ResponsiveTable from "@/components/ResponsiveTable.tsx";
@@ -28,9 +39,11 @@ import {
   customiseModelDefinition,
   deleteMyModelDefinition,
   getAvailableWargearDefinitions,
-  getFactionsList,
+  getMyFactions,
   getMyModelDefinitions,
+  getSharedFactions,
   getSharedModelDefinitions,
+  setDefinitionsHidden,
 } from "@/generated";
 import { MODEL_DEFINITIONS_KEY } from "@/queryKeys.ts";
 import { type DraftDiff, diffPersonalModelDefinition } from "@/utils/modelDefinitionDraftDiff";
@@ -68,14 +81,23 @@ function ChangeCountBadge({ diff }: Readonly<{ diff: DraftDiff | undefined }>) {
   return <Badge variant="light">{diff.changeCount === 1 ? "1 change" : `${diff.changeCount} changes`}</Badge>;
 }
 
+/** Why this row cannot be shown again from here: hiding its faction already took it out. */
+function hideDisabledReason(definition: ModelDefinition, factionsById: Map<string, Faction>): string | undefined {
+  const faction = definition.factionId ? factionsById.get(definition.factionId) : undefined;
+  if (!faction?.hidden) return undefined;
+  return `Hidden because you hid ${faction.name}. Show that faction again from My Factions.`;
+}
+
 type MineTableProps = Readonly<{
   definitions: ModelDefinition[];
   diffsById: Map<string, DraftDiff>;
   factionsById: Map<string, Faction>;
   removingIds: Set<string>;
+  hidingIds: Set<string>;
   onEdit: (definition: ModelDefinition) => void;
   onDiff: (definition: ModelDefinition) => void;
   onRemove: (definition: ModelDefinition) => void;
+  onSetHidden: (ids: readonly string[], hidden: boolean) => void;
 }>;
 
 function MyDefinitionsTable({
@@ -83,9 +105,11 @@ function MyDefinitionsTable({
   diffsById,
   factionsById,
   removingIds,
+  hidingIds,
   onEdit,
   onDiff,
   onRemove,
+  onSetHidden,
 }: MineTableProps) {
   return (
     <ResponsiveTable striped withTableBorder verticalSpacing="xs" fitOnMobile>
@@ -101,10 +125,14 @@ function MyDefinitionsTable({
         {definitions.map((definition) => {
           const id = definition.id ?? "";
           const isCustomisation = definition.baseModelDefinitionId != null;
+          const factionHideReason = hideDisabledReason(definition, factionsById);
           return (
             <Table.Tr key={id}>
               <Table.Td style={{ wordBreak: "break-word" }}>
-                {definition.name}
+                <Group gap="xs" wrap="nowrap">
+                  <Text span>{definition.name}</Text>
+                  {isHidden(definition) && <HiddenBadge />}
+                </Group>
                 {/* The columns dropped on a phone reappear here, so narrowing the table never
                     costs information - it only stops the row's buttons scrolling out of reach. */}
                 <Group gap="xs" mt={4} hiddenFrom="sm">
@@ -133,6 +161,13 @@ function MyDefinitionsTable({
                       <IconGitCompare size={16} />
                     </ActionIcon>
                   </Tooltip>
+                  <HideDefinitionButton
+                    hidden={isHidden(definition)}
+                    loading={hidingIds.has(id)}
+                    disabled={factionHideReason != null}
+                    disabledReason={factionHideReason}
+                    onToggle={(hidden) => onSetHidden([id], hidden)}
+                  />
                   <Tooltip label="Edit">
                     <ActionIcon variant="light" aria-label="Edit" onClick={() => onEdit(definition)}>
                       <IconPencil size={16} />
@@ -163,14 +198,25 @@ type SharedTableProps = Readonly<{
   definitions: ModelDefinition[];
   factionsById: Map<string, Faction>;
   customisingIds: Set<string>;
+  hidingIds: Set<string>;
+  emptyMessage: string;
   onCustomise: (definition: ModelDefinition) => void;
+  onSetHidden: (ids: readonly string[], hidden: boolean) => void;
 }>;
 
-function SharedCatalogueTable({ definitions, factionsById, customisingIds, onCustomise }: SharedTableProps) {
+function SharedCatalogueTable({
+  definitions,
+  factionsById,
+  customisingIds,
+  hidingIds,
+  emptyMessage,
+  onCustomise,
+  onSetHidden,
+}: SharedTableProps) {
   if (definitions.length === 0) {
     return (
       <Text c="dimmed" size="sm">
-        Nothing left to customise.
+        {emptyMessage}
       </Text>
     );
   }
@@ -184,33 +230,47 @@ function SharedCatalogueTable({ definitions, factionsById, customisingIds, onCus
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
-        {definitions.map((definition) => (
-          <Table.Tr key={definition.id}>
-            <Table.Td style={{ wordBreak: "break-word" }}>
-              {definition.name}
-              <Text size="sm" c="dimmed" hiddenFrom="sm">
-                {factionLabel(definition, factionsById)}
-              </Text>
-            </Table.Td>
-            <Table.Td visibleFrom="sm">
-              <Text size="sm" c="dimmed">
-                {factionLabel(definition, factionsById)}
-              </Text>
-            </Table.Td>
-            <Table.Td w={1} style={{ whiteSpace: "nowrap" }}>
-              <Group justify="flex-end">
-                <Button
-                  size="xs"
-                  variant="light"
-                  loading={customisingIds.has(definition.id ?? "")}
-                  onClick={() => onCustomise(definition)}
-                >
-                  Customise
-                </Button>
-              </Group>
-            </Table.Td>
-          </Table.Tr>
-        ))}
+        {definitions.map((definition) => {
+          const id = definition.id ?? "";
+          const factionHideReason = hideDisabledReason(definition, factionsById);
+          return (
+            <Table.Tr key={id}>
+              <Table.Td style={{ wordBreak: "break-word" }}>
+                <Group gap="xs" wrap="nowrap">
+                  <Text span>{definition.name}</Text>
+                  {isHidden(definition) && <HiddenBadge />}
+                </Group>
+                <Text size="sm" c="dimmed" hiddenFrom="sm">
+                  {factionLabel(definition, factionsById)}
+                </Text>
+              </Table.Td>
+              <Table.Td visibleFrom="sm">
+                <Text size="sm" c="dimmed">
+                  {factionLabel(definition, factionsById)}
+                </Text>
+              </Table.Td>
+              <Table.Td w={1} style={{ whiteSpace: "nowrap" }}>
+                <Group justify="flex-end" wrap="nowrap" gap="xs">
+                  <HideDefinitionButton
+                    hidden={isHidden(definition)}
+                    loading={hidingIds.has(id)}
+                    disabled={factionHideReason != null}
+                    disabledReason={factionHideReason}
+                    onToggle={(hidden) => onSetHidden([id], hidden)}
+                  />
+                  <Button
+                    size="xs"
+                    variant="light"
+                    loading={customisingIds.has(id)}
+                    onClick={() => onCustomise(definition)}
+                  >
+                    Customise
+                  </Button>
+                </Group>
+              </Table.Td>
+            </Table.Tr>
+          );
+        })}
       </Table.Tbody>
     </ResponsiveTable>
   );
@@ -228,9 +288,11 @@ export default function MyModelDefinitionsPage() {
   const [diffTarget, setDiffTarget] = useState<ModelDefinition | null>(null);
   const [customisingIds, setCustomisingIds] = useState<Set<string>>(new Set());
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
+  const [hidingIds, setHidingIds] = useState<Set<string>>(new Set());
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [newName, setNewName] = useState("");
   const [search, setSearch] = useState("");
+  const [visibility, setVisibility] = useState<CatalogueVisibility>("all");
   const queryClient = useQueryClient();
 
   // Collection pages cache the catalogue, so a definition added or removed here would keep showing
@@ -251,14 +313,17 @@ export default function MyModelDefinitionsPage() {
       Promise.all([
         getMyModelDefinitions({ signal, throwOnError: true }),
         getSharedModelDefinitions({ signal, throwOnError: true }),
-        getFactionsList({ signal, throwOnError: true }),
+        getMyFactions({ signal, throwOnError: true }),
+        getSharedFactions({ signal, throwOnError: true }),
         getAvailableWargearDefinitions({ signal, throwOnError: true }),
       ])
-        .then(([mineRes, sharedRes, factionsRes, wargearRes]) => {
+        .then(([mineRes, sharedRes, myFactionsRes, sharedFactionsRes, wargearRes]) => {
           if (signal?.aborted) return;
           setMine(mineRes.data ?? []);
           setShared(sharedRes.data ?? []);
-          setFactions(factionsRes.data ?? []);
+          // Personal lists keep hidden factions so a model under one can still name it, and so the
+          // page can explain that it is hidden because of the faction rather than on its own.
+          setFactions([...(myFactionsRes.data ?? []), ...(sharedFactionsRes.data ?? [])]);
           setWargearDefinitions(wargearRes.data ?? []);
         })
         .catch(() => {
@@ -272,6 +337,35 @@ export default function MyModelDefinitionsPage() {
     },
     [isAuthenticated],
   );
+
+  async function handleSetHidden(ids: readonly string[], hidden: boolean) {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (unique.length === 0) return;
+
+    setHidingIds((current) => {
+      const next = new Set(current);
+      for (const id of unique) next.add(id);
+      return next;
+    });
+    try {
+      await setDefinitionsHidden({
+        body: { definitionType: "MODEL_DEFINITION", definitionIds: unique, hidden },
+        throwOnError: true,
+      });
+      const idSet = new Set(unique);
+      setMine((current) => markHidden(current, idSet, hidden));
+      setShared((current) => markHidden(current, idSet, hidden));
+      invalidateCatalogue();
+    } catch {
+      // Reported as a notification by the API layer; the rows stay as they were.
+    } finally {
+      setHidingIds((current) => {
+        const next = new Set(current);
+        for (const id of unique) next.delete(id);
+        return next;
+      });
+    }
+  }
 
   useEffect(() => {
     const ac = new AbortController();
@@ -365,16 +459,30 @@ export default function MyModelDefinitionsPage() {
     [mine, sharedById, factionsById],
   );
 
-  // A shared definition the user has already customised is hidden here, because their version is
+  // A shared definition the user has already customised is omitted here, because their version is
   // what they now use everywhere - offering "Customise" again would do nothing.
   const customisableShared = useMemo(() => {
     const customisedBaseIds = new Set(mine.map((d) => d.baseModelDefinitionId).filter(Boolean));
-    const term = search.trim().toLowerCase();
     return shared.filter(
       (definition) =>
-        !customisedBaseIds.has(definition.id) && (term === "" || definition.name.toLowerCase().includes(term)),
+        !customisedBaseIds.has(definition.id) &&
+        matchesSearch(definition.name, search) &&
+        matchesVisibility(definition, visibility),
     );
-  }, [shared, mine, search]);
+  }, [shared, mine, search, visibility]);
+
+  const visibleMine = useMemo(
+    () => mine.filter((definition) => matchesVisibility(definition, visibility)),
+    [mine, visibility],
+  );
+  const bulk = bulkHiddenIntent(
+    customisableShared.filter((definition) => !hideDisabledReason(definition, factionsById)),
+  );
+
+  const editorFactions = useMemo(
+    () => factions.filter((faction) => !faction.hidden || faction.id === editing?.factionId),
+    [factions, editing],
+  );
 
   return (
     <Stack gap="md">
@@ -382,7 +490,8 @@ export default function MyModelDefinitionsPage() {
         <div>
           <Title order={2}>My Model Definitions</Title>
           <Text c="dimmed">
-            Add model types of your own, or tweak the shared ones. Everything here is visible only to you.
+            Add model types of your own, or tweak the shared ones. Hide any you never collect so they stop appearing
+            when you add a model.
           </Text>
         </div>
         {isAuthenticated && (
@@ -405,46 +514,68 @@ export default function MyModelDefinitionsPage() {
         unauthorisedMessage="Sign in to create and customise your own model definitions."
       >
         <Stack gap="lg">
+          <Group justify="flex-end">
+            <CatalogueVisibilityFilter value={visibility} onChange={setVisibility} />
+          </Group>
           <div>
             <Title order={4} mb="xs">
               Yours
             </Title>
-            {mine.length === 0 ? (
-              // Silent when the load failed: the alert above already explains the empty list, and
-              // "you have not added any" would be stating something the page does not know.
-              !loadFailed && (
-                <Text c="dimmed">
-                  You have not added or customised any model definitions yet. Customise one below to get started.
-                </Text>
-              )
-            ) : (
-              <MyDefinitionsTable
-                definitions={mine}
-                diffsById={diffsById}
-                factionsById={factionsById}
-                removingIds={removingIds}
-                onEdit={setEditing}
-                onDiff={setDiffTarget}
-                onRemove={handleRemove}
-              />
-            )}
+            <CatalogueMineBody
+              mineEmpty={mine.length === 0}
+              loadFailed={loadFailed}
+              emptyMineMessage="You have not added or customised any model definitions yet. Customise one below to get started."
+              filteredEmpty={visibleMine.length === 0}
+              table={
+                <MyDefinitionsTable
+                  definitions={visibleMine}
+                  diffsById={diffsById}
+                  factionsById={factionsById}
+                  removingIds={removingIds}
+                  hidingIds={hidingIds}
+                  onEdit={setEditing}
+                  onDiff={setDiffTarget}
+                  onRemove={handleRemove}
+                  onSetHidden={handleSetHidden}
+                />
+              }
+            />
           </div>
 
           <div>
             <Group justify="space-between" mb="xs">
               <Title order={4}>Shared catalogue</Title>
-              <TextInput
-                placeholder="Search"
-                value={search}
-                onChange={(e) => setSearch(e.currentTarget.value)}
-                w={220}
-              />
+              <Group gap="xs">
+                {bulk && bulk.ids.length > 1 && (
+                  <Button
+                    size="compact-sm"
+                    variant="default"
+                    loading={bulk.ids.some((id) => hidingIds.has(id))}
+                    onClick={() => handleSetHidden(bulk.ids, bulk.hidden)}
+                  >
+                    {bulk.hidden ? "Hide these from pickers" : "Show these in pickers"}
+                  </Button>
+                )}
+                <TextInput
+                  placeholder="Search"
+                  value={search}
+                  onChange={(e) => setSearch(e.currentTarget.value)}
+                  w={220}
+                />
+              </Group>
             </Group>
             <SharedCatalogueTable
               definitions={customisableShared}
               factionsById={factionsById}
               customisingIds={customisingIds}
+              hidingIds={hidingIds}
+              emptyMessage={
+                shared.length === 0 || search.trim() !== "" || visibility !== "all"
+                  ? "Nothing matches."
+                  : "Nothing left to customise."
+              }
               onCustomise={handleCustomise}
+              onSetHidden={handleSetHidden}
             />
           </div>
         </Stack>
@@ -464,7 +595,7 @@ export default function MyModelDefinitionsPage() {
       {editing && (
         <PersonalModelDefinitionEditor
           definition={editing}
-          factions={factions}
+          factions={editorFactions}
           wargearDefinitions={wargearDefinitions}
           onClose={() => setEditing(null)}
           onSaved={upsertMine}

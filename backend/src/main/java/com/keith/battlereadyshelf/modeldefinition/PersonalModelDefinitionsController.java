@@ -35,7 +35,9 @@ public class PersonalModelDefinitionsController implements PersonalModelDefiniti
 
     @Override
     public ResponseEntity<List<ModelDefinition>> getSharedModelDefinitions() {
-        return ResponseEntity.ok(personalModelDefinitionService.getSharedModelDefinitions());
+        return ResponseEntity.ok(
+                personalModelDefinitionService.getSharedModelDefinitions(
+                        authenticatedUserProvider.getCurrentUser().id()));
     }
 
     @Override

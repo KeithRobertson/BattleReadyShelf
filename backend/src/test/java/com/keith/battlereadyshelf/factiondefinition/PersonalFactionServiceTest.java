@@ -12,6 +12,7 @@ import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.ConflictException;
 import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.UpdateFactionRequest;
+import com.keith.battlereadyshelf.hiddendefinition.HiddenDefinitionService;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionRepository;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 import com.keith.battlereadyshelf.user.Role;
@@ -37,6 +38,7 @@ class PersonalFactionServiceTest {
 
     @Mock private FactionRepository factionRepository;
     @Mock private ModelDefinitionRepository modelDefinitionRepository;
+    @Mock private HiddenDefinitionService hiddenDefinitionService;
 
     private PersonalFactionService service;
 
@@ -47,7 +49,8 @@ class PersonalFactionServiceTest {
                         factionRepository,
                         new FactionDefinitionMapperImpl(),
                         modelDefinitionRepository,
-                        new FactionCycleGuard(factionRepository));
+                        new FactionCycleGuard(factionRepository),
+                        hiddenDefinitionService);
 
         lenient()
                 .when(factionRepository.save(any()))
@@ -77,7 +80,9 @@ class PersonalFactionServiceTest {
     void getSharedFactionsExcludesPersonalRows() {
         when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(shared("Ultramarines")));
 
-        assertThat(service.getSharedFactions()).extracting("name").containsExactly("Ultramarines");
+        assertThat(service.getSharedFactions(USER_ID))
+                .extracting("name")
+                .containsExactly("Ultramarines");
         verify(factionRepository, never()).findAll();
     }
 

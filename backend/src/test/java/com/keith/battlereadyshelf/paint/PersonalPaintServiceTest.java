@@ -2,6 +2,7 @@ package com.keith.battlereadyshelf.paint;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -11,7 +12,9 @@ import static org.mockito.Mockito.when;
 import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.ConflictException;
 import com.keith.battlereadyshelf.error.NotFoundException;
+import com.keith.battlereadyshelf.generated.model.HiddenDefinitionType;
 import com.keith.battlereadyshelf.generated.model.UpdatePaintRequest;
+import com.keith.battlereadyshelf.hiddendefinition.HiddenDefinitionService;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 import com.keith.battlereadyshelf.user.Role;
 
@@ -24,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,12 +40,15 @@ class PersonalPaintServiceTest {
 
     @Mock private PaintRepository paintRepository;
     @Mock private PaintRecipeRepository paintRecipeRepository;
+    @Mock private HiddenDefinitionService hiddenDefinitionService;
 
     private PersonalPaintService service;
 
     @BeforeEach
     void setUp() {
-        service = new PersonalPaintService(paintRepository, paintRecipeRepository);
+        service =
+                new PersonalPaintService(
+                        paintRepository, paintRecipeRepository, hiddenDefinitionService);
 
         lenient()
                 .when(paintRepository.save(any()))
@@ -95,6 +102,34 @@ class PersonalPaintServiceTest {
                 .containsExactly("Abaddon Black", "Leadbelcher", "My grey");
         assertThat(visible.getFirst().getUsageCount()).isZero();
         assertThat(visible.get(1).getUsageCount()).isEqualTo(4);
+    }
+
+    @Test
+    void aHiddenPaintIsNotOfferedForARecipe() {
+        var leadbelcher = shared("Citadel", "Leadbelcher", "#8b8b8b");
+        var abaddon = shared("Citadel", "Abaddon Black", "#000000");
+        when(paintRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(leadbelcher, abaddon));
+        when(paintRepository.findAllByOwnerUserId(USER_ID)).thenReturn(List.of());
+        when(hiddenDefinitionService.hiddenIds(HiddenDefinitionType.PAINT, USER_ID))
+                .thenReturn(Set.of(leadbelcher.getId()));
+
+        assertThat(service.getVisiblePaints(USER_ID))
+                .extracting(paint -> paint.getName())
+                .containsExactly("Abaddon Black");
+    }
+
+    /** The personal page is the only way back, so it lists hidden paints rather than dropping them. */
+    @Test
+    void thePersonalPageKeepsHiddenPaintsAndMarksThem() {
+        var leadbelcher = shared("Citadel", "Leadbelcher", "#8b8b8b");
+        var abaddon = shared("Citadel", "Abaddon Black", "#000000");
+        when(paintRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(leadbelcher, abaddon));
+        when(hiddenDefinitionService.hiddenIds(HiddenDefinitionType.PAINT, USER_ID))
+                .thenReturn(Set.of(leadbelcher.getId()));
+
+        assertThat(service.getSharedPaints(USER_ID))
+                .extracting(paint -> paint.getName(), paint -> paint.getHidden())
+                .containsExactly(tuple("Abaddon Black", false), tuple("Leadbelcher", true));
     }
 
     @Test

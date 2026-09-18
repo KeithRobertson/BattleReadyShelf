@@ -34,7 +34,9 @@ public class PersonalPaintsController implements PersonalPaintsApi {
 
     @Override
     public ResponseEntity<List<Paint>> getSharedPaints() {
-        return ResponseEntity.ok(personalPaintService.getSharedPaints());
+        return ResponseEntity.ok(
+                personalPaintService.getSharedPaints(
+                        authenticatedUserProvider.getCurrentUser().id()));
     }
 
     @Override

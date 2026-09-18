@@ -2,11 +2,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
+import { markHidden } from "@/components/mydefinitions/catalogueVisibility";
+import type { HiddenDefinitionType } from "@/generated";
+import { setDefinitionsHidden } from "@/generated";
 
 /** The little every personal definition has in common, which is all this hook needs to track one. */
 export interface PersonalDefinition {
   id?: string;
   name: string;
+  hidden?: boolean;
 }
 
 export interface PersonalCatalogueApi<T extends PersonalDefinition> {
@@ -34,6 +38,7 @@ export interface PersonalCatalogueApi<T extends PersonalDefinition> {
  */
 export default function usePersonalCatalogue<T extends PersonalDefinition>(
   api: PersonalCatalogueApi<T>,
+  definitionType: HiddenDefinitionType,
   cachedQueryKeys: readonly string[] = [],
 ) {
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
@@ -45,6 +50,7 @@ export default function usePersonalCatalogue<T extends PersonalDefinition>(
   const [loadFailed, setLoadFailed] = useState(false);
   const [customisingIds, setCustomisingIds] = useState<Set<string>>(new Set());
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
+  const [hidingIds, setHidingIds] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
 
   const { loadMine, loadShared, customise, remove } = api;
@@ -136,6 +142,38 @@ export default function usePersonalCatalogue<T extends PersonalDefinition>(
     [remove, notifyChanged],
   );
 
+  const handleSetHidden = useCallback(
+    async (ids: readonly string[], hidden: boolean) => {
+      const unique = [...new Set(ids.filter(Boolean))];
+      if (unique.length === 0) return;
+
+      setHidingIds((current) => {
+        const next = new Set(current);
+        for (const id of unique) next.add(id);
+        return next;
+      });
+      try {
+        await setDefinitionsHidden({
+          body: { definitionType, definitionIds: unique, hidden },
+          throwOnError: true,
+        });
+        const idSet = new Set(unique);
+        setMine((current) => markHidden(current, idSet, hidden));
+        setShared((current) => markHidden(current, idSet, hidden));
+        notifyChanged();
+      } catch {
+        // Already reported as a notification; the rows stay as they were so the toggle can be retried.
+      } finally {
+        setHidingIds((current) => {
+          const next = new Set(current);
+          for (const id of unique) next.delete(id);
+          return next;
+        });
+      }
+    },
+    [definitionType, notifyChanged],
+  );
+
   return {
     isAuthenticated,
     isAuthLoading,
@@ -145,10 +183,12 @@ export default function usePersonalCatalogue<T extends PersonalDefinition>(
     loadFailed,
     customisingIds,
     removingIds,
+    hidingIds,
     upsertMine,
     notifyChanged,
     handleCustomise,
     handleRemove,
+    handleSetHidden,
   };
 }
 

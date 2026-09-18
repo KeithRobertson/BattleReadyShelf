@@ -61,7 +61,7 @@ export default function MyWargearDefinitionsPage() {
     [],
   );
 
-  const catalogue = usePersonalCatalogue<WargearDefinition>(api, CACHED_QUERY_KEYS);
+  const catalogue = usePersonalCatalogue<WargearDefinition>(api, "WARGEAR_DEFINITION", CACHED_QUERY_KEYS);
   const { mine, shared, upsertMine, notifyChanged } = catalogue;
 
   const [editing, setEditing] = useState<Editing>({ mode: "closed" });
@@ -115,7 +115,7 @@ export default function MyWargearDefinitionsPage() {
   return (
     <PersonalCatalogueView
       title="My Wargear"
-      description="Name wargear of your own, or rename the shared entries for yourself. Everything here is visible only to you."
+      description="Name wargear of your own, or rename the shared entries for yourself. Hide any you never attach so they stop appearing when you author a model."
       createLabel="Add your own"
       emptyMineMessage="You have not added or renamed any wargear yet. Customise one below, or add your own."
       unauthorisedMessage="Sign in to add and rename your own wargear."
@@ -132,11 +132,13 @@ export default function MyWargearDefinitionsPage() {
       diffsById={diffsById}
       customisingIds={catalogue.customisingIds}
       removingIds={catalogue.removingIds}
+      hidingIds={catalogue.hidingIds}
       onCreate={() => setEditing({ mode: "create" })}
       onEdit={(definition) => setEditing({ mode: "edit", definition })}
       onDiff={setDiffTarget}
       onCustomise={handleCustomise}
       onRemove={(definition) => catalogue.handleRemove(definition.id ?? "")}
+      onSetHidden={catalogue.handleSetHidden}
     >
       <WargearNameModal
         opened={editing.mode !== "closed"}

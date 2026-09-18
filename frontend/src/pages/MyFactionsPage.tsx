@@ -15,7 +15,7 @@ import {
   getSharedFactions,
   updateMyFaction,
 } from "@/generated";
-import { FACTIONS_KEY } from "@/queryKeys.ts";
+import { FACTIONS_KEY, MODEL_DEFINITIONS_KEY } from "@/queryKeys.ts";
 import { diffFields, fieldChange } from "@/utils/personalFieldDiff";
 
 const DIFF_LABELS = {
@@ -30,7 +30,7 @@ type Editing = { mode: "closed" } | { mode: "create" } | { mode: "edit"; faction
 // Collection pages group the model picker by faction and offer a faction filter, both fed by this
 // cached query. Adding or renaming a faction here has to drop it or the change is invisible there
 // until that page is next mounted.
-const CACHED_QUERY_KEYS = [FACTIONS_KEY];
+const CACHED_QUERY_KEYS = [FACTIONS_KEY, MODEL_DEFINITIONS_KEY];
 
 export default function MyFactionsPage() {
   const api = useMemo(
@@ -46,7 +46,7 @@ export default function MyFactionsPage() {
     [],
   );
 
-  const catalogue = usePersonalCatalogue<Faction>(api, CACHED_QUERY_KEYS);
+  const catalogue = usePersonalCatalogue<Faction>(api, "FACTION", CACHED_QUERY_KEYS);
   const { mine, shared, upsertMine, notifyChanged } = catalogue;
 
   const [editing, setEditing] = useState<Editing>({ mode: "closed" });
@@ -127,7 +127,7 @@ export default function MyFactionsPage() {
   return (
     <PersonalCatalogueView
       title="My Factions"
-      description="Add factions of your own, or tweak the shared ones. Everything here is visible only to you."
+      description="Add factions of your own, or tweak the shared ones. Hide any you do not play so they — and their models — stop appearing in pickers."
       createLabel="Create your own"
       emptyMineMessage="You have not added or customised any factions yet. Customise one below to get started."
       unauthorisedMessage="Sign in to create and customise your own factions."
@@ -144,11 +144,13 @@ export default function MyFactionsPage() {
       diffsById={diffsById}
       customisingIds={catalogue.customisingIds}
       removingIds={catalogue.removingIds}
+      hidingIds={catalogue.hidingIds}
       onCreate={() => setEditing({ mode: "create" })}
       onEdit={(faction) => setEditing({ mode: "edit", faction })}
       onDiff={setDiffTarget}
       onCustomise={handleCustomise}
       onRemove={(faction) => catalogue.handleRemove(faction.id ?? "")}
+      onSetHidden={catalogue.handleSetHidden}
     >
       <FactionFormModal
         opened={editing.mode !== "closed"}

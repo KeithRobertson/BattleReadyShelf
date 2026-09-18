@@ -14,6 +14,8 @@ import com.keith.battlereadyshelf.definitiondraft.DefinitionPublishAuditService;
 import com.keith.battlereadyshelf.definitiondraft.ProposalOrigin;
 import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.generated.model.Faction;
+import com.keith.battlereadyshelf.generated.model.HiddenDefinitionType;
+import com.keith.battlereadyshelf.hiddendefinition.HiddenDefinitionService;
 import com.keith.battlereadyshelf.generated.model.FactionExport;
 import com.keith.battlereadyshelf.generated.model.FactionExportItem;
 import com.keith.battlereadyshelf.generated.model.UpdateFactionRequest;
@@ -32,6 +34,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,6 +49,7 @@ class FactionDefinitionServiceTest {
     @Mock private ModelDefinitionRepository modelDefinitionRepository;
     @Mock private DefinitionPublishAuditService definitionPublishAuditService;
     @Mock private AuthenticatedUserProvider authenticatedUserProvider;
+    @Mock private HiddenDefinitionService hiddenDefinitionService;
 
     private FactionDefinitionService service;
 
@@ -59,7 +63,8 @@ class FactionDefinitionServiceTest {
                         modelDefinitionRepository,
                         definitionPublishAuditService,
                         new FactionCycleGuard(factionRepository),
-                        authenticatedUserProvider);
+                        authenticatedUserProvider,
+                        hiddenDefinitionService);
         lenient()
                 .when(factionDefinitionMapper.toDto(any(FactionEntity.class)))
                 .thenAnswer(
@@ -82,6 +87,31 @@ class FactionDefinitionServiceTest {
                             }
                             return draft;
                         });
+    }
+
+    /**
+     * This list is both the faction filter and the grouping behind the model picker, so a hidden
+     * faction has to leave it rather than stay as an empty group.
+     */
+    @Test
+    void visibleFactionsLeaveOutTheOnesTheCallerHasHidden() {
+        var userId = UUID.randomUUID();
+        var deathGuard = faction(UUID.randomUUID(), "death_guard", "Death Guard", null);
+        var ultramarines = faction(UUID.randomUUID(), "ultramarines", "Ultramarines", null);
+        when(authenticatedUserProvider.findCurrentUser())
+                .thenReturn(
+                        Optional.of(
+                                new CurrentAuthenticatedUser(
+                                        userId, "user@example.com", Role.USER, Instant.now(), Instant.now())));
+        when(factionRepository.findAllByOwnerUserIdIsNull())
+                .thenReturn(List.of(deathGuard, ultramarines));
+        when(factionRepository.findAllByOwnerUserId(userId)).thenReturn(List.of());
+        when(hiddenDefinitionService.hiddenIds(HiddenDefinitionType.FACTION, userId))
+                .thenReturn(Set.of(deathGuard.getId()));
+
+        assertThat(service.getVisibleFactions())
+                .extracting(Faction::getName)
+                .containsExactly("Ultramarines");
     }
 
     @Test

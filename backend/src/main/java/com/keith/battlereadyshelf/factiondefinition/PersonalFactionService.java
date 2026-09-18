@@ -4,7 +4,9 @@ import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.ConflictException;
 import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.Faction;
+import com.keith.battlereadyshelf.generated.model.HiddenDefinitionType;
 import com.keith.battlereadyshelf.generated.model.UpdateFactionRequest;
+import com.keith.battlereadyshelf.hiddendefinition.HiddenDefinitionService;
 import com.keith.battlereadyshelf.modeldefinition.ModelDefinitionRepository;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 
@@ -39,12 +41,11 @@ public class PersonalFactionService {
     private final FactionDefinitionMapper factionDefinitionMapper;
     private final ModelDefinitionRepository modelDefinitionRepository;
     private final FactionCycleGuard factionCycleGuard;
+    private final HiddenDefinitionService hiddenDefinitionService;
 
     public List<Faction> getMyFactions(CurrentAuthenticatedUser currentUser) {
-        return factionRepository.findAllByOwnerUserId(currentUser.id()).stream()
-                .sorted(Comparator.comparing(FactionEntity::getName, String.CASE_INSENSITIVE_ORDER))
-                .map(factionDefinitionMapper::toDto)
-                .toList();
+        return withHiddenFlag(
+                factionRepository.findAllByOwnerUserId(currentUser.id()), currentUser.id());
     }
 
     /**
@@ -52,10 +53,19 @@ public class PersonalFactionService {
      * customisation and to diff a personal copy against, and they are also the parents a personal
      * faction can sit beneath.
      */
-    public List<Faction> getSharedFactions() {
-        return factionRepository.findAllByOwnerUserIdIsNull().stream()
+    public List<Faction> getSharedFactions(UUID currentUserId) {
+        return withHiddenFlag(factionRepository.findAllByOwnerUserIdIsNull(), currentUserId);
+    }
+
+    /**
+     * Maps for the personal page, which unlike a picker keeps hidden factions in the list and marks
+     * them: it is the one place a user can offer them again.
+     */
+    private List<Faction> withHiddenFlag(List<FactionEntity> factions, UUID currentUserId) {
+        var hidden = hiddenDefinitionService.hiddenIds(HiddenDefinitionType.FACTION, currentUserId);
+        return factions.stream()
                 .sorted(Comparator.comparing(FactionEntity::getName, String.CASE_INSENSITIVE_ORDER))
-                .map(factionDefinitionMapper::toDto)
+                .map(faction -> factionDefinitionMapper.toDto(faction).hidden(hidden.contains(faction.getId())))
                 .toList();
     }
 

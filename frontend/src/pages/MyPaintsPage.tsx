@@ -1,6 +1,7 @@
 import { Group, Text } from "@mantine/core";
 import { useMemo, useState } from "react";
 import DefinitionDiffModal, { PERSONAL_DIFF_LABELS } from "@/components/definitions/DefinitionDiffModal.tsx";
+import HidePaintsByGroup from "@/components/mydefinitions/HidePaintsByGroup.tsx";
 import PaintFormModal, { type PaintFormValues, paintTypeLabel } from "@/components/mydefinitions/PaintFormModal.tsx";
 import PersonalCatalogueView, {
   type PersonalCatalogueColumn,
@@ -9,6 +10,7 @@ import usePersonalCatalogue from "@/components/mydefinitions/usePersonalCatalogu
 import PaintSwatch from "@/components/paints/PaintSwatch.tsx";
 import type { Paint } from "@/generated";
 import { createMyPaint, customisePaint, deleteMyPaint, getMyPaints, getSharedPaints, updateMyPaint } from "@/generated";
+import { PAINTS_KEY } from "@/queryKeys.ts";
 import { diffFields, fieldChange } from "@/utils/personalFieldDiff";
 
 const DIFF_LABELS = {
@@ -18,6 +20,8 @@ const DIFF_LABELS = {
 };
 
 type Editing = { mode: "closed" } | { mode: "create" } | { mode: "edit"; paint: Paint };
+
+const CACHED_QUERY_KEYS = [PAINTS_KEY];
 
 const COLUMNS: PersonalCatalogueColumn<Paint>[] = [
   {
@@ -60,7 +64,7 @@ export default function MyPaintsPage() {
     [],
   );
 
-  const catalogue = usePersonalCatalogue<Paint>(api);
+  const catalogue = usePersonalCatalogue<Paint>(api, "PAINT", CACHED_QUERY_KEYS);
   const { mine, shared, upsertMine, notifyChanged } = catalogue;
 
   const [editing, setEditing] = useState<Editing>({ mode: "closed" });
@@ -115,7 +119,7 @@ export default function MyPaintsPage() {
   return (
     <PersonalCatalogueView
       title="My Paints"
-      description="Add paints of your own, or tweak the shared ones. Everything here is visible only to you."
+      description="Add paints of your own, or tweak the shared ones. Hide brands you do not use so they stop appearing in recipe pickers."
       createLabel="Create your own"
       emptyMineMessage="You have not added or customised any paints yet. Customise one below to get started."
       unauthorisedMessage="Sign in to create and customise your own paints."
@@ -133,11 +137,20 @@ export default function MyPaintsPage() {
       diffsById={diffsById}
       customisingIds={catalogue.customisingIds}
       removingIds={catalogue.removingIds}
+      hidingIds={catalogue.hidingIds}
       onCreate={() => setEditing({ mode: "create" })}
       onEdit={(paint) => setEditing({ mode: "edit", paint })}
       onDiff={setDiffTarget}
       onCustomise={handleCustomise}
       onRemove={(paint) => catalogue.handleRemove(paint.id ?? "")}
+      onSetHidden={catalogue.handleSetHidden}
+      tools={
+        <HidePaintsByGroup
+          paints={[...mine, ...shared]}
+          hidingIds={catalogue.hidingIds}
+          onSetHidden={catalogue.handleSetHidden}
+        />
+      }
     >
       <PaintFormModal
         opened={editing.mode !== "closed"}

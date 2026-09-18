@@ -18,8 +18,13 @@ import static java.time.ZoneOffset.UTC;
 
 @Mapper(componentModel = "spring")
 public interface ModelDefinitionMapper {
+    /**
+     * {@code hidden} is not on the entity: it is per-user, and only the personal list sets it. A
+     * picker never needs it because a hidden definition is not in the list to begin with.
+     */
     @Mapping(target = "attachmentSlots", ignore = true)
     @Mapping(target = "wargearOptions", ignore = true)
+    @Mapping(target = "hidden", ignore = true)
     ModelDefinition toDto(ModelDefinitionEntity entity);
 
     AttachmentSlot toDto(AttachmentSlotEntity entity);

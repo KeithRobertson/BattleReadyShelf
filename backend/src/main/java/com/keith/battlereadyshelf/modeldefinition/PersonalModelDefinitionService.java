@@ -5,12 +5,14 @@ import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.ConflictException;
 import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.AttachmentSlot;
+import com.keith.battlereadyshelf.generated.model.HiddenDefinitionType;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.UpsertAttachmentSlotDraftRequest;
 import com.keith.battlereadyshelf.generated.model.UpsertModelDefinitionDraftRequest;
 import com.keith.battlereadyshelf.generated.model.UpsertWargearOptionDraftRequest;
 import com.keith.battlereadyshelf.generated.model.WargearDefinition;
 import com.keith.battlereadyshelf.generated.model.WargearOption;
+import com.keith.battlereadyshelf.hiddendefinition.HiddenDefinitionService;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 
 import lombok.RequiredArgsConstructor;
@@ -49,9 +51,12 @@ public class PersonalModelDefinitionService {
     private final WargearDefinitionRepository wargearDefinitionRepository;
     private final CollectionModelRepository collectionModelRepository;
     private final ModelDefinitionMapper modelDefinitionMapper;
+    private final HiddenDefinitionService hiddenDefinitionService;
 
     public List<ModelDefinition> getMyModelDefinitions(CurrentAuthenticatedUser currentUser) {
-        return withChildren(modelDefinitionRepository.findAllByOwnerUserId(currentUser.id()));
+        return withHiddenFlag(
+                withChildren(modelDefinitionRepository.findAllByOwnerUserId(currentUser.id())),
+                currentUser.id());
     }
 
     /**
@@ -60,19 +65,41 @@ public class PersonalModelDefinitionService {
      * separately from the user's own rather than merged into one catalogue the way the model picker
      * does.
      */
-    public List<ModelDefinition> getSharedModelDefinitions() {
-        return withChildren(modelDefinitionRepository.findAllByOwnerUserIdIsNull());
+    public List<ModelDefinition> getSharedModelDefinitions(UUID currentUserId) {
+        return withHiddenFlag(
+                withChildren(modelDefinitionRepository.findAllByOwnerUserIdIsNull()), currentUserId);
+    }
+
+    /**
+     * Marks for the personal page, which unlike a picker keeps hidden definitions in the list: it is
+     * the one place a user can offer them again. A definition hidden only because its faction is
+     * hidden reads as hidden here too, so the page can explain why it is not being offered.
+     */
+    private List<ModelDefinition> withHiddenFlag(
+            List<ModelDefinition> definitions, UUID currentUserId) {
+        var hidden = hiddenDefinitionService.hiddenModelDefinitionsFor(currentUserId);
+        return definitions.stream()
+                .map(
+                        definition ->
+                                definition.hidden(
+                                        hidden.includes(definition.getId(), definition.getFactionId())))
+                .toList();
     }
 
     /**
      * The wargear this user can attach: the shared catalogue plus anything they have named
-     * themselves. Sorted together because the picker presents them as one list - which one a name
-     * resolves to is an implementation detail the user shouldn't have to think about.
+     * themselves, less anything they have hidden. Sorted together because the picker presents them as
+     * one list - which one a name resolves to is an implementation detail the user shouldn't have to
+     * think about.
      */
     public List<WargearDefinition> getAvailableWargearDefinitions(CurrentAuthenticatedUser currentUser) {
+        var hidden =
+                hiddenDefinitionService.hiddenIds(
+                        HiddenDefinitionType.WARGEAR_DEFINITION, currentUser.id());
         return Stream.concat(
                         wargearDefinitionRepository.findAllByOwnerUserIdIsNull().stream(),
                         wargearDefinitionRepository.findAllByOwnerUserId(currentUser.id()).stream())
+                .filter(definition -> !hidden.contains(definition.getId()))
                 .sorted(Comparator.comparing(WargearDefinitionEntity::getName, String.CASE_INSENSITIVE_ORDER))
                 .map(
                         definition ->

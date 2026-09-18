@@ -3,8 +3,10 @@ package com.keith.battlereadyshelf.modeldefinition;
 import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.ConflictException;
 import com.keith.battlereadyshelf.error.NotFoundException;
+import com.keith.battlereadyshelf.generated.model.HiddenDefinitionType;
 import com.keith.battlereadyshelf.generated.model.UpdateWargearDefinitionRequest;
 import com.keith.battlereadyshelf.generated.model.WargearDefinition;
+import com.keith.battlereadyshelf.hiddendefinition.HiddenDefinitionService;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 
 import lombok.RequiredArgsConstructor;
@@ -35,24 +37,34 @@ public class PersonalWargearDefinitionService {
 
     private final WargearDefinitionRepository wargearDefinitionRepository;
     private final WargearOptionRepository wargearOptionRepository;
+    private final HiddenDefinitionService hiddenDefinitionService;
 
     public List<WargearDefinition> getMyWargearDefinitions(CurrentAuthenticatedUser currentUser) {
-        var usageCounts = usageCounts();
-        return wargearDefinitionRepository.findAllByOwnerUserId(currentUser.id()).stream()
-                .sorted(Comparator.comparing(WargearDefinitionEntity::getName, String.CASE_INSENSITIVE_ORDER))
-                .map(entity -> toDto(entity, usageCounts))
-                .toList();
+        return withHiddenFlag(
+                wargearDefinitionRepository.findAllByOwnerUserId(currentUser.id()), currentUser.id());
     }
 
     /**
      * The shared wargear itself. The personal page needs the originals both to offer them for
      * customisation and to diff a personal copy against.
      */
-    public List<WargearDefinition> getSharedWargearDefinitions() {
+    public List<WargearDefinition> getSharedWargearDefinitions(UUID currentUserId) {
+        return withHiddenFlag(wargearDefinitionRepository.findAllByOwnerUserIdIsNull(), currentUserId);
+    }
+
+    /**
+     * Maps for the personal page, which unlike a picker keeps hidden wargear in the list and marks
+     * it: it is the one place a user can offer it again.
+     */
+    private List<WargearDefinition> withHiddenFlag(
+            List<WargearDefinitionEntity> definitions, UUID currentUserId) {
         var usageCounts = usageCounts();
-        return wargearDefinitionRepository.findAllByOwnerUserIdIsNull().stream()
+        var hidden =
+                hiddenDefinitionService.hiddenIds(
+                        HiddenDefinitionType.WARGEAR_DEFINITION, currentUserId);
+        return definitions.stream()
                 .sorted(Comparator.comparing(WargearDefinitionEntity::getName, String.CASE_INSENSITIVE_ORDER))
-                .map(entity -> toDto(entity, usageCounts))
+                .map(entity -> toDto(entity, usageCounts).hidden(hidden.contains(entity.getId())))
                 .toList();
     }
 

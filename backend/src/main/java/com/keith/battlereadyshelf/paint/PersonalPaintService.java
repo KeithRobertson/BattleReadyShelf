@@ -8,8 +8,10 @@ import static com.keith.battlereadyshelf.paint.PaintMapper.trimToNull;
 import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.ConflictException;
 import com.keith.battlereadyshelf.error.NotFoundException;
+import com.keith.battlereadyshelf.generated.model.HiddenDefinitionType;
 import com.keith.battlereadyshelf.generated.model.Paint;
 import com.keith.battlereadyshelf.generated.model.UpdatePaintRequest;
+import com.keith.battlereadyshelf.hiddendefinition.HiddenDefinitionService;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 
 import lombok.RequiredArgsConstructor;
@@ -40,42 +42,55 @@ public class PersonalPaintService {
 
     private final PaintRepository paintRepository;
     private final PaintRecipeRepository paintRecipeRepository;
+    private final HiddenDefinitionService hiddenDefinitionService;
 
     /**
-     * What the caller can put in a recipe: the catalogue plus their own paints. Anonymous callers
-     * see the catalogue alone, which is what makes a public collection's recipes readable without
-     * signing in.
+     * What the caller can put in a recipe: the catalogue plus their own paints, less anything they
+     * have hidden. Anonymous callers see the catalogue alone, which is what makes a public
+     * collection's recipes readable without signing in.
+     *
+     * <p>Hidden paints are dropped rather than flagged because this is the picker's list and there is
+     * nothing useful a picker can do with an entry the user has asked not to see. Recipes that
+     * already name a hidden paint are unaffected - they carry the paint with them.
      */
     public List<Paint> getVisiblePaints(UUID currentUserId) {
         var usageCounts = usageCounts();
+        var hidden = hiddenDefinitionService.hiddenIds(HiddenDefinitionType.PAINT, currentUserId);
         var own =
                 currentUserId == null
                         ? Stream.<PaintEntity>empty()
                         : paintRepository.findAllByOwnerUserId(currentUserId).stream();
 
         return Stream.concat(paintRepository.findAllByOwnerUserIdIsNull().stream(), own)
+                .filter(paint -> !hidden.contains(paint.getId()))
                 .sorted(BY_BRAND_THEN_NAME)
                 .map(paint -> PaintMapper.toDto(paint, usageCounts))
                 .toList();
     }
 
     public List<Paint> getMyPaints(CurrentAuthenticatedUser currentUser) {
-        var usageCounts = usageCounts();
-        return paintRepository.findAllByOwnerUserId(currentUser.id()).stream()
-                .sorted(BY_BRAND_THEN_NAME)
-                .map(paint -> PaintMapper.toDto(paint, usageCounts))
-                .toList();
+        return withHiddenFlag(
+                paintRepository.findAllByOwnerUserId(currentUser.id()), currentUser.id());
     }
 
     /**
      * The catalogue itself. The personal page needs the originals both to offer them for
      * customisation and to diff a personal copy against.
      */
-    public List<Paint> getSharedPaints() {
+    public List<Paint> getSharedPaints(UUID currentUserId) {
+        return withHiddenFlag(paintRepository.findAllByOwnerUserIdIsNull(), currentUserId);
+    }
+
+    /**
+     * Maps for the personal page, which unlike a picker keeps hidden paints in the list and marks
+     * them: it is the one place a user can offer them again.
+     */
+    private List<Paint> withHiddenFlag(List<PaintEntity> paints, UUID currentUserId) {
         var usageCounts = usageCounts();
-        return paintRepository.findAllByOwnerUserIdIsNull().stream()
+        var hidden = hiddenDefinitionService.hiddenIds(HiddenDefinitionType.PAINT, currentUserId);
+        return paints.stream()
                 .sorted(BY_BRAND_THEN_NAME)
-                .map(paint -> PaintMapper.toDto(paint, usageCounts))
+                .map(paint -> PaintMapper.toDto(paint, usageCounts).hidden(hidden.contains(paint.getId())))
                 .toList();
     }
 

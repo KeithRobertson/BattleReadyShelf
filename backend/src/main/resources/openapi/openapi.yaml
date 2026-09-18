@@ -2066,6 +2066,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /api/v1/my/hidden-definitions:
+    put:
+      tags: [ "HiddenDefinitions" ]
+      summary: Hide or show definitions for the calling user
+      description: >-
+        A catalogue holds far more than any one person uses - a whole paint range, every faction in
+        the game - so a user can take what they never reach for out of their own pickers.
+
+        This is a preference and not a permission. Nothing is deleted, no other user is affected, and
+        a hidden definition already recorded against a model or a paint recipe carries on displaying:
+        hiding only stops it being offered as a new choice.
+
+        Hiding a faction also takes its model definitions out of the model picker, because the reason
+        to hide a faction is that you do not play it. Those models report hidden themselves, and show
+        again as soon as the faction does.
+
+        Takes a set of ids so a user can clear a whole brand or faction at once, and is idempotent:
+        hiding what is already hidden, or showing what was never hidden, changes nothing.
+      operationId: setDefinitionsHidden
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetDefinitionsHiddenRequest'
+      responses:
+        '204':
+          description: The caller's hidden definitions were updated
+        '400':
+          description: An id given is not a definition of the stated kind
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/admin/paints:
     get:
       tags: [ "PaintAdmin" ]
@@ -2886,6 +2922,14 @@ components:
             an exhaustive/enforced list - it exists to describe common/default loadouts.
           items:
             $ref: '#/components/schemas/WargearOption'
+        hidden:
+          type: boolean
+          readOnly: true
+          description: >-
+            Whether the caller has taken this out of their own pickers. Per-user, so hiding a shared
+            definition affects nobody else. Only ever true on the /api/v1/my lists, which return
+            hidden definitions so they can be shown again; the lists behind pickers omit them. True
+            here also when the model's faction is hidden, since hiding a faction hides its models.
       required: [ name ]
     Faction:
       type: object
@@ -2926,6 +2970,13 @@ components:
           description: >-
             The shared faction this personal one was forked from, so the app can show how it
             differs and offer to revert. Null both for shared factions and for ones a user invented.
+        hidden:
+          type: boolean
+          readOnly: true
+          description: >-
+            Whether the caller has taken this out of their own pickers. Per-user, so hiding a shared
+            faction affects nobody else. Only ever true on the /api/v1/my lists, which return
+            hidden definitions so they can be shown again; the lists behind pickers omit them.
       required: [id, name ]
     AttachmentSlot:
       type: object
@@ -3204,6 +3255,13 @@ components:
           format: int32
           readOnly: true
           description: How many published model definitions currently reference this wargear.
+        hidden:
+          type: boolean
+          readOnly: true
+          description: >-
+            Whether the caller has taken this out of their own pickers. Per-user, so hiding shared
+            wargear affects nobody else. Only ever true on the /api/v1/my lists, which return
+            hidden definitions so they can be shown again; the lists behind pickers omit them.
       required: [ name ]
     UpdateWargearDefinitionRequest:
       type: object
@@ -3316,7 +3374,36 @@ components:
           format: int32
           readOnly: true
           description: How many paint recipes currently reference this paint.
+        hidden:
+          type: boolean
+          readOnly: true
+          description: >-
+            Whether the caller has taken this out of their own pickers. Per-user, so hiding a
+            catalogue paint affects nobody else. Only ever true on the /api/v1/my lists, which
+            return hidden definitions so they can be shown again; the lists behind pickers omit them.
       required: [ name ]
+    HiddenDefinitionType:
+      type: string
+      description: Which catalogue the ids in a hide request belong to.
+      enum: [ MODEL_DEFINITION, FACTION, WARGEAR_DEFINITION, PAINT ]
+    SetDefinitionsHiddenRequest:
+      type: object
+      description: >-
+        Hides or shows definitions of one kind for the calling user. All the ids must belong to that
+        one kind, so a caller clearing several catalogues at once sends a request each.
+      properties:
+        definitionType:
+          $ref: '#/components/schemas/HiddenDefinitionType'
+        definitionIds:
+          type: array
+          description: The definitions to hide or show. An empty list is accepted and does nothing.
+          items:
+            type: string
+            format: uuid
+        hidden:
+          type: boolean
+          description: True to take these out of the caller's pickers, false to offer them again.
+      required: [ definitionType, definitionIds, hidden ]
     UpdatePaintRequest:
       type: object
       description: >-

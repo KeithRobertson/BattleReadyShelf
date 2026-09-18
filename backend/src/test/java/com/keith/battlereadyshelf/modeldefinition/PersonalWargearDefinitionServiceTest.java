@@ -12,6 +12,7 @@ import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.ConflictException;
 import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.UpdateWargearDefinitionRequest;
+import com.keith.battlereadyshelf.hiddendefinition.HiddenDefinitionService;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 import com.keith.battlereadyshelf.user.Role;
 
@@ -36,12 +37,15 @@ class PersonalWargearDefinitionServiceTest {
 
     @Mock private WargearDefinitionRepository wargearDefinitionRepository;
     @Mock private WargearOptionRepository wargearOptionRepository;
+    @Mock private HiddenDefinitionService hiddenDefinitionService;
 
     private PersonalWargearDefinitionService service;
 
     @BeforeEach
     void setUp() {
-        service = new PersonalWargearDefinitionService(wargearDefinitionRepository, wargearOptionRepository);
+        service =
+                new PersonalWargearDefinitionService(
+                        wargearDefinitionRepository, wargearOptionRepository, hiddenDefinitionService);
 
         lenient()
                 .when(wargearDefinitionRepository.save(any()))
@@ -78,7 +82,7 @@ class PersonalWargearDefinitionServiceTest {
         when(wargearOptionRepository.countUsagesByWargearDefinition())
                 .thenReturn(List.<Object[]>of(new Object[] {bolter.getId(), 6L}));
 
-        var shared = service.getSharedWargearDefinitions();
+        var shared = service.getSharedWargearDefinitions(USER_ID);
 
         assertThat(shared).singleElement().satisfies(dto -> assertThat(dto.getUsageCount()).isEqualTo(6));
         verify(wargearOptionRepository, never()).countByWargearDefinitionId(any());

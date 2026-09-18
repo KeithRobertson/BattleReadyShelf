@@ -35,7 +35,9 @@ public class PersonalWargearDefinitionsController implements PersonalWargearDefi
 
     @Override
     public ResponseEntity<List<WargearDefinition>> getSharedWargearDefinitions() {
-        return ResponseEntity.ok(personalWargearDefinitionService.getSharedWargearDefinitions());
+        return ResponseEntity.ok(
+                personalWargearDefinitionService.getSharedWargearDefinitions(
+                        authenticatedUserProvider.getCurrentUser().id()));
     }
 
     @Override

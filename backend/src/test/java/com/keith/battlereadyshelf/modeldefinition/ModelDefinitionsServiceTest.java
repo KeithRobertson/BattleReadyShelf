@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.keith.battlereadyshelf.collectionmodel.CollectionModelRepository;
@@ -14,6 +16,8 @@ import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.AttachmentSlot;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.WargearOption;
+import com.keith.battlereadyshelf.hiddendefinition.HiddenDefinitionService;
+import com.keith.battlereadyshelf.hiddendefinition.HiddenModelDefinitions;
 import com.keith.battlereadyshelf.security.AuthenticatedUserProvider;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 import com.keith.battlereadyshelf.user.Role;
@@ -27,6 +31,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,6 +41,7 @@ class ModelDefinitionsServiceTest {
     @Mock private WargearOptionRepository wargearOptionRepository;
     @Mock private CollectionModelRepository collectionModelRepository;
     @Mock private AuthenticatedUserProvider authenticatedUserProvider;
+    @Mock private HiddenDefinitionService hiddenDefinitionService;
 
     private ModelDefinitionsService modelDefinitionsService;
 
@@ -48,7 +54,15 @@ class ModelDefinitionsServiceTest {
                         wargearOptionRepository,
                         new ModelDefinitionMapperImpl(),
                         collectionModelRepository,
-                        authenticatedUserProvider);
+                        authenticatedUserProvider,
+                        hiddenDefinitionService);
+        lenient()
+                .when(hiddenDefinitionService.hiddenModelDefinitionsFor(any()))
+                .thenReturn(HiddenModelDefinitions.none());
+    }
+
+    private void hiding(HiddenModelDefinitions hidden) {
+        when(hiddenDefinitionService.hiddenModelDefinitionsFor(any())).thenReturn(hidden);
     }
 
     private void signedInAs(UUID userId) {
@@ -88,6 +102,90 @@ class ModelDefinitionsServiceTest {
                                 .version(1)
                                 .attachmentSlots(List.of())
                                 .wargearOptions(List.of()));
+    }
+
+    @Test
+    void getAllModelDefinitions_leavesOutWhatTheUserHasHidden() {
+        var userId = UUID.randomUUID();
+        var poxwalkerId = UUID.randomUUID();
+        var plagueMarineId = UUID.randomUUID();
+        signedInAs(userId);
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull())
+                .thenReturn(
+                        List.of(
+                                ModelDefinitionEntity.builder().id(poxwalkerId).name("Poxwalker").build(),
+                                ModelDefinitionEntity.builder()
+                                        .id(plagueMarineId)
+                                        .name("Plague Marine")
+                                        .build()));
+        when(modelDefinitionRepository.findAllByOwnerUserId(userId)).thenReturn(List.of());
+        hiding(new HiddenModelDefinitions(Set.of(plagueMarineId), Set.of()));
+        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(poxwalkerId)))
+                .thenReturn(List.of());
+        when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(poxwalkerId)))
+                .thenReturn(List.of());
+
+        assertThat(modelDefinitionsService.getAllModelDefinitions())
+                .extracting(ModelDefinition::getName)
+                .containsExactly("Poxwalker");
+    }
+
+    /**
+     * The hidden faction is the only thing named, so this is the cascade: someone who does not play
+     * Death Guard hides the faction once rather than every model in it.
+     */
+    @Test
+    void getAllModelDefinitions_leavesOutModelsUnderAHiddenFaction() {
+        var userId = UUID.randomUUID();
+        var deathGuardId = UUID.randomUUID();
+        var poxwalkerId = UUID.randomUUID();
+        var intercessorId = UUID.randomUUID();
+        signedInAs(userId);
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull())
+                .thenReturn(
+                        List.of(
+                                ModelDefinitionEntity.builder()
+                                        .id(poxwalkerId)
+                                        .factionId(deathGuardId)
+                                        .name("Poxwalker")
+                                        .build(),
+                                ModelDefinitionEntity.builder()
+                                        .id(intercessorId)
+                                        .factionId(UUID.randomUUID())
+                                        .name("Intercessor")
+                                        .build()));
+        when(modelDefinitionRepository.findAllByOwnerUserId(userId)).thenReturn(List.of());
+        hiding(new HiddenModelDefinitions(Set.of(), Set.of(deathGuardId)));
+        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(intercessorId)))
+                .thenReturn(List.of());
+        when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(intercessorId)))
+                .thenReturn(List.of());
+
+        assertThat(modelDefinitionsService.getAllModelDefinitions())
+                .extracting(ModelDefinition::getName)
+                .containsExactly("Intercessor");
+    }
+
+    /** Hiding is per-user, so the catalogue an admin curates is not touched by it. */
+    @Test
+    void getSharedModelDefinitions_isNotFilteredByAnyonesHiding() {
+        var plagueMarineId = UUID.randomUUID();
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull())
+                .thenReturn(
+                        List.of(
+                                ModelDefinitionEntity.builder()
+                                        .id(plagueMarineId)
+                                        .name("Plague Marine")
+                                        .build()));
+        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(plagueMarineId)))
+                .thenReturn(List.of());
+        when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(plagueMarineId)))
+                .thenReturn(List.of());
+
+        assertThat(modelDefinitionsService.getSharedModelDefinitions())
+                .extracting(ModelDefinition::getName)
+                .containsExactly("Plague Marine");
+        verifyNoInteractions(hiddenDefinitionService);
     }
 
     @Test

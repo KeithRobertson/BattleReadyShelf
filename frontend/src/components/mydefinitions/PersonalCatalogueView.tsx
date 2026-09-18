@@ -1,6 +1,16 @@
 import { ActionIcon, Alert, Badge, Button, Group, Stack, Table, Text, TextInput, Title, Tooltip } from "@mantine/core";
 import { IconAlertCircle, IconArrowBackUp, IconGitCompare, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { type ReactNode, useMemo, useState } from "react";
+import CatalogueMineBody from "@/components/mydefinitions/CatalogueMineBody.tsx";
+import CatalogueVisibilityFilter from "@/components/mydefinitions/CatalogueVisibilityFilter.tsx";
+import {
+  bulkHiddenIntent,
+  type CatalogueVisibility,
+  isHidden,
+  matchesSearch,
+  matchesVisibility,
+} from "@/components/mydefinitions/catalogueVisibility";
+import HideDefinitionButton, { HiddenBadge } from "@/components/mydefinitions/HideDefinitionButton.tsx";
 import type { PersonalDefinition } from "@/components/mydefinitions/usePersonalCatalogue.ts";
 import PageGate from "@/components/PageGate.tsx";
 import ResponsiveTable from "@/components/ResponsiveTable.tsx";
@@ -40,6 +50,15 @@ function ChangeCountBadge({ diff }: Readonly<{ diff: DraftDiff | undefined }>) {
   return <Badge variant="light">{diff.changeCount === 1 ? "1 change" : `${diff.changeCount} changes`}</Badge>;
 }
 
+function DefinitionName({ hidden, children }: Readonly<{ hidden: boolean; children: ReactNode }>) {
+  return (
+    <Group gap="xs" wrap="nowrap">
+      <div style={{ minWidth: 0 }}>{children}</div>
+      {hidden && <HiddenBadge />}
+    </Group>
+  );
+}
+
 type MineTableProps<T extends PersonalDefinition> = Readonly<{
   items: T[];
   columns: PersonalCatalogueColumn<T>[];
@@ -47,10 +66,12 @@ type MineTableProps<T extends PersonalDefinition> = Readonly<{
   baseIdOf: (item: T) => string | null | undefined;
   diffsById: Map<string, DraftDiff>;
   removingIds: Set<string>;
+  hidingIds: Set<string>;
   revertLabel: string;
   onEdit: (item: T) => void;
   onDiff: (item: T) => void;
   onRemove: (item: T) => void;
+  onSetHidden: (ids: readonly string[], hidden: boolean) => void;
 }>;
 
 function MineTable<T extends PersonalDefinition>({
@@ -60,10 +81,12 @@ function MineTable<T extends PersonalDefinition>({
   baseIdOf,
   diffsById,
   removingIds,
+  hidingIds,
   revertLabel,
   onEdit,
   onDiff,
   onRemove,
+  onSetHidden,
 }: MineTableProps<T>) {
   return (
     <ResponsiveTable striped withTableBorder verticalSpacing="xs" fitOnMobile>
@@ -86,7 +109,7 @@ function MineTable<T extends PersonalDefinition>({
           return (
             <Table.Tr key={id}>
               <Table.Td style={{ wordBreak: "break-word" }}>
-                {renderName ? renderName(item) : item.name}
+                <DefinitionName hidden={isHidden(item)}>{renderName ? renderName(item) : item.name}</DefinitionName>
                 {/* The columns dropped on a phone reappear here, so narrowing the table never
                     costs information - it only stops the row's buttons scrolling out of reach. */}
                 <Group gap="xs" mt={4} hiddenFrom="sm">
@@ -115,6 +138,11 @@ function MineTable<T extends PersonalDefinition>({
                       <IconGitCompare size={16} />
                     </ActionIcon>
                   </Tooltip>
+                  <HideDefinitionButton
+                    hidden={isHidden(item)}
+                    loading={hidingIds.has(id)}
+                    onToggle={(hidden) => onSetHidden([id], hidden)}
+                  />
                   <Tooltip label="Edit">
                     <ActionIcon variant="light" aria-label="Edit" onClick={() => onEdit(item)}>
                       <IconPencil size={16} />
@@ -146,7 +174,10 @@ type SharedTableProps<T extends PersonalDefinition> = Readonly<{
   columns: PersonalCatalogueColumn<T>[];
   renderName?: (item: T) => ReactNode;
   customisingIds: Set<string>;
+  hidingIds: Set<string>;
+  emptyMessage: string;
   onCustomise: (item: T) => void;
+  onSetHidden: (ids: readonly string[], hidden: boolean) => void;
 }>;
 
 function SharedTable<T extends PersonalDefinition>({
@@ -154,12 +185,15 @@ function SharedTable<T extends PersonalDefinition>({
   columns,
   renderName,
   customisingIds,
+  hidingIds,
+  emptyMessage,
   onCustomise,
+  onSetHidden,
 }: SharedTableProps<T>) {
   if (items.length === 0) {
     return (
       <Text c="dimmed" size="sm">
-        Nothing left to customise.
+        {emptyMessage}
       </Text>
     );
   }
@@ -177,35 +211,38 @@ function SharedTable<T extends PersonalDefinition>({
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
-        {items.map((item) => (
-          <Table.Tr key={item.id}>
-            <Table.Td style={{ wordBreak: "break-word" }}>
-              {renderName ? renderName(item) : item.name}
-              <Group gap="xs" mt={4} hiddenFrom="sm">
-                {columns.map((column) => (
-                  <div key={column.header}>{column.render(item)}</div>
-                ))}
-              </Group>
-            </Table.Td>
-            {columns.map((column) => (
-              <Table.Td key={column.header} visibleFrom="sm">
-                {column.render(item)}
+        {items.map((item) => {
+          const id = item.id ?? "";
+          return (
+            <Table.Tr key={id}>
+              <Table.Td style={{ wordBreak: "break-word" }}>
+                <DefinitionName hidden={isHidden(item)}>{renderName ? renderName(item) : item.name}</DefinitionName>
+                <Group gap="xs" mt={4} hiddenFrom="sm">
+                  {columns.map((column) => (
+                    <div key={column.header}>{column.render(item)}</div>
+                  ))}
+                </Group>
               </Table.Td>
-            ))}
-            <Table.Td w={1} style={{ whiteSpace: "nowrap" }}>
-              <Group justify="flex-end">
-                <Button
-                  size="xs"
-                  variant="light"
-                  loading={customisingIds.has(item.id ?? "")}
-                  onClick={() => onCustomise(item)}
-                >
-                  Customise
-                </Button>
-              </Group>
-            </Table.Td>
-          </Table.Tr>
-        ))}
+              {columns.map((column) => (
+                <Table.Td key={column.header} visibleFrom="sm">
+                  {column.render(item)}
+                </Table.Td>
+              ))}
+              <Table.Td w={1} style={{ whiteSpace: "nowrap" }}>
+                <Group justify="flex-end" wrap="nowrap" gap="xs">
+                  <HideDefinitionButton
+                    hidden={isHidden(item)}
+                    loading={hidingIds.has(id)}
+                    onToggle={(hidden) => onSetHidden([id], hidden)}
+                  />
+                  <Button size="xs" variant="light" loading={customisingIds.has(id)} onClick={() => onCustomise(item)}>
+                    Customise
+                  </Button>
+                </Group>
+              </Table.Td>
+            </Table.Tr>
+          );
+        })}
       </Table.Tbody>
     </ResponsiveTable>
   );
@@ -231,11 +268,15 @@ type PersonalCatalogueViewProps<T extends PersonalDefinition> = Readonly<{
   diffsById: Map<string, DraftDiff>;
   customisingIds: Set<string>;
   removingIds: Set<string>;
+  hidingIds: Set<string>;
   onCreate: () => void;
   onEdit: (item: T) => void;
   onDiff: (item: T) => void;
   onCustomise: (item: T) => void;
   onRemove: (item: T) => void;
+  onSetHidden: (ids: readonly string[], hidden: boolean) => void;
+  /** Extra controls that only one catalogue needs, e.g. hide-by-brand on paints. */
+  tools?: ReactNode;
   /** Modals the page owns, rendered inside this layout so it can stay the page's only root. */
   children?: ReactNode;
 }>;
@@ -264,24 +305,32 @@ export default function PersonalCatalogueView<T extends PersonalDefinition>({
   diffsById,
   customisingIds,
   removingIds,
+  hidingIds,
   onCreate,
   onEdit,
   onDiff,
   onCustomise,
   onRemove,
+  onSetHidden,
+  tools,
   children,
 }: PersonalCatalogueViewProps<T>) {
   const [search, setSearch] = useState("");
+  const [visibility, setVisibility] = useState<CatalogueVisibility>("all");
 
-  // A shared definition the user has already forked is hidden, because offering "Customise" a
+  const visibleMine = useMemo(() => mine.filter((item) => matchesVisibility(item, visibility)), [mine, visibility]);
+
+  // A shared definition the user has already forked is omitted, because offering "Customise" a
   // second time would just hand back the copy they already have.
   const customisableShared = useMemo(() => {
     const customisedBaseIds = new Set(mine.map(baseIdOf).filter(Boolean));
-    const term = search.trim().toLowerCase();
     return shared.filter(
-      (item) => !customisedBaseIds.has(item.id) && (term === "" || item.name.toLowerCase().includes(term)),
+      (item) =>
+        !customisedBaseIds.has(item.id) && matchesSearch(item.name, search) && matchesVisibility(item, visibility),
     );
-  }, [shared, mine, search, baseIdOf]);
+  }, [shared, mine, search, visibility, baseIdOf]);
+
+  const bulk = bulkHiddenIntent(customisableShared);
 
   return (
     <Stack gap="md">
@@ -311,44 +360,73 @@ export default function PersonalCatalogueView<T extends PersonalDefinition>({
         unauthorisedMessage={unauthorisedMessage}
       >
         <Stack gap="lg">
+          <Group justify={tools ? "space-between" : "flex-end"} align="flex-end" wrap="wrap">
+            {tools}
+            <CatalogueVisibilityFilter value={visibility} onChange={setVisibility} />
+          </Group>
           <div>
             <Title order={4} mb="xs">
               Yours
             </Title>
-            {mine.length === 0 ? (
-              <Text c="dimmed">{emptyMineMessage}</Text>
-            ) : (
-              <MineTable
-                items={mine}
-                columns={columns}
-                renderName={renderName}
-                baseIdOf={baseIdOf}
-                diffsById={diffsById}
-                removingIds={removingIds}
-                revertLabel={revertLabel}
-                onEdit={onEdit}
-                onDiff={onDiff}
-                onRemove={onRemove}
-              />
-            )}
+            <CatalogueMineBody
+              mineEmpty={mine.length === 0}
+              loadFailed={loadFailed}
+              emptyMineMessage={emptyMineMessage}
+              filteredEmpty={visibleMine.length === 0}
+              table={
+                <MineTable
+                  items={visibleMine}
+                  columns={columns}
+                  renderName={renderName}
+                  baseIdOf={baseIdOf}
+                  diffsById={diffsById}
+                  removingIds={removingIds}
+                  hidingIds={hidingIds}
+                  revertLabel={revertLabel}
+                  onEdit={onEdit}
+                  onDiff={onDiff}
+                  onRemove={onRemove}
+                  onSetHidden={onSetHidden}
+                />
+              }
+            />
           </div>
 
           <div>
             <Group justify="space-between" mb="xs">
               <Title order={4}>{sharedTitle}</Title>
-              <TextInput
-                placeholder="Search"
-                value={search}
-                onChange={(e) => setSearch(e.currentTarget.value)}
-                w={220}
-              />
+              <Group gap="xs">
+                {bulk && bulk.ids.length > 1 && (
+                  <Button
+                    size="compact-sm"
+                    variant="default"
+                    loading={bulk.ids.some((id) => hidingIds.has(id))}
+                    onClick={() => onSetHidden(bulk.ids, bulk.hidden)}
+                  >
+                    {bulk.hidden ? "Hide these from pickers" : "Show these in pickers"}
+                  </Button>
+                )}
+                <TextInput
+                  placeholder="Search"
+                  value={search}
+                  onChange={(e) => setSearch(e.currentTarget.value)}
+                  w={220}
+                />
+              </Group>
             </Group>
             <SharedTable
               items={customisableShared}
               columns={columns}
               renderName={renderName}
               customisingIds={customisingIds}
+              hidingIds={hidingIds}
+              emptyMessage={
+                shared.length === 0 || search.trim() !== "" || visibility !== "all"
+                  ? "Nothing matches."
+                  : "Nothing left to customise."
+              }
               onCustomise={onCustomise}
+              onSetHidden={onSetHidden}
             />
           </div>
         </Stack>

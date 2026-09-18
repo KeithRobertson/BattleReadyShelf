@@ -2,6 +2,7 @@ package com.keith.battlereadyshelf.modeldefinition;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -13,9 +14,13 @@ import com.keith.battlereadyshelf.collectionmodel.CollectionModelRepository;
 import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.ConflictException;
 import com.keith.battlereadyshelf.error.NotFoundException;
+import com.keith.battlereadyshelf.generated.model.HiddenDefinitionType;
+import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.UpsertAttachmentSlotDraftRequest;
 import com.keith.battlereadyshelf.generated.model.UpsertModelDefinitionDraftRequest;
 import com.keith.battlereadyshelf.generated.model.UpsertWargearOptionDraftRequest;
+import com.keith.battlereadyshelf.hiddendefinition.HiddenDefinitionService;
+import com.keith.battlereadyshelf.hiddendefinition.HiddenModelDefinitions;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 import com.keith.battlereadyshelf.user.Role;
 
@@ -29,6 +34,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,6 +49,7 @@ class PersonalModelDefinitionServiceTest {
     @Mock private WargearOptionRepository wargearOptionRepository;
     @Mock private WargearDefinitionRepository wargearDefinitionRepository;
     @Mock private CollectionModelRepository collectionModelRepository;
+    @Mock private HiddenDefinitionService hiddenDefinitionService;
 
     private PersonalModelDefinitionService service;
 
@@ -55,7 +62,12 @@ class PersonalModelDefinitionServiceTest {
                         wargearOptionRepository,
                         wargearDefinitionRepository,
                         collectionModelRepository,
-                        new ModelDefinitionMapperImpl());
+                        new ModelDefinitionMapperImpl(),
+                        hiddenDefinitionService);
+
+        lenient()
+                .when(hiddenDefinitionService.hiddenModelDefinitionsFor(any()))
+                .thenReturn(HiddenModelDefinitions.none());
 
         // Mirror what a real persist does - assign an id and touch nothing else. Filling in fields
         // the production code is responsible for would mask exactly the bugs these tests exist to
@@ -452,6 +464,60 @@ class PersonalModelDefinitionServiceTest {
     }
 
     @Test
+    void hiddenWargearIsNotOfferedWhenAuthoringADefinition() {
+        var boltgunId = UUID.randomUUID();
+        when(wargearDefinitionRepository.findAllByOwnerUserIdIsNull())
+                .thenReturn(
+                        List.of(
+                                WargearDefinitionEntity.builder().id(boltgunId).name("Boltgun").build(),
+                                WargearDefinitionEntity.builder()
+                                        .id(UUID.randomUUID())
+                                        .name("Plasma Gun")
+                                        .build()));
+        when(wargearDefinitionRepository.findAllByOwnerUserId(USER_ID)).thenReturn(List.of());
+        when(hiddenDefinitionService.hiddenIds(HiddenDefinitionType.WARGEAR_DEFINITION, USER_ID))
+                .thenReturn(Set.of(boltgunId));
+
+        assertThat(service.getAvailableWargearDefinitions(CURRENT_USER))
+                .extracting("name")
+                .containsExactly("Plasma Gun");
+    }
+
+    /**
+     * The personal page lists hidden definitions rather than dropping them, since it is the only way
+     * back. One here is hidden only because its faction is, which the page has to be able to say.
+     */
+    @Test
+    void thePersonalPageMarksWhatIsHiddenIncludingByFaction() {
+        var deathGuardId = UUID.randomUUID();
+        var poxwalkerId = UUID.randomUUID();
+        var namedDirectlyId = UUID.randomUUID();
+        var offeredId = UUID.randomUUID();
+        when(modelDefinitionRepository.findAllByOwnerUserId(USER_ID))
+                .thenReturn(
+                        List.of(
+                                ModelDefinitionEntity.builder()
+                                        .id(poxwalkerId)
+                                        .factionId(deathGuardId)
+                                        .name("Poxwalker")
+                                        .build(),
+                                ModelDefinitionEntity.builder()
+                                        .id(namedDirectlyId)
+                                        .name("Blightlord")
+                                        .build(),
+                                ModelDefinitionEntity.builder().id(offeredId).name("Intercessor").build()));
+        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(any())).thenReturn(List.of());
+        when(wargearOptionRepository.findAllByModelDefinitionIdIn(any())).thenReturn(List.of());
+        when(hiddenDefinitionService.hiddenModelDefinitionsFor(USER_ID))
+                .thenReturn(new HiddenModelDefinitions(Set.of(namedDirectlyId), Set.of(deathGuardId)));
+
+        assertThat(service.getMyModelDefinitions(CURRENT_USER))
+                .extracting(ModelDefinition::getName, ModelDefinition::getHidden)
+                .containsExactlyInAnyOrder(
+                        tuple("Poxwalker", true), tuple("Blightlord", true), tuple("Intercessor", false));
+    }
+
+    @Test
     void theSharedCatalogueIsReturnedUnshadowedSoACustomisationCanStillBeDiffedAgainstIt() {
         var customisedId = UUID.randomUUID();
         when(modelDefinitionRepository.findAllByOwnerUserIdIsNull())
@@ -460,7 +526,7 @@ class PersonalModelDefinitionServiceTest {
                                 ModelDefinitionEntity.builder().id(customisedId).name("Poxwalker").build(),
                                 ModelDefinitionEntity.builder().id(UUID.randomUUID()).name("Cultist").build()));
 
-        var shared = service.getSharedModelDefinitions();
+        var shared = service.getSharedModelDefinitions(USER_ID);
 
         // The user has customised "Poxwalker", but it must still appear here: this is the page's
         // only source for the original, both to diff against and to show what reverting restores.
@@ -478,7 +544,7 @@ class PersonalModelDefinitionServiceTest {
         }
         when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(definitions);
 
-        var shared = service.getSharedModelDefinitions();
+        var shared = service.getSharedModelDefinitions(USER_ID);
 
         assertThat(shared).hasSize(50);
         // The catalogue runs to a couple of hundred definitions. Fetching each one's slots and

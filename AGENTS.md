@@ -89,6 +89,11 @@ The richer "Rules domain" (GameSystem/Faction/UnitDefinition/WargearDefinition/p
   API failure is not announced twice
 - An API failure never ends the session. Only a token the server has confirmed it rejects does, via
   `endSession()`
+- Users hide unused catalogue entries (models, factions, wargear, paints) from My Definitions, not
+  by deleting them. Picker endpoints omit hidden rows; `/api/v1/my/*` lists keep them marked so they
+  can be shown again. Hiding a faction also hides its models. Do not re-implement that filter in the
+  UI — drop the cached picker queries (`MODEL_DEFINITIONS_KEY`, `FACTIONS_KEY`, `PAINTS_KEY`) after a
+  hide so collection pages see the change
 - API types/client are generated from the backend OpenAPI spec — do not hand-write duplicate types; regenerate instead
 - Structure: `src/components/` (shared UI, e.g. `AppLayout.tsx`, `CollectionCard.tsx`, `ModelCard.tsx`), `src/pages/` (route-level pages), `src/auth/`, `src/generated/` (OpenAPI output, do not hand-edit)
 

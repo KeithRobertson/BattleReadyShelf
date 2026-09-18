@@ -6,6 +6,7 @@ import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.AttachmentSlot;
 import com.keith.battlereadyshelf.generated.model.ModelDefinition;
 import com.keith.battlereadyshelf.generated.model.WargearOption;
+import com.keith.battlereadyshelf.hiddendefinition.HiddenDefinitionService;
 import com.keith.battlereadyshelf.security.AuthenticatedUserProvider;
 import com.keith.battlereadyshelf.security.CurrentAuthenticatedUser;
 
@@ -29,6 +30,7 @@ public class ModelDefinitionsService {
     private final ModelDefinitionMapper modelDefinitionMapper;
     private final CollectionModelRepository collectionModelRepository;
     private final AuthenticatedUserProvider authenticatedUserProvider;
+    private final HiddenDefinitionService hiddenDefinitionService;
 
     /**
      * Deletes a published model definition and all its attachment slots/wargear options, any open
@@ -61,6 +63,11 @@ public class ModelDefinitionsService {
      * genuinely different things to own. Callers are expected to tell them apart using
      * {@code ownerUserId} and {@code baseModelDefinitionId}, because a customisation usually keeps
      * the original's name and is otherwise indistinguishable.
+     *
+     * <p>Anything the user has hidden is left out, including everything under a faction they have
+     * hidden. Models already in a collection are unaffected: a collection model carries its
+     * definition with it, so hiding one stops it being offered again rather than removing what is
+     * already there.
      */
     public List<ModelDefinition> getAllModelDefinitions() {
         var ownerUserId =
@@ -68,7 +75,11 @@ public class ModelDefinitionsService {
                         .findCurrentUser()
                         .map(CurrentAuthenticatedUser::id)
                         .orElse(null);
-        return withChildren(visibleEntities(ownerUserId));
+        var hidden = hiddenDefinitionService.hiddenModelDefinitionsFor(ownerUserId);
+        return withChildren(
+                visibleEntities(ownerUserId).stream()
+                        .filter(entity -> !hidden.includes(entity.getId(), entity.getFactionId()))
+                        .toList());
     }
 
     /**

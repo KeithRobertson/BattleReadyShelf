@@ -34,7 +34,9 @@ public class PersonalFactionsController implements PersonalFactionsApi {
 
     @Override
     public ResponseEntity<List<Faction>> getSharedFactions() {
-        return ResponseEntity.ok(personalFactionService.getSharedFactions());
+        return ResponseEntity.ok(
+                personalFactionService.getSharedFactions(
+                        authenticatedUserProvider.getCurrentUser().id()));
     }
 
     @Override
