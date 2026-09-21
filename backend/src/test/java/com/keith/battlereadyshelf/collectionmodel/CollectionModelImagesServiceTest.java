@@ -42,6 +42,8 @@ class CollectionModelImagesServiceTest {
     @Mock private com.keith.battlereadyshelf.modeldefinition.WargearOptionRepository wargearOptionRepository;
     @Mock private CollectionModelImageRepository collectionModelImageRepository;
     @Mock private CollectionModelWargearSelectionRepository collectionModelWargearSelectionRepository;
+    @Mock private CollectionModelMagnetizedSlotRepository collectionModelMagnetizedSlotRepository;
+    @Mock private CollectionModelIdentityRepository collectionModelIdentityRepository;
     @Mock private ModelDefinitionsService modelDefinitionsService;
     @Mock private PresignedUrlService presignedUrlService;
 
@@ -60,8 +62,11 @@ class CollectionModelImagesServiceTest {
                         wargearOptionRepository,
                         collectionModelImageRepository,
                         collectionModelWargearSelectionRepository,
+                        collectionModelMagnetizedSlotRepository,
+                        collectionModelIdentityRepository,
                         new CollectionModelMapperImpl(new ModelDefinitionMapperImpl()),
                         new CollectionModelImageMapperImpl(),
+                        new ModelDefinitionMapperImpl(),
                         modelDefinitionsService,
                         presignedUrlService,
                         new CollectionModelStatusMapperImpl(),

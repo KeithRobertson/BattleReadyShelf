@@ -1,5 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
 import type { CollectionModel, Paint, PaintRecipe } from "@/generated";
+import {
+  formatTypeCount,
+  modelMatchesTypeFilter,
+  typeCounts as modelTypeCounts,
+} from "@/utils/collection/collectionTypeStats.ts";
 import describePaint from "@/utils/collection/describePaint.ts";
 import effectivePaintIds from "@/utils/collection/effectivePaintIds.ts";
 import wargearNamesOnModel, { normalizeWargearName } from "@/utils/collection/wargearNamesOnModel.ts";
@@ -19,10 +24,7 @@ function paintsByIdFromRecipes(recipes: PaintRecipe[]): Map<string, Paint> {
 }
 
 function matchesTypeFilter(model: CollectionModel, typeFilter: string[]): boolean {
-  if (typeFilter.length === 0) {
-    return true;
-  }
-  return typeFilter.includes(model.modelDefinitionId ?? "unknown");
+  return modelMatchesTypeFilter(model, typeFilter);
 }
 
 function matchesPaintFilter(model: CollectionModel, paintFilter: string[], recipes: PaintRecipe[]): boolean {
@@ -47,19 +49,11 @@ export default function useCollectionModelFilters(models: CollectionModel[], rec
   const [wargearFilter, setWargearFilter] = useState<string[]>([]);
 
   const typeOptions = useMemo(() => {
-    const byType = new Map<string, { label: string; count: number }>();
-    for (const model of models) {
-      const value = model.modelDefinitionId ?? "unknown";
-      const existing = byType.get(value);
-      if (existing) {
-        existing.count += 1;
-      } else {
-        byType.set(value, { label: model.modelDefinition?.name ?? "Unknown type", count: 1 });
-      }
-    }
-    return [...byType.entries()]
-      .map(([value, { label, count }]) => ({ value, label: `${label} (${count})`, name: label }))
-      .toSorted((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+    return modelTypeCounts(models, []).map((item) => ({
+      value: item.key,
+      label: `${item.label} (${formatTypeCount(item)})`,
+      name: item.label,
+    }));
   }, [models]);
 
   const paintOptions = useMemo(() => {

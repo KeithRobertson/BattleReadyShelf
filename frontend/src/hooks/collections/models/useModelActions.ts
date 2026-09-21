@@ -55,6 +55,12 @@ export function useModelActions() {
     [collectionModels],
   );
 
+  const updateAlternateIdentities = useCallback(
+    (id: string | undefined, alternateModelDefinitionIds: string[]) =>
+      id && collectionModels.updateAlternateIdentities(id, alternateModelDefinitionIds),
+    [collectionModels],
+  );
+
   return {
     rename,
     uploadImage,
@@ -66,5 +72,6 @@ export function useModelActions() {
     toggleSelected,
     updateWargearSelection,
     changeModelDefinition,
+    updateAlternateIdentities,
   };
 }

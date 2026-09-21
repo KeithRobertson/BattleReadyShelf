@@ -2,6 +2,7 @@ import { Divider, Stack, Text, Title } from "@mantine/core";
 import { AsideFilterRow } from "@/components/aside/AsideFilterRow.tsx";
 import { CollectionStatsPanel } from "@/components/collections/CollectionStatsPanel.tsx";
 import type { CollectionModel, CollectionModelStatus, PaintRecipe } from "@/generated";
+import { formatTypeCount, typeCounts } from "@/utils/collection/collectionTypeStats.ts";
 import describePaint from "@/utils/collection/describePaint.ts";
 import effectivePaintIds from "@/utils/collection/effectivePaintIds.ts";
 import exclusiveFilterValue from "@/utils/collection/exclusiveFilterValue.ts";
@@ -54,23 +55,6 @@ function countsByStatus(models: CollectionModel[]): Record<CollectionModelStatus
   return counts;
 }
 
-function typeCounts(models: CollectionModel[], order: string[]): CountItem[] {
-  const byType = new Map<string, CountItem>();
-  for (const model of models) {
-    incrementCount(byType, model.modelDefinitionId ?? "unknown", model.modelDefinition?.name ?? "Unknown type");
-  }
-
-  const orderIndex = new Map(order.map((id, index) => [id, index]));
-  return [...byType.values()].toSorted((a, b) => {
-    const aIndex = orderIndex.get(a.key);
-    const bIndex = orderIndex.get(b.key);
-    if (aIndex !== undefined && bIndex !== undefined) return aIndex - bIndex;
-    if (aIndex !== undefined) return -1;
-    if (bIndex !== undefined) return 1;
-    return a.label.localeCompare(b.label, undefined, { sensitivity: "base" });
-  });
-}
-
 function paintLabelsFromRecipes(recipes: PaintRecipe[]): Map<string, string> {
   const paintsById = new Map<string, string>();
   for (const recipe of recipes) {
@@ -111,7 +95,7 @@ function CountList({
   onSelect,
 }: Readonly<{
   title: string;
-  items: CountItem[];
+  items: Array<CountItem & { countLabel?: string }>;
   activeKeys: string[];
   onSelect: (key: string) => void;
 }>) {
@@ -126,6 +110,7 @@ function CountList({
           key={item.key}
           label={item.label}
           count={item.count}
+          countLabel={item.countLabel}
           active={activeKeys.includes(item.key)}
           onClick={() => onSelect(item.key)}
         />
@@ -153,7 +138,8 @@ export function CollectionAsideSummary({
       <div>
         <Title order={4}>{collectionName}</Title>
         <Text c="dimmed" size="sm">
-          Overview of this collection. Click a summary to filter, or a model to inspect it.
+          Overview of this collection. Click a summary to filter, or a model to inspect it. Wargear counts every
+          magnetised option you can field.
         </Text>
       </div>
       <CollectionStatsPanel
@@ -166,7 +152,12 @@ export function CollectionAsideSummary({
       <Divider />
       <CountList
         title="By type"
-        items={typeCounts(models, modelDefinitionOrder)}
+        items={typeCounts(models, modelDefinitionOrder).map((item) => ({
+          key: item.key,
+          label: item.label,
+          count: item.max,
+          countLabel: formatTypeCount(item),
+        }))}
         activeKeys={filters.typeFilter}
         onSelect={(key) => filters.setTypeFilter(exclusiveFilterValue(filters.typeFilter, key))}
       />

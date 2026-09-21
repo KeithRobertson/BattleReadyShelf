@@ -46,6 +46,9 @@ class CollectionModelsServiceTest {
     @Mock
     private CollectionModelWargearSelectionRepository collectionModelWargearSelectionRepository;
 
+    @Mock private CollectionModelMagnetizedSlotRepository collectionModelMagnetizedSlotRepository;
+    @Mock private CollectionModelIdentityRepository collectionModelIdentityRepository;
+
     @Mock private ModelDefinitionsService modelDefinitionsService;
     @Mock private PresignedUrlService presignedUrlService;
 
@@ -69,6 +72,15 @@ class CollectionModelsServiceTest {
                 .when(collectionModelWargearSelectionRepository.findAllByCollectionModelIdIn(any()))
                 .thenReturn(List.of());
         lenient()
+                .when(collectionModelMagnetizedSlotRepository.findAllByCollectionModelIdIn(any()))
+                .thenReturn(List.of());
+        lenient()
+                .when(collectionModelIdentityRepository.findAllByCollectionModelId(any()))
+                .thenReturn(List.of());
+        lenient()
+                .when(collectionModelIdentityRepository.findAllByCollectionModelIdIn(any()))
+                .thenReturn(List.of());
+        lenient()
                 .when(modelDefinitionsService.enrichWithAttachmentSlotsAndWargearOptions(any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         lenient()
@@ -82,8 +94,11 @@ class CollectionModelsServiceTest {
                         wargearOptionRepository,
                         collectionModelImageRepository,
                         collectionModelWargearSelectionRepository,
+                        collectionModelMagnetizedSlotRepository,
+                        collectionModelIdentityRepository,
                         new CollectionModelMapperImpl(new ModelDefinitionMapperImpl()),
                         new CollectionModelImageMapperImpl(),
+                        new ModelDefinitionMapperImpl(),
                         modelDefinitionsService,
                         presignedUrlService,
                         new CollectionModelStatusMapperImpl(),
@@ -129,7 +144,10 @@ class CollectionModelsServiceTest {
                                 .name("My Poxwalker")
                                 .images(List.of())
                                 .status(CollectionModelStatus.BOXED)
-                                .wargearSelections(List.of()));
+                                .wargearSelections(List.of())
+                                .magnetizedSlotIds(List.of())
+                                .alternateModelDefinitionIds(List.of())
+                                .alternateModelDefinitions(List.of()));
     }
 
     @Test
@@ -173,7 +191,10 @@ class CollectionModelsServiceTest {
                                 .name("Public Poxwalker")
                                 .images(List.of())
                                 .status(CollectionModelStatus.BOXED)
-                                .wargearSelections(List.of()));
+                                .wargearSelections(List.of())
+                                .magnetizedSlotIds(List.of())
+                                .alternateModelDefinitionIds(List.of())
+                                .alternateModelDefinitions(List.of()));
     }
 
     @Test
@@ -293,7 +314,10 @@ class CollectionModelsServiceTest {
                                 .description("Freshly painted")
                                 .images(List.of())
                                 .status(CollectionModelStatus.BOXED)
-                                .wargearSelections(List.of()));
+                                .wargearSelections(List.of())
+                                .magnetizedSlotIds(List.of())
+                                .alternateModelDefinitionIds(List.of())
+                                .alternateModelDefinitions(List.of()));
     }
 
     @Test
@@ -568,7 +592,7 @@ class CollectionModelsServiceTest {
 
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, "Poxwalker #1", "Front rank", null, null, null, null);
+                        userId, collectionModelId, "Poxwalker #1", "Front rank", null, null, null, null, null, null);
 
         assertThat(updated.getName()).isEqualTo("Poxwalker #1");
         assertThat(updated.getDescription()).isEqualTo("Front rank");
@@ -600,7 +624,7 @@ class CollectionModelsServiceTest {
         var finishedOn = LocalDate.of(2025, JUNE, 1);
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, null, null, finishedOn, null, null, null);
+                        userId, collectionModelId, null, null, finishedOn, null, null, null, null, null);
 
         assertThat(updated.getFinishedOn()).isEqualTo(finishedOn);
     }
@@ -637,7 +661,7 @@ class CollectionModelsServiceTest {
 
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, "Poxwalker #1", null, null, null, null, null);
+                        userId, collectionModelId, "Poxwalker #1", null, null, null, null, null, null, null);
 
         assertThat(updated.getName()).isEqualTo("Poxwalker #1");
         assertThat(updated.getDescription()).isEqualTo("Original description");
@@ -680,7 +704,7 @@ class CollectionModelsServiceTest {
                                 .wargearOptionId(boltgunId));
 
         collectionModelsService.updateCollectionModel(
-                userId, collectionModelId, null, null, null, null, null, wargearSelections);
+                userId, collectionModelId, null, null, null, null, null, wargearSelections, null, null);
 
         verify(collectionModelWargearSelectionRepository)
                 .deleteAllByCollectionModelId(collectionModelId);
@@ -731,7 +755,7 @@ class CollectionModelsServiceTest {
                                 .customLabel("  Converted power sword  "));
 
         collectionModelsService.updateCollectionModel(
-                userId, collectionModelId, null, null, null, null, null, wargearSelections);
+                userId, collectionModelId, null, null, null, null, null, wargearSelections, null, null);
 
         verify(collectionModelWargearSelectionRepository).saveAll(selectionCaptor.capture());
         var savedSelections = selectionCaptor.getValue();
@@ -741,6 +765,77 @@ class CollectionModelsServiceTest {
                                 .collectionModelId(collectionModelId)
                                 .attachmentSlotId(leftArmId)
                                 .customLabel("Converted power sword")
+                                .build());
+    }
+
+    @Test
+    void updateCollectionModel_allowsMultipleBitsOnAMagnetizedSlot() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var plagueMarineId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var rightArmId = UUID.randomUUID();
+        var meltagunId = UUID.randomUUID();
+        var plasmaId = UUID.randomUUID();
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .modelDefinition(
+                                                ModelDefinitionEntity.builder()
+                                                        .id(plagueMarineId)
+                                                        .name("Plague Marine")
+                                                        .build())
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelRepository.save(any(CollectionModelEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var wargearSelections =
+                List.of(
+                        new com.keith.battlereadyshelf.generated.model.WargearSelection(rightArmId)
+                                .wargearOptionId(meltagunId)
+                                .equipped(true),
+                        new com.keith.battlereadyshelf.generated.model.WargearSelection(rightArmId)
+                                .wargearOptionId(plasmaId)
+                                .equipped(false));
+
+        collectionModelsService.updateCollectionModel(
+                userId,
+                collectionModelId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                wargearSelections,
+                List.of(rightArmId),
+                null);
+
+        verify(collectionModelMagnetizedSlotRepository).saveAll(any());
+        verify(collectionModelWargearSelectionRepository).saveAll(selectionCaptor.capture());
+        assertThat(selectionCaptor.getValue())
+                .containsExactlyInAnyOrder(
+                        CollectionModelWargearSelectionEntity.builder()
+                                .collectionModelId(collectionModelId)
+                                .attachmentSlotId(rightArmId)
+                                .wargearOptionId(meltagunId)
+                                .equipped(true)
+                                .build(),
+                        CollectionModelWargearSelectionEntity.builder()
+                                .collectionModelId(collectionModelId)
+                                .attachmentSlotId(rightArmId)
+                                .wargearOptionId(plasmaId)
+                                .equipped(false)
                                 .build());
     }
 
@@ -842,7 +937,7 @@ class CollectionModelsServiceTest {
                                         .build()));
 
         collectionModelsService.updateCollectionModel(
-                userId, collectionModelId, null, null, null, null, personalDefinitionId, null);
+                userId, collectionModelId, null, null, null, null, personalDefinitionId, null, null, null);
 
         verify(collectionModelWargearSelectionRepository)
                 .deleteAllByCollectionModelId(collectionModelId);
@@ -989,7 +1084,9 @@ class CollectionModelsServiceTest {
                                         null,
                                         null,
                                         null,
-                                        wargearSelections))
+                                        wargearSelections,
+                                        null,
+                                        null))
                 .isInstanceOf(com.keith.battlereadyshelf.error.BadRequestException.class);
         verify(collectionModelWargearSelectionRepository, never()).deleteAllByCollectionModelId(any());
     }
@@ -1022,6 +1119,8 @@ class CollectionModelsServiceTest {
                                         userId,
                                         collectionModelId,
                                         "New name",
+                                        null,
+                                        null,
                                         null,
                                         null,
                                         null,

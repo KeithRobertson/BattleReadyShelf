@@ -1,5 +1,5 @@
 import { Badge, Button, Group, Stack, Text, Title } from "@mantine/core";
-import { IconArrowLeft, IconCalendar, IconPhoto } from "@tabler/icons-react";
+import { IconArrowLeft, IconCalendar, IconMagnet, IconPhoto } from "@tabler/icons-react";
 import { InspectorImageLibrary } from "@/components/collection/aside/InspectorImageLibrary.tsx";
 import PaintRecipeSummary from "@/components/collection/paint/PaintRecipeSummary.tsx";
 import { WargearLoadoutBadge } from "@/components/collection/WargearLoadoutBadge.tsx";
@@ -7,6 +7,7 @@ import ModelDefinitionOriginBadge from "@/components/modeldefinitions/ModelDefin
 import type { CollectionModel, PaintRecipe } from "@/generated";
 import effectivePaintRecipes from "@/utils/collection/effectivePaintRecipes.ts";
 import loadoutDisplayItems from "@/utils/collection/loadoutDisplayItems.ts";
+import { allWargearOptions } from "@/utils/collection/modelLoadout.ts";
 import { COLLECTION_MODEL_STATUS_COLORS, COLLECTION_MODEL_STATUS_LABELS } from "@/utils/collectionModelStatus.ts";
 
 export type CollectionModelInspectorProps = Readonly<{
@@ -20,7 +21,7 @@ export function CollectionModelInspector({ model, recipes, onBack }: CollectionM
   const description = model.description?.trim();
   const images = model.images ?? [];
   const attachmentSlots = model.modelDefinition?.attachmentSlots ?? [];
-  const wargearOptions = model.modelDefinition?.wargearOptions ?? [];
+  const wargearOptions = allWargearOptions(model);
   const paintRecipes = effectivePaintRecipes(model, recipes);
 
   return (
@@ -38,6 +39,11 @@ export function CollectionModelInspector({ model, recipes, onBack }: CollectionM
       <div>
         <Group gap="xs" wrap="wrap" mb={4}>
           <Badge variant="light">{model.modelDefinition?.name ?? "Unknown type"}</Badge>
+          {(model.alternateModelDefinitions ?? []).map((definition) => (
+            <Badge key={definition.id} variant="outline" leftSection={<IconMagnet size={12} />}>
+              or {definition.name ?? "another type"}
+            </Badge>
+          ))}
           {model.modelDefinition && <ModelDefinitionOriginBadge definition={model.modelDefinition} />}
           <Badge color={model.status ? COLLECTION_MODEL_STATUS_COLORS[model.status] : "gray"} variant="light">
             {model.status ? COLLECTION_MODEL_STATUS_LABELS[model.status] : "Unknown"}

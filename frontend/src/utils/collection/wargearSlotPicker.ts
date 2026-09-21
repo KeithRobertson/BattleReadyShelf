@@ -1,6 +1,7 @@
 import type { ComboboxData } from "@mantine/core";
 import type { AttachmentSlot, CollectionModel, WargearOption, WargearSelection } from "@/generated";
 import type { WargearSlotUpdate } from "@/utils/collection/applyWargearSelection.ts";
+import { equippedSelection, selectionLabel } from "@/utils/collection/modelLoadout.ts";
 
 export const CUSTOM_WARGEAR_VALUE = "__custom__";
 
@@ -19,20 +20,19 @@ function isFilled(selection: WargearSelection | undefined): boolean {
   return Boolean(selection && (selection.wargearOptionId || (selection.customLabel ?? "").trim()));
 }
 
-function selectionsBySlot(model: CollectionModel): Map<string, WargearSelection> {
-  return new Map(
-    (model.wargearSelections ?? [])
-      .filter((selection) => selection.attachmentSlotId)
-      .map((selection) => [selection.attachmentSlotId as string, selection]),
-  );
-}
-
-function selectionLabel(selection: WargearSelection, options: WargearOption[]): string {
-  const custom = selection.customLabel?.trim();
-  if (custom) {
-    return custom;
+function equippedBySlot(model: CollectionModel): Map<string, WargearSelection> {
+  const bySlot = new Map<string, WargearSelection>();
+  for (const selection of model.wargearSelections ?? []) {
+    const slotId = selection.attachmentSlotId;
+    if (!slotId || bySlot.has(slotId)) {
+      continue;
+    }
+    const equipped = equippedSelection(model, slotId);
+    if (equipped) {
+      bySlot.set(slotId, equipped);
+    }
   }
-  return options.find((option) => option.id === selection.wargearOptionId)?.name?.trim() || "Wargear";
+  return bySlot;
 }
 
 function representativeSlotId(
@@ -44,7 +44,7 @@ function representativeSlotId(
 }
 
 export function wargearPickerValue(slotId: string, slotOrder: string[], model: CollectionModel): string | null {
-  const bySlot = selectionsBySlot(model);
+  const bySlot = equippedBySlot(model);
   const selection = bySlot.get(slotId);
   if (!selection || !isFilled(selection)) {
     return null;
@@ -67,7 +67,7 @@ export function wargearPickerData(
   options: WargearOption[],
   model: CollectionModel,
 ): ComboboxData {
-  const bySlot = selectionsBySlot(model);
+  const bySlot = equippedBySlot(model);
   const sameAsItems = slots
     .filter((slot) => slot.id && slot.id !== slotId && isFilled(bySlot.get(slot.id)))
     .map((slot) => ({
@@ -75,12 +75,10 @@ export function wargearPickerData(
       label: `Same as ${slot.name || "slot"} (${selectionLabel(bySlot.get(slot.id ?? "") as WargearSelection, options)})`,
     }));
   const newItems = [
-    ...options
-      .filter((option) => option.attachmentSlotIds?.includes(slotId))
-      .map((option) => ({
-        value: newOptionValue(option.id ?? ""),
-        label: option.name ?? "",
-      })),
+    ...options.map((option) => ({
+      value: newOptionValue(option.id ?? ""),
+      label: option.name ?? "",
+    })),
     { value: CUSTOM_WARGEAR_VALUE, label: "Custom..." },
   ];
   if (sameAsItems.length === 0) {
@@ -88,8 +86,12 @@ export function wargearPickerData(
   }
   return [
     { group: "On this model", items: sameAsItems },
-    { group: "New", items: newItems },
+    { group: magnetizedAddGroupLabel(model, slotId), items: newItems },
   ];
+}
+
+function magnetizedAddGroupLabel(model: CollectionModel, slotId: string): string {
+  return (model.magnetizedSlotIds ?? []).includes(slotId) ? "Add" : "New";
 }
 
 export function pickerValueToUpdate(value: string | null): WargearSlotUpdate | "custom" {
@@ -113,12 +115,17 @@ export function linkedPartnerTitle(
   slots: AttachmentSlot[],
   model: CollectionModel,
 ): string | undefined {
-  const selection = model.wargearSelections?.find((candidate) => candidate.attachmentSlotId === slotId);
+  const selection = equippedSelection(model, slotId);
   if (!selection?.linkGroupId) {
     return undefined;
   }
   const others = (model.wargearSelections ?? [])
-    .filter((candidate) => candidate.linkGroupId === selection.linkGroupId && candidate.attachmentSlotId !== slotId)
+    .filter(
+      (candidate) =>
+        candidate.linkGroupId === selection.linkGroupId &&
+        candidate.attachmentSlotId !== slotId &&
+        candidate.equipped !== false,
+    )
     .map((candidate) => slots.find((slot) => slot.id === candidate.attachmentSlotId)?.name)
     .filter((name): name is string => Boolean(name));
   return others.length > 0 ? `Also ${others.join(", ")}` : undefined;

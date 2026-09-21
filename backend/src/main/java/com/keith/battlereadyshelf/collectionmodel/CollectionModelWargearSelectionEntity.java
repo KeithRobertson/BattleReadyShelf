@@ -54,4 +54,12 @@ public class CollectionModelWargearSelectionEntity {
      */
     @Column(name = "link_group_id")
     private UUID linkGroupId;
+
+    /**
+     * Whether this bit is currently attached. Magnetised slots may own several rows; at most one
+     * filled row per slot is equipped.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean equipped = true;
 }

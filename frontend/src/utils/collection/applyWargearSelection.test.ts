@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CollectionModel, WargearOption } from "@/generated";
-import applyWargearSelection from "@/utils/collection/applyWargearSelection.ts";
+import applyWargearSelection, { applyLoadoutChange } from "@/utils/collection/applyWargearSelection.ts";
 import wargearNamesOnModel from "@/utils/collection/wargearNamesOnModel.ts";
 import {
   CUSTOM_WARGEAR_VALUE,
@@ -235,5 +235,59 @@ describe("wargearNamesOnModel", () => {
       ),
     );
     expect(names).toEqual(["Great Plague Cleaver", "Great Plague Cleaver"]);
+  });
+
+  it("counts unequipped magnetised bits toward inventory", () => {
+    const names = wargearNamesOnModel(
+      model(
+        [boltgun, knife],
+        [
+          { attachmentSlotId: right, wargearOptionId: "boltgun", equipped: true },
+          { attachmentSlotId: right, wargearOptionId: "knife", equipped: false },
+        ],
+      ),
+    );
+    expect(names).toEqual(["Boltgun", "Plagueknife"]);
+  });
+});
+
+describe("applyLoadoutChange magnetisation", () => {
+  it("keeps existing bits when a slot is magnetised", () => {
+    const current = model([boltgun], [{ attachmentSlotId: right, wargearOptionId: "boltgun" }]);
+    const patch = applyLoadoutChange(current, right, { magnetized: true });
+    expect(patch.magnetizedSlotIds).toEqual([right]);
+    expect(patch.wargearSelections).toEqual([
+      expect.objectContaining({ attachmentSlotId: right, wargearOptionId: "boltgun" }),
+    ]);
+  });
+
+  it("adds a second bit without dropping the first", () => {
+    const current = {
+      ...model([boltgun, knife], [{ attachmentSlotId: right, wargearOptionId: "boltgun", equipped: true }]),
+      magnetizedSlotIds: [right],
+    };
+    const patch = applyLoadoutChange(current, right, { wargearOptionId: "knife", addBit: true });
+    expect(patch.wargearSelections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ attachmentSlotId: right, wargearOptionId: "boltgun", equipped: false }),
+        expect.objectContaining({ attachmentSlotId: right, wargearOptionId: "knife", equipped: true }),
+      ]),
+    );
+  });
+
+  it("equips an owned bit without removing the others", () => {
+    const current = {
+      ...model(
+        [boltgun, knife],
+        [
+          { attachmentSlotId: right, wargearOptionId: "boltgun", equipped: true },
+          { attachmentSlotId: right, wargearOptionId: "knife", equipped: false },
+        ],
+      ),
+      magnetizedSlotIds: [right],
+    };
+    const patch = applyLoadoutChange(current, right, { equipKey: "opt:knife" });
+    expect(patch.wargearSelections.find((s) => s.wargearOptionId === "knife")?.equipped).toBe(true);
+    expect(patch.wargearSelections.find((s) => s.wargearOptionId === "boltgun")?.equipped).toBe(false);
   });
 });

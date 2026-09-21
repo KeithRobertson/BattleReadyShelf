@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 export type AsideFilterRowProps = Readonly<{
   label: string;
   count: number;
+  countLabel?: string;
   active?: boolean;
   onClick?: () => void;
   leading?: ReactNode;
@@ -15,6 +16,7 @@ export type AsideFilterRowProps = Readonly<{
 export function AsideFilterRow({
   label,
   count,
+  countLabel,
   active = false,
   onClick,
   leading,
@@ -30,7 +32,7 @@ export function AsideFilterRow({
         </Text>
       </Group>
       <Text size="xs" fw={600}>
-        {count}
+        {countLabel ?? count}
       </Text>
     </Group>
   );

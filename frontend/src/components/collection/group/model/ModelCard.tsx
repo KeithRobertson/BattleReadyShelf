@@ -28,6 +28,7 @@ export type ModelCardProps = Readonly<{
   onUpdateFinishedOn: (finishedOn: string | null) => void;
   onUpdateDescription: (description: string) => void;
   onUpdateWargearSelection: (attachmentSlotId: string, update: WargearSlotUpdate) => void;
+  onUpdateAlternateIdentities: (ids: string[]) => void;
   onUpdateStatus: (status: CollectionModelStatus) => void;
   onChangeModelDefinition: (modelDefinitionId: string) => void;
 
@@ -49,6 +50,7 @@ function ModelCard({
   onUpdateFinishedOn,
   onUpdateDescription,
   onUpdateWargearSelection,
+  onUpdateAlternateIdentities,
   onUpdateStatus,
   onChangeModelDefinition,
   isUploading,
@@ -267,6 +269,8 @@ function ModelCard({
               isEditingWargear={isEditingWargear}
               updatingWargearSlotId={updatingWargearSlotId}
               commitWargear={commitWargear}
+              onUpdateAlternateIdentities={onUpdateAlternateIdentities}
+              onSwitchIdentity={onChangeModelDefinition}
               setCustomWargearModeBySlot={setCustomWargearModeBySlot}
               setCustomLabelDraftsBySlot={setCustomLabelDraftsBySlot}
               setIsEditingWargear={setIsEditingWargear}

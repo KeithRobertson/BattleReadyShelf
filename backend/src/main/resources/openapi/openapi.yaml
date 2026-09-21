@@ -4163,9 +4163,32 @@ components:
           readOnly: true
           type: array
           description: >-
-            What the user has assigned to each of this model's attachment slots, if any.
+            Owned bits on this miniature's slots. A magnetised slot may list several; at most one
+            per slot is equipped. Non-magnetised slots have at most one filled selection.
           items:
             $ref: '#/components/schemas/WargearSelection'
+        magnetizedSlotIds:
+          readOnly: true
+          type: array
+          description: Attachment slots on this miniature that are magnetised and may hold several bits.
+          items:
+            type: string
+            format: uuid
+        alternateModelDefinitionIds:
+          readOnly: true
+          type: array
+          description: >-
+            Other datasheets this physical miniature can be fielded as (e.g. Rotigus on a
+            magnetised Great Unclean One). The current type is modelDefinitionId, not this list.
+          items:
+            type: string
+            format: uuid
+        alternateModelDefinitions:
+          readOnly: true
+          type: array
+          description: Enriched alternate identities, including slots and wargear options for pickers.
+          items:
+            $ref: '#/components/schemas/ModelDefinition'
       required: [ modelDefinitionId ]
     WargearSelection:
       type: object
@@ -4193,6 +4216,13 @@ components:
             same item already attached to another slot. Two fills with the same linkGroupId
             count as one weapon, including a kitbash custom label held in both hands. The same
             option with different (or absent) group ids is two items.
+        equipped:
+          type: boolean
+          default: true
+          description: >-
+            Whether this bit is currently attached. Magnetised slots may own several bits; at most
+            one filled selection per slot may be equipped. Omitted on a slot with a single bit
+            means that bit is equipped.
       required: [ attachmentSlotId ]
     CollectionModelStatus:
       type: string
@@ -4253,6 +4283,25 @@ components:
             the assignments are being remapped onto a different definition's slots.
           items:
             $ref: '#/components/schemas/WargearSelection'
+        magnetizedSlotIds:
+          type: array
+          description: >-
+            If present, replaces which slots are magnetised on this miniature. Omit to leave
+            existing magnetisation unchanged. Ignored when modelDefinitionId is also supplied;
+            magnetised slots are remapped onto the new definition by slot name.
+          items:
+            type: string
+            format: uuid
+        alternateModelDefinitionIds:
+          type: array
+          description: >-
+            If present, replaces the extra datasheets this miniature can be. The current
+            modelDefinitionId is omitted from the stored list if included. When modelDefinitionId
+            is also supplied and is already an alternate, the previous current type is kept as an
+            alternate unless this list is sent.
+          items:
+            type: string
+            format: uuid
     ChangeModelDefinitionPreviewRequest:
       type: object
       properties:

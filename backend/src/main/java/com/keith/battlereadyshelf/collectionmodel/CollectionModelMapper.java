@@ -20,6 +20,9 @@ public interface CollectionModelMapper {
     @Mapping(target = "modelDefinitionId", source = "modelDefinition.id")
     @Mapping(target = "images", ignore = true)
     @Mapping(target = "wargearSelections", ignore = true)
+    @Mapping(target = "magnetizedSlotIds", ignore = true)
+    @Mapping(target = "alternateModelDefinitionIds", ignore = true)
+    @Mapping(target = "alternateModelDefinitions", ignore = true)
     CollectionModel toDto(CollectionModelEntity entity);
 
     WargearSelection toDto(CollectionModelWargearSelectionEntity entity);

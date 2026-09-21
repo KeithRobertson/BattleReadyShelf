@@ -182,4 +182,29 @@ class WargearRemapPlannerTest {
             assertThat(entry.targetSlotId()).isEqualTo(newSlot);
         });
     }
+
+    @Test
+    void bitsBelongingToARetainedIdentityKeepTheirOptionId() {
+        var oldSlot = UUID.randomUUID();
+        var newSlot = UUID.randomUUID();
+        var rotigusOption = UUID.randomUUID();
+        var streams = option(rotigusOption, UUID.randomUUID(), "Streams of Brackish Filth", oldSlot);
+
+        var current = definition(List.of(slot(oldSlot, "Left arm")), List.of());
+        var target = definition(List.of(slot(newSlot, "Left arm")), List.of());
+
+        var plan =
+                planner.plan(
+                        current,
+                        target,
+                        List.of(selection(oldSlot, rotigusOption, null)),
+                        List.of(streams));
+
+        assertThat(plan).singleElement().satisfies(entry -> {
+            assertThat(entry.outcome()).isEqualTo(WargearRemapOutcome.MATCHED);
+            assertThat(entry.targetSlotId()).isEqualTo(newSlot);
+            assertThat(entry.targetWargearOptionId()).isEqualTo(rotigusOption);
+            assertThat(entry.customLabel()).isNull();
+        });
+    }
 }
