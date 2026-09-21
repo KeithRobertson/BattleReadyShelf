@@ -99,11 +99,10 @@ public class ModelDefinitionDraftService {
 
     /**
      * Shared implementation behind {@link #startDraft}, returning the entity rather than its DTO
-     * so {@link #importItem} can call it directly (as a plain, non-transactional private method)
-     * instead of going through {@code this.startDraft(...)}. Self-invoking an {@code @Transactional}
-     * method bypasses Spring's proxy and would silently skip the annotation; calling this private
-     * helper avoids that pitfall while still running inside whatever transaction the caller
-     * (either the proxied {@link #startDraft} or {@link #importModelDefinitions}) already opened.
+     * so callers inside this class can stay in the already-open transaction. Self-invoking an
+     * {@code @Transactional} method bypasses Spring's proxy and would silently skip the
+     * annotation. Import uses {@link #openDraftHeaderForImport} instead of this, because it would
+     * otherwise copy published children and immediately replace them.
      */
     private ModelDefinitionDraftEntity startOrGetDraftEntity(
             CurrentAuthenticatedUser currentUser, UUID modelDefinitionId) {
@@ -544,6 +543,12 @@ public class ModelDefinitionDraftService {
      * nothing to review the second time and only genuine changes are surfaced. "What is stored"
      * means the item's open draft when it has one, otherwise the published definition. Only the
      * definitions that were actually created or updated are returned.
+     *
+     * <p>Skip comparison is a pair of flat queries per catalogue (options, then each slot join)
+     * rather than the DTO fetch-join that cartesian-products those collections. Unchanged items
+     * never resolve wargear or write drafts. Changed items open a draft header without copying
+     * published children, which the document would immediately replace, and persist new children
+     * with {@code saveAll}.
      */
     @Transactional
     public List<ModelDefinitionDraft> importModelDefinitions(
@@ -562,14 +567,13 @@ public class ModelDefinitionDraftService {
                         .filter(md -> md.getExternalId() != null)
                         .collect(Collectors.toMap(ModelDefinitionEntity::getExternalId, md -> md, (a, b) -> a));
         // Names are no longer unique, so this legacy fallback picks an arbitrary match among
-        // same-named rows. It only applies to hand-authored definitions that predate source ids.
+        // same-named rows. It only applies when the incoming item has no source id, or the
+        // published row has none either (hand-authored definitions that predate source ids).
         var existingByName =
                 existingDefinitions.stream()
                         .collect(Collectors.toMap(ModelDefinitionEntity::getName, md -> md, (a, b) -> a));
 
         warnOnDuplicateNames(export.getModelDefinitions());
-
-        var wargearDefinitions = resolveWargear(export);
 
         // Drafts already open for these definitions are the most recent state of record, so they
         // (not the published rows) are what an incoming item is compared against and applied to.
@@ -590,15 +594,25 @@ public class ModelDefinitionDraftService {
                         .collect(
                                 Collectors.toMap(ModelDefinitionDraftEntity::getExternalId, d -> d, (a, b) -> a));
 
-        var publishedSignatures = publishedSignatures(existingDefinitions);
+        var publishedGraph = publishedGraph(existingDefinitions);
         var draftSignatures = draftSignatures(existingDrafts);
 
-        List<ModelDefinitionDraft> changed = new ArrayList<>();
+        List<PendingImport> pending = new ArrayList<>();
         int unchanged = 0;
         for (var item : export.getModelDefinitions()) {
             var existing = item.getId() != null ? existingByExternalId.get(item.getId()) : null;
             if (existing == null) {
                 existing = existingByName.get(item.getName());
+                // Names are shared across factions (Chaos Land Raider, etc.). Falling back to
+                // an arbitrary same-named published row is only for hand-authored definitions
+                // that predate source ids. A dataset id that did not match must not steal a
+                // published row that already belongs to a different source id.
+                if (existing != null
+                        && item.getId() != null
+                        && existing.getExternalId() != null
+                        && !existing.getExternalId().equals(item.getId())) {
+                    existing = null;
+                }
             }
 
             FactionEntity faction = null;
@@ -622,14 +636,58 @@ public class ModelDefinitionDraftService {
             var current =
                     draft != null
                             ? draftSignatures.get(draft.getId())
-                            : existing != null ? publishedSignatures.get(existing.getId()) : null;
+                            : existing != null ? publishedGraph.signatures().get(existing.getId()) : null;
             if (current != null && current.equals(signatureOf(item, faction))) {
                 unchanged++;
                 continue;
             }
 
-            changed.add(importItem(currentUser, item, existing, draft, faction, wargearDefinitions));
+            pending.add(new PendingImport(item, existing, draft, faction));
         }
+
+        var namesInDocument = wargearNamesInDocument(export);
+        Map<String, WargearDefinitionEntity> wargearDefinitions = new LinkedHashMap<>();
+        if (!namesInDocument.isEmpty()) {
+            wargearDefinitions.putAll(
+                    wargearDefinitionService.upsertWargear(namesInDocument).bySourceId());
+        }
+        if (!pending.isEmpty()) {
+            wargearDefinitions.putAll(resolveReferencedWargear(pending, wargearDefinitions));
+        }
+
+        var overlayChildren = overlayDraftChildren(pending);
+        // Drafts opened earlier in this same import are not in the snapshot above. Without
+        // this map, two document items that match one published row (duplicate names, or an
+        // unmatched source id falling back to name) would insert a second draft and violate
+        // uq_model_definition_drafts_published_model_definition_id. JDBC batching also means
+        // a later findByPublishedModelDefinitionId would not see an unflushed insert.
+        Map<UUID, ModelDefinitionDraftEntity> openedByPublishedId = new HashMap<>(draftsByPublishedId);
+        Map<String, ModelDefinitionDraftEntity> openedStandaloneByExternalId =
+                new HashMap<>(standaloneDraftsByExternalId);
+        Map<UUID, ModelDefinitionDraftEntity> changedById = new LinkedHashMap<>();
+        for (var next : pending) {
+            var draft = next.existingDraft();
+            if (draft == null && next.existingPublished() != null) {
+                draft = openedByPublishedId.get(next.existingPublished().getId());
+            }
+            if (draft == null && next.item().getId() != null) {
+                draft = openedStandaloneByExternalId.get(next.item().getId());
+            }
+            var saved =
+                    importItem(
+                            currentUser,
+                            new PendingImport(next.item(), next.existingPublished(), draft, next.faction()),
+                            wargearDefinitions,
+                            publishedGraph.publishedIds(),
+                            overlayChildren);
+            if (saved.getPublishedModelDefinitionId() != null) {
+                openedByPublishedId.put(saved.getPublishedModelDefinitionId(), saved);
+            } else if (saved.getExternalId() != null) {
+                openedStandaloneByExternalId.put(saved.getExternalId(), saved);
+            }
+            changedById.put(saved.getId(), saved);
+        }
+        var changed = List.copyOf(changedById.values());
 
         log.info(
                 "Imported {} model definitions: {} created or updated as drafts, {} already up to date",
@@ -637,7 +695,33 @@ public class ModelDefinitionDraftService {
                 changed.size(),
                 unchanged);
 
-        return changed;
+        return withChildren(changed);
+    }
+
+    private record PendingImport(
+            ModelDefinitionExportItem item,
+            ModelDefinitionEntity existingPublished,
+            ModelDefinitionDraftEntity existingDraft,
+            FactionEntity faction) {}
+
+    private record PublishedIdIndex(
+            Map<UUID, Map<String, UUID>> slotIdBySourceId,
+            Map<UUID, Map<String, UUID>> slotIdByName,
+            Map<UUID, Map<String, UUID>> optionIdByWargearSourceId,
+            Map<UUID, Map<String, UUID>> optionIdByWargearName) {
+        static PublishedIdIndex empty() {
+            return new PublishedIdIndex(Map.of(), Map.of(), Map.of(), Map.of());
+        }
+    }
+
+    private record StoredGraph(Map<UUID, DefinitionSignature> signatures, PublishedIdIndex publishedIds) {}
+
+    private record DraftChildIndex(
+            Map<UUID, List<AttachmentSlotDraftEntity>> slotsByDraftId,
+            Map<UUID, List<WargearOptionDraftEntity>> optionsByDraftId) {
+        static DraftChildIndex empty() {
+            return new DraftChildIndex(Map.of(), Map.of());
+        }
     }
 
     /**
@@ -664,100 +748,167 @@ public class ModelDefinitionDraftService {
                         .toList());
     }
 
-    private Map<UUID, DefinitionSignature> publishedSignatures(List<ModelDefinitionEntity> definitions) {
+    private StoredGraph publishedGraph(List<ModelDefinitionEntity> definitions) {
+        if (definitions.isEmpty()) {
+            return new StoredGraph(Map.of(), PublishedIdIndex.empty());
+        }
         var ids = definitions.stream().map(ModelDefinitionEntity::getId).toList();
-        var slotsByDefinitionId =
-                attachmentSlotRepository.findAllByModelDefinitionIdIn(ids).stream()
-                        .collect(Collectors.groupingBy(AttachmentSlotEntity::getModelDefinitionId));
-        var optionsByDefinitionId =
-                wargearOptionRepository.findAllByModelDefinitionIdIn(ids).stream()
-                        .collect(Collectors.groupingBy(WargearOptionEntity::getModelDefinitionId));
+        var slots = attachmentSlotRepository.findAllByModelDefinitionIdIn(ids);
+        var optionRows = wargearOptionRepository.findSignatureAttributesByModelDefinitionIdIn(ids);
+        var eligibilityRows = wargearOptionRepository.findEligibilitySlotRowsByModelDefinitionIdIn(ids);
+        var defaultRows = wargearOptionRepository.findDefaultSlotRowsByModelDefinitionIdIn(ids);
+
+        Map<UUID, List<AttachmentSlotEntity>> slotsByDefinitionId =
+                slots.stream().collect(Collectors.groupingBy(AttachmentSlotEntity::getModelDefinitionId));
+        Map<UUID, Map<String, UUID>> slotIdBySourceId = new HashMap<>();
+        Map<UUID, Map<String, UUID>> slotIdByName = new HashMap<>();
+        Map<UUID, Map<UUID, String>> slotSourceIdById = new HashMap<>();
+        for (var slot : slots) {
+            String source = sourceId(slot.getExternalId(), slot.getId());
+            slotIdBySourceId
+                    .computeIfAbsent(slot.getModelDefinitionId(), id -> new HashMap<>())
+                    .put(source, slot.getId());
+            slotIdByName
+                    .computeIfAbsent(slot.getModelDefinitionId(), id -> new HashMap<>())
+                    .put(slot.getName(), slot.getId());
+            slotSourceIdById
+                    .computeIfAbsent(slot.getModelDefinitionId(), id -> new HashMap<>())
+                    .put(slot.getId(), source);
+        }
+
+        var optionPieces = optionSignaturePieces(optionRows, eligibilityRows, defaultRows);
 
         Map<UUID, DefinitionSignature> signatures = new HashMap<>();
         for (var definition : definitions) {
-            var slots = slotsByDefinitionId.getOrDefault(definition.getId(), List.of());
-            var options = optionsByDefinitionId.getOrDefault(definition.getId(), List.of());
-            Map<UUID, String> slotSourceIdById =
-                    slots.stream()
-                            .collect(
-                                    Collectors.toMap(
-                                            AttachmentSlotEntity::getId,
-                                            s -> sourceId(s.getExternalId(), s.getId())));
+            var defSlots = slotsByDefinitionId.getOrDefault(definition.getId(), List.of());
+            var sourceBySlotId = slotSourceIdById.getOrDefault(definition.getId(), Map.of());
+            var optionKeys =
+                    optionPieces.optionKeysByOwnerId().getOrDefault(definition.getId(), List.of());
             signatures.put(
                     definition.getId(),
                     new DefinitionSignature(
                             definition.getName(),
                             blankToNull(definition.getDescription()),
                             definition.getFactionId(),
-                            slots.stream()
-                                    .map(s -> slotKey(slotSourceIdById.get(s.getId()), s.getName(), s.getType()))
+                            defSlots.stream()
+                                    .map(s -> slotKey(sourceBySlotId.get(s.getId()), s.getName(), s.getType()))
                                     .sorted()
                                     .toList(),
-                            options.stream()
-                                    .map(
-                                            o ->
-                                                    optionKey(
-                                                            wargearSourceId(o),
-                                                            o.isDefault(),
-                                                            o.isDefaultLinked(),
-                                                            o.getAttachmentSlots().stream()
-                                                                    .map(s -> slotSourceIdById.get(s.getId()))
-                                                                    .toList(),
-                                                            o.getDefaultAttachmentSlots().stream()
-                                                                    .map(s -> slotSourceIdById.get(s.getId()))
-                                                                    .toList()))
-                                    .sorted()
-                                    .toList()));
+                            optionKeys.stream().sorted().toList()));
         }
-        return signatures;
+
+        return new StoredGraph(
+                signatures,
+                new PublishedIdIndex(
+                        slotIdBySourceId,
+                        slotIdByName,
+                        optionPieces.optionIdByWargearSourceId(),
+                        optionPieces.optionIdByWargearName()));
     }
 
     private Map<UUID, DefinitionSignature> draftSignatures(List<ModelDefinitionDraftEntity> drafts) {
+        if (drafts.isEmpty()) {
+            return Map.of();
+        }
         var ids = drafts.stream().map(ModelDefinitionDraftEntity::getId).toList();
-        var slotsByDraftId =
-                attachmentSlotDraftRepository.findAllByModelDefinitionDraftIdIn(ids).stream()
+        var slots = attachmentSlotDraftRepository.findAllByModelDefinitionDraftIdIn(ids);
+        var optionRows =
+                wargearOptionDraftRepository.findSignatureAttributesByModelDefinitionDraftIdIn(ids);
+        var eligibilityRows =
+                wargearOptionDraftRepository.findEligibilitySlotRowsByModelDefinitionDraftIdIn(ids);
+        var defaultRows =
+                wargearOptionDraftRepository.findDefaultSlotRowsByModelDefinitionDraftIdIn(ids);
+
+        Map<UUID, List<AttachmentSlotDraftEntity>> slotsByDraftId =
+                slots.stream()
                         .collect(Collectors.groupingBy(AttachmentSlotDraftEntity::getModelDefinitionDraftId));
-        var optionsByDraftId =
-                wargearOptionDraftRepository.findAllByModelDefinitionDraftIdIn(ids).stream()
-                        .collect(Collectors.groupingBy(WargearOptionDraftEntity::getModelDefinitionDraftId));
+        Map<UUID, Map<UUID, String>> slotSourceIdById = new HashMap<>();
+        for (var slot : slots) {
+            slotSourceIdById
+                    .computeIfAbsent(slot.getModelDefinitionDraftId(), id -> new HashMap<>())
+                    .put(slot.getId(), sourceId(slot.getExternalId(), slot.getId()));
+        }
+
+        var optionPieces = optionSignaturePieces(optionRows, eligibilityRows, defaultRows);
 
         Map<UUID, DefinitionSignature> signatures = new HashMap<>();
         for (var draft : drafts) {
-            var slots = slotsByDraftId.getOrDefault(draft.getId(), List.of());
-            var options = optionsByDraftId.getOrDefault(draft.getId(), List.of());
-            Map<UUID, String> slotSourceIdById =
-                    slots.stream()
-                            .collect(
-                                    Collectors.toMap(
-                                            AttachmentSlotDraftEntity::getId,
-                                            s -> sourceId(s.getExternalId(), s.getId())));
+            var draftSlots = slotsByDraftId.getOrDefault(draft.getId(), List.of());
+            var sourceBySlotId = slotSourceIdById.getOrDefault(draft.getId(), Map.of());
+            var optionKeys = optionPieces.optionKeysByOwnerId().getOrDefault(draft.getId(), List.of());
             signatures.put(
                     draft.getId(),
                     new DefinitionSignature(
                             draft.getName(),
                             blankToNull(draft.getDescription()),
                             draft.getFactionId(),
-                            slots.stream()
-                                    .map(s -> slotKey(slotSourceIdById.get(s.getId()), s.getName(), s.getType()))
+                            draftSlots.stream()
+                                    .map(s -> slotKey(sourceBySlotId.get(s.getId()), s.getName(), s.getType()))
                                     .sorted()
                                     .toList(),
-                            options.stream()
-                                    .map(
-                                            o ->
-                                                    optionKey(
-                                                            wargearSourceId(o),
-                                                            o.isDefault(),
-                                                            o.isDefaultLinked(),
-                                                            o.getAttachmentSlots().stream()
-                                                                    .map(s -> slotSourceIdById.get(s.getId()))
-                                                                    .toList(),
-                                                            o.getDefaultAttachmentSlots().stream()
-                                                                    .map(s -> slotSourceIdById.get(s.getId()))
-                                                                    .toList()))
-                                    .sorted()
-                                    .toList()));
+                            optionKeys.stream().sorted().toList()));
         }
         return signatures;
+    }
+
+    private record OptionSignaturePieces(
+            Map<UUID, List<String>> optionKeysByOwnerId,
+            Map<UUID, Map<String, UUID>> optionIdByWargearSourceId,
+            Map<UUID, Map<String, UUID>> optionIdByWargearName) {}
+
+    /**
+     * Turns the three flat option queries into per-owner signature strings and published-id
+     * lookups. Row shape is {@code ownerId, optionId, wargearExternalId, wargearId, wargearName,
+     * isDefault, isDefaultLinked}.
+     */
+    private OptionSignaturePieces optionSignaturePieces(
+            List<Object[]> optionRows, List<Object[]> eligibilityRows, List<Object[]> defaultRows) {
+        var eligibilityByOptionId = slotSourceIdsByOptionId(eligibilityRows);
+        var defaultsByOptionId = slotSourceIdsByOptionId(defaultRows);
+        Map<UUID, List<String>> optionKeysByOwnerId = new HashMap<>();
+        Map<UUID, Map<String, UUID>> optionIdByWargearSourceId = new HashMap<>();
+        Map<UUID, Map<String, UUID>> optionIdByWargearName = new HashMap<>();
+        for (var row : optionRows) {
+            UUID ownerId = (UUID) row[0];
+            UUID optionId = (UUID) row[1];
+            String wargearExternalId = (String) row[2];
+            UUID wargearId = (UUID) row[3];
+            String wargearName = (String) row[4];
+            boolean isDefault = Boolean.TRUE.equals(row[5]);
+            boolean isDefaultLinked = Boolean.TRUE.equals(row[6]);
+            String wargearSource = wargearExternalId != null ? wargearExternalId : wargearId.toString();
+            optionIdByWargearSourceId
+                    .computeIfAbsent(ownerId, id -> new HashMap<>())
+                    .put(wargearSource, optionId);
+            if (wargearName != null) {
+                optionIdByWargearName
+                        .computeIfAbsent(ownerId, id -> new HashMap<>())
+                        .put(wargearName, optionId);
+            }
+            optionKeysByOwnerId
+                    .computeIfAbsent(ownerId, id -> new ArrayList<>())
+                    .add(
+                            optionKey(
+                                    wargearSource,
+                                    isDefault,
+                                    isDefaultLinked,
+                                    eligibilityByOptionId.getOrDefault(optionId, List.of()),
+                                    defaultsByOptionId.getOrDefault(optionId, List.of())));
+        }
+        return new OptionSignaturePieces(
+                optionKeysByOwnerId, optionIdByWargearSourceId, optionIdByWargearName);
+    }
+
+    private static Map<UUID, List<String>> slotSourceIdsByOptionId(List<Object[]> rows) {
+        Map<UUID, List<String>> result = new HashMap<>();
+        for (var row : rows) {
+            UUID optionId = (UUID) row[0];
+            UUID slotId = (UUID) row[1];
+            String externalId = (String) row[2];
+            result.computeIfAbsent(optionId, id -> new ArrayList<>())
+                    .add(externalId != null ? externalId : slotId.toString());
+        }
+        return result;
     }
 
     private static String slotKey(String sourceId, String name, String type) {
@@ -835,30 +986,23 @@ public class ModelDefinitionDraftService {
     }
 
     /**
-     * Resolves every wargear id the document's models reference to a shared {@link
-     * WargearDefinitionEntity}, keyed by source id.
+     * Resolves every wargear id the items being written reference to a shared {@link
+     * WargearDefinitionEntity}, keyed by source id. Unchanged items are not passed here, so a
+     * full-catalogue re-import that only touches half the definitions does not look up wargear
+     * for the rest.
      *
      * <p>Wargear is imported from its own admin page, so this document is expected to reference
      * wargear that already exists. An id that cannot be resolved fails the import: a models-only
      * document carries no name for it, so the alternative is a nameless placeholder definition.
      */
-    private Map<String, WargearDefinitionEntity> resolveWargear(ModelDefinitionExport export) {
+    private Map<String, WargearDefinitionEntity> resolveReferencedWargear(
+            List<PendingImport> pending, Map<String, WargearDefinitionEntity> alreadyResolved) {
         var referencedIds =
-                export.getModelDefinitions().stream()
-                        .flatMap(item -> item.getWargearOptions().stream())
+                pending.stream()
+                        .flatMap(next -> next.item().getWargearOptions().stream())
                         .map(ModelDefinitionExportItemWargearOptionsInner::getId)
                         .collect(Collectors.toCollection(LinkedHashSet::new));
-        if (referencedIds.isEmpty()) {
-            return Map.of();
-        }
-
-        // Deprecated, for older combined catalogues only: anything they name is upserted first.
-        Map<String, WargearDefinitionEntity> bySourceId =
-                new LinkedHashMap<>(
-                        wargearDefinitionService
-                                .upsertWargear(wargearNamesInDocument(export))
-                                .bySourceId());
-
+        Map<String, WargearDefinitionEntity> bySourceId = new LinkedHashMap<>(alreadyResolved);
         var unresolved = referencedIds.stream().filter(id -> !bySourceId.containsKey(id)).toList();
         bySourceId.putAll(wargearDefinitionService.findBySourceIds(unresolved));
 
@@ -947,44 +1091,85 @@ public class ModelDefinitionDraftService {
                 });
     }
 
-    private ModelDefinitionDraft importItem(
+    private DraftChildIndex overlayDraftChildren(List<PendingImport> pending) {
+        var draftIds =
+                pending.stream()
+                        .map(PendingImport::existingDraft)
+                        .filter(java.util.Objects::nonNull)
+                        .map(ModelDefinitionDraftEntity::getId)
+                        .toList();
+        if (draftIds.isEmpty()) {
+            return DraftChildIndex.empty();
+        }
+        return new DraftChildIndex(
+                attachmentSlotDraftRepository.findAllByModelDefinitionDraftIdIn(draftIds).stream()
+                        .collect(Collectors.groupingBy(AttachmentSlotDraftEntity::getModelDefinitionDraftId)),
+                wargearOptionDraftRepository.findAllWithDefinitionByModelDefinitionDraftIdIn(draftIds)
+                        .stream()
+                        .collect(
+                                Collectors.groupingBy(WargearOptionDraftEntity::getModelDefinitionDraftId)));
+    }
+
+    /**
+     * Opens a draft for an imported change to a published definition without copying its children.
+     * {@link #startOrGetDraftEntity} still copies for the admin "start editing" path; import would
+     * immediately delete those copied rows and rewrite them from the document.
+     */
+    private ModelDefinitionDraftEntity openDraftHeaderForImport(
+            CurrentAuthenticatedUser currentUser, ModelDefinitionEntity published) {
+        return modelDefinitionDraftRepository.save(
+                ModelDefinitionDraftEntity.builder()
+                        .publishedModelDefinitionId(published.getId())
+                        .externalId(published.getExternalId())
+                        .factionId(published.getFactionId())
+                        .name(published.getName())
+                        .description(published.getDescription())
+                        .createdBy(currentUser.id())
+                        .updatedBy(currentUser.id())
+                        .build());
+    }
+
+    private ModelDefinitionDraftEntity importItem(
             CurrentAuthenticatedUser currentUser,
-            ModelDefinitionExportItem item,
-            ModelDefinitionEntity existingPublished,
-            ModelDefinitionDraftEntity existingDraft,
-            FactionEntity faction,
-            Map<String, WargearDefinitionEntity> wargearDefinitions) {
-        UUID draftId;
-        if (existingDraft != null) {
-            draftId = existingDraft.getId();
-        } else if (existingPublished != null) {
-            draftId = startOrGetDraftEntity(currentUser, existingPublished.getId()).getId();
+            PendingImport pending,
+            Map<String, WargearDefinitionEntity> wargearDefinitions,
+            PublishedIdIndex publishedIds,
+            DraftChildIndex overlayChildren) {
+        var item = pending.item();
+        ModelDefinitionDraftEntity draftEntity;
+        if (pending.existingDraft() != null) {
+            draftEntity = pending.existingDraft();
+        } else if (pending.existingPublished() != null) {
+            draftEntity = openDraftHeaderForImport(currentUser, pending.existingPublished());
         } else {
-            draftId =
-                    modelDefinitionDraftRepository
-                            .save(
-                                    ModelDefinitionDraftEntity.builder()
-                                            .name(item.getName())
-                                            .description(item.getDescription())
-                                            .createdBy(currentUser.id())
-                                            .updatedBy(currentUser.id())
-                                            .build())
-                            .getId();
+            draftEntity =
+                    modelDefinitionDraftRepository.save(
+                            ModelDefinitionDraftEntity.builder()
+                                    .name(item.getName())
+                                    .description(item.getDescription())
+                                    .createdBy(currentUser.id())
+                                    .updatedBy(currentUser.id())
+                                    .build());
         }
 
-        var draftEntity = requireDraft(draftId);
         draftEntity.setName(item.getName());
         draftEntity.setDescription(item.getDescription());
         draftEntity.setExternalId(item.getId());
-        draftEntity.setFactionId(faction != null ? faction.getId() : null);
+        draftEntity.setFactionId(pending.faction() != null ? pending.faction().getId() : null);
         draftEntity.setUpdatedBy(currentUser.id());
         modelDefinitionDraftRepository.save(draftEntity);
 
+        var draftId = draftEntity.getId();
+        var publishedDefinitionId =
+                pending.existingPublished() != null
+                        ? pending.existingPublished().getId()
+                        : draftEntity.getPublishedModelDefinitionId();
+
         // Replace this draft's slots/options entirely, preserving published row ids by stable source
         // id (with name fallback for legacy drafts). Options must be deleted before slots because
-        // their many-to-many join rows have no entity cascade.
-        var existingOptions =
-                wargearOptionDraftRepository.findAllByModelDefinitionDraftId(draftId);
+        // their many-to-many join rows have no entity cascade. New drafts opened for import have
+        // no children; published ids come from the already-loaded published tables.
+        var existingOptions = overlayChildren.optionsByDraftId().getOrDefault(draftId, List.of());
         var existingOptionsByWargearSourceId =
                 existingOptions.stream()
                         .collect(
@@ -997,7 +1182,7 @@ public class ModelDefinitionDraftService {
                                         o -> o.getWargearDefinition().getName(), o -> o, (a, b) -> a));
         wargearOptionDraftRepository.deleteAllByModelDefinitionDraftId(draftId);
 
-        var existingSlots = attachmentSlotDraftRepository.findAllByModelDefinitionDraftId(draftId);
+        var existingSlots = overlayChildren.slotsByDraftId().getOrDefault(draftId, List.of());
         var existingSlotsByExternalId =
                 existingSlots.stream()
                         .filter(s -> s.getExternalId() != null)
@@ -1007,28 +1192,54 @@ public class ModelDefinitionDraftService {
                         .collect(Collectors.toMap(AttachmentSlotDraftEntity::getName, s -> s, (a, b) -> a));
         attachmentSlotDraftRepository.deleteAllByModelDefinitionDraftId(draftId);
         Map<String, AttachmentSlotDraftEntity> slotBySourceId = new HashMap<>();
+        List<AttachmentSlotDraftEntity> slotsToSave = new ArrayList<>();
         for (var slotItem : item.getAttachmentSlots()) {
             var previous = existingSlotsByExternalId.get(slotItem.getId());
             if (previous == null) {
                 previous = existingSlotsByName.get(slotItem.getName());
             }
+            var publishedSlotId =
+                    previous != null ? previous.getPublishedAttachmentSlotId() : null;
+            if (publishedSlotId == null) {
+                publishedSlotId =
+                        lookupPublishedId(
+                                publishedIds.slotIdBySourceId(),
+                                publishedIds.slotIdByName(),
+                                publishedDefinitionId,
+                                slotItem.getId(),
+                                slotItem.getName());
+            }
             var slot =
-                    attachmentSlotDraftRepository.save(
-                            AttachmentSlotDraftEntity.builder()
-                                    .modelDefinitionDraftId(draftId)
-                                    .publishedAttachmentSlotId(
-                                            previous != null ? previous.getPublishedAttachmentSlotId() : null)
-                                    .externalId(slotItem.getId())
-                                    .name(slotItem.getName())
-                                    .type(slotItem.getType())
-                                    .build());
+                    AttachmentSlotDraftEntity.builder()
+                            .modelDefinitionDraftId(draftId)
+                            .publishedAttachmentSlotId(publishedSlotId)
+                            .externalId(slotItem.getId())
+                            .name(slotItem.getName())
+                            .type(slotItem.getType())
+                            .build();
+            slotsToSave.add(slot);
             slotBySourceId.put(slotItem.getId(), slot);
         }
+        if (!slotsToSave.isEmpty()) {
+            attachmentSlotDraftRepository.saveAll(slotsToSave);
+        }
 
+        List<WargearOptionDraftEntity> optionsToSave = new ArrayList<>();
         for (var optionItem : item.getWargearOptions()) {
             var previous = existingOptionsByWargearSourceId.get(optionItem.getId());
             if (previous == null) {
                 previous = existingOptionsByName.get(optionItem.getName());
+            }
+            var publishedOptionId =
+                    previous != null ? previous.getPublishedWargearOptionId() : null;
+            if (publishedOptionId == null) {
+                publishedOptionId =
+                        lookupPublishedId(
+                                publishedIds.optionIdByWargearSourceId(),
+                                publishedIds.optionIdByWargearName(),
+                                publishedDefinitionId,
+                                optionItem.getId(),
+                                optionItem.getName());
             }
             var slots =
                     optionItem.getSlotIds().stream()
@@ -1048,11 +1259,10 @@ public class ModelDefinitionDraftService {
                                         return slot;
                                     })
                             .collect(Collectors.toCollection(ArrayList::new));
-            wargearOptionDraftRepository.save(
+            optionsToSave.add(
                     WargearOptionDraftEntity.builder()
                             .modelDefinitionDraftId(draftId)
-                            .publishedWargearOptionId(
-                                    previous != null ? previous.getPublishedWargearOptionId() : null)
+                            .publishedWargearOptionId(publishedOptionId)
                             .wargearDefinition(wargearDefinitions.get(optionItem.getId()))
                             .isDefault(Boolean.TRUE.equals(optionItem.getIsDefault()))
                             .defaultLinked(Boolean.TRUE.equals(optionItem.getIsDefaultLinked()))
@@ -1061,8 +1271,28 @@ public class ModelDefinitionDraftService {
                                     importedDefaultSlots(optionItem, slots, slotBySourceId))
                             .build());
         }
+        if (!optionsToSave.isEmpty()) {
+            wargearOptionDraftRepository.saveAll(optionsToSave);
+        }
 
-        return toDraftDto(requireDraft(draftId));
+        return draftEntity;
+    }
+
+    private static UUID lookupPublishedId(
+            Map<UUID, Map<String, UUID>> bySourceId,
+            Map<UUID, Map<String, UUID>> byName,
+            UUID publishedDefinitionId,
+            String sourceId,
+            String name) {
+        if (publishedDefinitionId == null) {
+            return null;
+        }
+        var sourceIds = bySourceId.get(publishedDefinitionId);
+        if (sourceIds != null && sourceIds.containsKey(sourceId)) {
+            return sourceIds.get(sourceId);
+        }
+        var names = byName.get(publishedDefinitionId);
+        return names != null ? names.get(name) : null;
     }
 
     /**
@@ -1183,8 +1413,9 @@ public class ModelDefinitionDraftService {
     /**
      * Maps drafts to DTOs, loading every draft's children in a fixed number of queries.
      *
-     * <p>Mapping drafts one at a time costs two queries each plus the per-option association loads
-     * described on {@link WargearOptionDraftRepository#findAllByModelDefinitionDraftIdIn(List)}.
+     * <p>Slot collections are loaded as separate joins rather than a single fetch-join of both,
+     * which cartesian-products eligibility slots with default slots and is the same cost the
+     * catalogue listing used to pay per option.
      */
     private List<ModelDefinitionDraft> withChildren(List<ModelDefinitionDraftEntity> entities) {
         if (entities.isEmpty()) {
@@ -1200,13 +1431,28 @@ public class ModelDefinitionDraftService {
                                         Collectors.mapping(
                                                 modelDefinitionMapper::toDto, Collectors.toList())));
 
+        var eligibilityByOptionId =
+                persistedSlotIdsByOptionId(
+                        wargearOptionDraftRepository.findEligibilitySlotRowsByModelDefinitionDraftIdIn(ids));
+        var defaultsByOptionId =
+                persistedSlotIdsByOptionId(
+                        wargearOptionDraftRepository.findDefaultSlotRowsByModelDefinitionDraftIdIn(ids));
         Map<UUID, List<WargearOptionDraft>> optionsByDraftId =
-                wargearOptionDraftRepository.findAllByModelDefinitionDraftIdIn(ids).stream()
+                wargearOptionDraftRepository.findAllWithDefinitionByModelDefinitionDraftIdIn(ids).stream()
                         .collect(
                                 Collectors.groupingBy(
                                         WargearOptionDraftEntity::getModelDefinitionDraftId,
                                         Collectors.mapping(
-                                                modelDefinitionMapper::toDto, Collectors.toList())));
+                                                option ->
+                                                        modelDefinitionMapper
+                                                                .toDtoWithoutSlots(option)
+                                                                .attachmentSlotIds(
+                                                                        eligibilityByOptionId.getOrDefault(
+                                                                                option.getId(), List.of()))
+                                                                .defaultAttachmentSlotIds(
+                                                                        defaultsByOptionId.getOrDefault(
+                                                                                option.getId(), List.of())),
+                                                Collectors.toList())));
 
         return entities.stream()
                 .map(
@@ -1216,6 +1462,14 @@ public class ModelDefinitionDraftService {
                                         .attachmentSlots(slotsByDraftId.getOrDefault(entity.getId(), List.of()))
                                         .wargearOptions(optionsByDraftId.getOrDefault(entity.getId(), List.of())))
                 .toList();
+    }
+
+    private static Map<UUID, List<UUID>> persistedSlotIdsByOptionId(List<Object[]> rows) {
+        Map<UUID, List<UUID>> result = new HashMap<>();
+        for (var row : rows) {
+            result.computeIfAbsent((UUID) row[0], id -> new ArrayList<>()).add((UUID) row[1]);
+        }
+        return result;
     }
 
     private ModelDefinitionDraft toDraftDto(ModelDefinitionDraftEntity entity) {

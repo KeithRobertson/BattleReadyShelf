@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
@@ -40,11 +41,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.StreamSupport;
 
 @ExtendWith(MockitoExtension.class)
 class ModelDefinitionDraftServiceTest {
@@ -373,33 +376,7 @@ class ModelDefinitionDraftServiceTest {
                                 exportItem("warcry_fire_dragon", "Fire Dragon")));
 
         when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of());
-        when(modelDefinitionDraftRepository.save(any()))
-                .thenAnswer(
-                        invocation -> {
-                            ModelDefinitionDraftEntity draft = invocation.getArgument(0);
-                            if (draft.getId() == null) {
-                                draft.setId(UUID.randomUUID());
-                            }
-                            return draft;
-                        });
-        when(modelDefinitionDraftRepository.findById(any()))
-                .thenAnswer(
-                        invocation ->
-                                Optional.of(
-                                        ModelDefinitionDraftEntity.builder()
-                                                .id(invocation.getArgument(0))
-                                                .name("Fire Dragon")
-                                                .build()));
-        when(attachmentSlotDraftRepository.findAllByModelDefinitionDraftId(any()))
-                .thenReturn(List.of());
-        when(wargearOptionDraftRepository.findAllByModelDefinitionDraftId(any()))
-                .thenReturn(List.of());
-        when(modelDefinitionMapper.toDto(any(ModelDefinitionDraftEntity.class)))
-                .thenAnswer(
-                        invocation -> {
-                            ModelDefinitionDraftEntity draft = invocation.getArgument(0);
-                            return new ModelDefinitionDraft(draft.getName(), List.of(), List.of());
-                        });
+        stubDraftWrites();
 
         var drafts = service.importModelDefinitions(currentUser(), export);
 
@@ -443,10 +420,7 @@ class ModelDefinitionDraftServiceTest {
         when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(faction));
         when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(published));
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
-        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(modelId)))
-                .thenReturn(List.of(slot));
-        when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(modelId)))
-                .thenReturn(List.of(option));
+        stubPublishedGraph(List.of(slot), List.of(option));
         when(wargearDefinitionService.upsertWargear(any()))
                 .thenReturn(outcomeFor(option.getWargearDefinition()));
 
@@ -468,6 +442,160 @@ class ModelDefinitionDraftServiceTest {
 
         assertThat(service.importModelDefinitions(currentUser(), export)).isEmpty();
         verify(modelDefinitionDraftRepository, never()).save(any());
+        verify(wargearOptionRepository, never()).findAllByModelDefinitionIdIn(any());
+    }
+
+    @Test
+    void importWritesChangedPublishedDefinitionsWithoutCopyingChildren() {
+        var factionId = UUID.randomUUID();
+        var modelId = UUID.randomUUID();
+        var slotId = UUID.randomUUID();
+        var optionId = UUID.randomUUID();
+        var fusionGun = wargearDefinition("fusion_gun", "Fusion Gun");
+        var faction =
+                FactionEntity.builder().id(factionId).externalId("aeldari").name("Aeldari").build();
+        var published =
+                ModelDefinitionEntity.builder()
+                        .id(modelId)
+                        .externalId("aeldari_fire_dragon")
+                        .factionId(factionId)
+                        .name("Fire Dragon")
+                        .description("Old")
+                        .build();
+        var slot =
+                AttachmentSlotEntity.builder()
+                        .id(slotId)
+                        .modelDefinitionId(modelId)
+                        .externalId("weapon")
+                        .name("Weapon")
+                        .type("weapon")
+                        .build();
+        var option =
+                WargearOptionEntity.builder()
+                        .id(optionId)
+                        .modelDefinitionId(modelId)
+                        .wargearDefinition(fusionGun)
+                        .isDefault(true)
+                        .attachmentSlots(List.of(slot))
+                        .build();
+
+        when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(faction));
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(published));
+        when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
+        stubPublishedGraph(List.of(slot), List.of(option));
+        when(wargearDefinitionService.findBySourceIds(List.of("fusion_gun")))
+                .thenReturn(new LinkedHashMap<>(Map.of("fusion_gun", fusionGun)));
+        stubDraftWrites();
+
+        var export =
+                new ModelDefinitionExport(
+                        4,
+                        List.of(
+                                new ModelDefinitionExportItem(
+                                                "aeldari_fire_dragon",
+                                                "aeldari",
+                                                "Fire Dragon",
+                                                List.of(
+                                                        new ModelDefinitionExportItemAttachmentSlotsInner(
+                                                                "weapon", "Weapon", "weapon")),
+                                                List.of(
+                                                        new ModelDefinitionExportItemWargearOptionsInner(
+                                                                "fusion_gun", true, List.of("weapon"))))
+                                        .description("Updated")));
+
+        assertThat(service.importModelDefinitions(currentUser(), export)).hasSize(1);
+        verify(wargearOptionRepository, never()).findAllByModelDefinitionIdIn(any());
+        verify(modelDefinitionRepository, never()).findById(any());
+        verify(attachmentSlotDraftRepository, never()).save(any());
+        verify(wargearOptionDraftRepository, never()).save(any());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<AttachmentSlotDraftEntity>> savedSlots =
+                ArgumentCaptor.forClass(Iterable.class);
+        verify(attachmentSlotDraftRepository).saveAll(savedSlots.capture());
+        assertThat(savedSlots.getValue())
+                .singleElement()
+                .satisfies(
+                        saved -> {
+                            assertThat(saved.getPublishedAttachmentSlotId()).isEqualTo(slotId);
+                            assertThat(saved.getExternalId()).isEqualTo("weapon");
+                        });
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<WargearOptionDraftEntity>> savedOptions =
+                ArgumentCaptor.forClass(Iterable.class);
+        verify(wargearOptionDraftRepository).saveAll(savedOptions.capture());
+        assertThat(savedOptions.getValue())
+                .singleElement()
+                .satisfies(
+                        saved -> {
+                            assertThat(saved.getPublishedWargearOptionId()).isEqualTo(optionId);
+                            assertThat(saved.getWargearDefinition()).isSameAs(fusionGun);
+                        });
+    }
+
+    @Test
+    void importReusesADraftOpenedEarlierInTheSameImportForTheSamePublishedDefinition() {
+        var modelId = UUID.randomUUID();
+        var published =
+                publishedModel(modelId, "thousand_sons_chaos_land_raider", null, "Chaos Land Raider");
+        published.setDescription("Old");
+
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(published));
+        when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
+        stubPublishedGraph(List.of(), List.of());
+        stubDraftWrites();
+
+        var export =
+                new ModelDefinitionExport(
+                        4,
+                        List.of(
+                                exportItem("thousand_sons_chaos_land_raider", "Chaos Land Raider")
+                                        .description("First copy"),
+                                exportItem("thousand_sons_chaos_land_raider", "Chaos Land Raider")
+                                        .description("Second copy")));
+
+        var drafts = service.importModelDefinitions(currentUser(), export);
+
+        assertThat(drafts).hasSize(1);
+        var savedDrafts = ArgumentCaptor.forClass(ModelDefinitionDraftEntity.class);
+        verify(modelDefinitionDraftRepository, atLeastOnce()).save(savedDrafts.capture());
+        assertThat(savedDrafts.getAllValues())
+                .extracting(ModelDefinitionDraftEntity::getId)
+                .doesNotContainNull()
+                .containsOnly(savedDrafts.getAllValues().getFirst().getId());
+        assertThat(savedDrafts.getAllValues())
+                .filteredOn(draft -> draft.getPublishedModelDefinitionId() != null)
+                .allSatisfy(
+                        draft -> assertThat(draft.getPublishedModelDefinitionId()).isEqualTo(modelId));
+    }
+
+    @Test
+    void importDoesNotAttachADifferentSourceIdToAPublishedDefinitionThatSharesAName() {
+        var modelId = UUID.randomUUID();
+        var published =
+                publishedModel(modelId, "thousand_sons_chaos_land_raider", null, "Chaos Land Raider");
+
+        when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(published));
+        when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
+        stubPublishedGraph(List.of(), List.of());
+        stubDraftWrites();
+
+        var export =
+                new ModelDefinitionExport(
+                        4,
+                        List.of(exportItem("chaos_space_marines_chaos_land_raider", "Chaos Land Raider")));
+
+        var drafts = service.importModelDefinitions(currentUser(), export);
+
+        assertThat(drafts).hasSize(1);
+        var savedDrafts = ArgumentCaptor.forClass(ModelDefinitionDraftEntity.class);
+        verify(modelDefinitionDraftRepository, atLeastOnce()).save(savedDrafts.capture());
+        assertThat(savedDrafts.getAllValues())
+                .allSatisfy(draft -> assertThat(draft.getPublishedModelDefinitionId()).isNull());
+        assertThat(savedDrafts.getAllValues())
+                .extracting(ModelDefinitionDraftEntity::getExternalId)
+                .contains("chaos_space_marines_chaos_land_raider");
     }
 
     @Test
@@ -482,15 +610,7 @@ class ModelDefinitionDraftServiceTest {
 
         when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of());
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of(draft));
-        when(modelDefinitionDraftRepository.findById(draftId)).thenReturn(Optional.of(draft));
-        when(modelDefinitionDraftRepository.save(any()))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(modelDefinitionMapper.toDto(any(ModelDefinitionDraftEntity.class)))
-                .thenAnswer(
-                        invocation -> {
-                            ModelDefinitionDraftEntity d = invocation.getArgument(0);
-                            return new ModelDefinitionDraft(d.getName(), List.of(), List.of());
-                        });
+        stubDraftWrites();
 
         var export =
                 new ModelDefinitionExport(
@@ -543,10 +663,7 @@ class ModelDefinitionDraftServiceTest {
         when(factionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(faction));
         when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(guardian, ranger));
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
-        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(guardianId, rangerId)))
-                .thenReturn(List.of());
-        when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(guardianId, rangerId)))
-                .thenReturn(List.of(guardianOption, rangerOption));
+        stubPublishedGraph(List.of(), List.of(guardianOption, rangerOption));
         when(wargearDefinitionService.upsertWargear(any())).thenReturn(outcomeFor(shurikenPistol));
 
         var export =
@@ -574,33 +691,7 @@ class ModelDefinitionDraftServiceTest {
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
         when(wargearDefinitionService.findBySourceIds(List.of("shuriken_pistol")))
                 .thenReturn(new LinkedHashMap<>(Map.of("shuriken_pistol", shurikenPistol)));
-        when(modelDefinitionDraftRepository.save(any()))
-                .thenAnswer(
-                        invocation -> {
-                            ModelDefinitionDraftEntity draft = invocation.getArgument(0);
-                            if (draft.getId() == null) {
-                                draft.setId(UUID.randomUUID());
-                            }
-                            return draft;
-                        });
-        when(modelDefinitionDraftRepository.findById(any()))
-                .thenAnswer(
-                        invocation ->
-                                Optional.of(
-                                        ModelDefinitionDraftEntity.builder()
-                                                .id(invocation.getArgument(0))
-                                                .name("Model")
-                                                .build()));
-        when(attachmentSlotDraftRepository.findAllByModelDefinitionDraftId(any()))
-                .thenReturn(List.of());
-        when(wargearOptionDraftRepository.findAllByModelDefinitionDraftId(any()))
-                .thenReturn(List.of());
-        when(modelDefinitionMapper.toDto(any(ModelDefinitionDraftEntity.class)))
-                .thenAnswer(
-                        invocation -> {
-                            ModelDefinitionDraftEntity draft = invocation.getArgument(0);
-                            return new ModelDefinitionDraft(draft.getName(), List.of(), List.of());
-                        });
+        stubDraftWrites();
 
         var export =
                 new ModelDefinitionExport(
@@ -613,10 +704,13 @@ class ModelDefinitionDraftServiceTest {
 
         service.importModelDefinitions(currentUser(), export);
 
-        var savedOptions = ArgumentCaptor.forClass(WargearOptionDraftEntity.class);
-        verify(wargearOptionDraftRepository, times(2)).save(savedOptions.capture());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<WargearOptionDraftEntity>> savedOptions =
+                ArgumentCaptor.forClass(Iterable.class);
+        verify(wargearOptionDraftRepository, times(2)).saveAll(savedOptions.capture());
         var definitions =
                 savedOptions.getAllValues().stream()
+                        .flatMap(saved -> StreamSupport.stream(saved.spliterator(), false))
                         .map(WargearOptionDraftEntity::getWargearDefinition)
                         .toList();
         assertThat(definitions).doesNotContainNull().hasSize(2);
@@ -683,10 +777,7 @@ class ModelDefinitionDraftServiceTest {
         when(wargearDefinitionService.upsertWargear(any())).thenReturn(outcomeFor(shurikenPistol));
         when(modelDefinitionRepository.findAllByOwnerUserIdIsNull()).thenReturn(List.of(guardian));
         when(modelDefinitionDraftRepository.findAll()).thenReturn(List.of());
-        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(List.of(guardianId)))
-                .thenReturn(List.of());
-        when(wargearOptionRepository.findAllByModelDefinitionIdIn(List.of(guardianId)))
-                .thenReturn(List.of(publishedOption(guardianId, shurikenPistol)));
+        stubPublishedGraph(List.of(), List.of(publishedOption(guardianId, shurikenPistol)));
 
         var export =
                 new ModelDefinitionExport(
@@ -779,6 +870,104 @@ class ModelDefinitionDraftServiceTest {
                                     List.of());
                         });
         doReturn("{}").when(objectMapper).writeValueAsString(any());
+    }
+
+    @SuppressWarnings("unchecked")
+    private void stubDraftWrites() {
+        when(modelDefinitionDraftRepository.save(any()))
+                .thenAnswer(
+                        invocation -> {
+                            ModelDefinitionDraftEntity draft = invocation.getArgument(0);
+                            if (draft.getId() == null) {
+                                draft.setId(UUID.randomUUID());
+                            }
+                            return draft;
+                        });
+        lenient()
+                .when(attachmentSlotDraftRepository.saveAll(any()))
+                .thenAnswer(
+                        invocation -> {
+                            List<AttachmentSlotDraftEntity> slots = new ArrayList<>();
+                            for (AttachmentSlotDraftEntity slot :
+                                    (Iterable<AttachmentSlotDraftEntity>) invocation.getArgument(0)) {
+                                if (slot.getId() == null) {
+                                    slot.setId(UUID.randomUUID());
+                                }
+                                slots.add(slot);
+                            }
+                            return slots;
+                        });
+        lenient()
+                .when(wargearOptionDraftRepository.saveAll(any()))
+                .thenAnswer(
+                        invocation -> {
+                            List<WargearOptionDraftEntity> options = new ArrayList<>();
+                            for (WargearOptionDraftEntity option :
+                                    (Iterable<WargearOptionDraftEntity>) invocation.getArgument(0)) {
+                                if (option.getId() == null) {
+                                    option.setId(UUID.randomUUID());
+                                }
+                                options.add(option);
+                            }
+                            return options;
+                        });
+        when(modelDefinitionMapper.toDto(any(ModelDefinitionDraftEntity.class)))
+                .thenAnswer(
+                        invocation -> {
+                            ModelDefinitionDraftEntity draft = invocation.getArgument(0);
+                            return new ModelDefinitionDraft(draft.getName(), List.of(), List.of());
+                        });
+    }
+
+    private void stubPublishedGraph(
+            List<AttachmentSlotEntity> slots, List<WargearOptionEntity> options) {
+        when(attachmentSlotRepository.findAllByModelDefinitionIdIn(any())).thenReturn(slots);
+        when(wargearOptionRepository.findSignatureAttributesByModelDefinitionIdIn(any()))
+                .thenReturn(
+                        options.stream().map(ModelDefinitionDraftServiceTest::optionSignatureRow).toList());
+        when(wargearOptionRepository.findEligibilitySlotRowsByModelDefinitionIdIn(any()))
+                .thenReturn(eligibilityRows(options));
+        when(wargearOptionRepository.findDefaultSlotRowsByModelDefinitionIdIn(any()))
+                .thenReturn(defaultSlotRows(options));
+    }
+
+    private static Object[] optionSignatureRow(WargearOptionEntity option) {
+        var definition = option.getWargearDefinition();
+        return new Object[] {
+            option.getModelDefinitionId(),
+            option.getId(),
+            definition.getExternalId(),
+            definition.getId(),
+            definition.getName(),
+            option.isDefault(),
+            option.isDefaultLinked()
+        };
+    }
+
+    private static List<Object[]> eligibilityRows(List<WargearOptionEntity> options) {
+        List<Object[]> rows = new ArrayList<>();
+        for (var option : options) {
+            if (option.getAttachmentSlots() == null) {
+                continue;
+            }
+            for (var slot : option.getAttachmentSlots()) {
+                rows.add(new Object[] {option.getId(), slot.getId(), slot.getExternalId()});
+            }
+        }
+        return rows;
+    }
+
+    private static List<Object[]> defaultSlotRows(List<WargearOptionEntity> options) {
+        List<Object[]> rows = new ArrayList<>();
+        for (var option : options) {
+            if (option.getDefaultAttachmentSlots() == null) {
+                continue;
+            }
+            for (var slot : option.getDefaultAttachmentSlots()) {
+                rows.add(new Object[] {option.getId(), slot.getId(), slot.getExternalId()});
+            }
+        }
+        return rows;
     }
 
     private static WargearUpsertOutcome outcomeFor(WargearDefinitionEntity definition) {

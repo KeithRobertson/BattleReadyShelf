@@ -3,6 +3,7 @@ package com.keith.battlereadyshelf.modeldefinition;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,6 +27,28 @@ public interface WargearOptionRepository extends JpaRepository<WargearOptionEnti
                     + " left join fetch o.defaultAttachmentSlots"
                     + " where o.modelDefinitionId in :modelDefinitionIds")
     List<WargearOptionEntity> findAllByModelDefinitionIdIn(List<UUID> modelDefinitionIds);
+
+    /**
+     * Flat option rows for import skip comparison: wargear identity and default flags, without
+     * joining either slot collection. The DTO fetch-join on {@link #findAllByModelDefinitionIdIn}
+     * cartesian-products eligibility slots with default slots, which is fine for a page of
+     * definitions and pathological for a full-catalogue re-import.
+     */
+    @Query(
+            "select o.modelDefinitionId, o.id, wd.externalId, wd.id, wd.name, o.isDefault, o.defaultLinked"
+                    + " from WargearOptionEntity o join o.wargearDefinition wd"
+                    + " where o.modelDefinitionId in :modelDefinitionIds")
+    List<Object[]> findSignatureAttributesByModelDefinitionIdIn(Collection<UUID> modelDefinitionIds);
+
+    @Query(
+            "select o.id, s.id, s.externalId from WargearOptionEntity o join o.attachmentSlots s"
+                    + " where o.modelDefinitionId in :modelDefinitionIds")
+    List<Object[]> findEligibilitySlotRowsByModelDefinitionIdIn(Collection<UUID> modelDefinitionIds);
+
+    @Query(
+            "select o.id, s.id, s.externalId from WargearOptionEntity o join o.defaultAttachmentSlots s"
+                    + " where o.modelDefinitionId in :modelDefinitionIds")
+    List<Object[]> findDefaultSlotRowsByModelDefinitionIdIn(Collection<UUID> modelDefinitionIds);
 
     long countByWargearDefinitionId(UUID wargearDefinitionId);
 

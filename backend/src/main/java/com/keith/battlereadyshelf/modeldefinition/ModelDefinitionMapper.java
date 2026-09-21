@@ -57,6 +57,19 @@ public interface ModelDefinitionMapper {
     @Mapping(target = "wargearDefinitionId", source = "wargearDefinition.id")
     WargearOptionDraft toDto(WargearOptionDraftEntity entity);
 
+    /**
+     * Same as {@link #toDto(WargearOptionDraftEntity)} but leaves slot ids for the caller to fill
+     * from a separate query, so listing drafts does not cartesian-join both slot collections.
+     */
+    @Mapping(target = "attachmentSlotIds", ignore = true)
+    @Mapping(target = "defaultAttachmentSlotIds", ignore = true)
+    @Mapping(target = "isDefault", source = "default")
+    @Mapping(target = "isDefaultLinked", source = "defaultLinked")
+    @Mapping(target = "name", source = "wargearDefinition.name")
+    @Mapping(target = "externalId", source = "wargearDefinition.externalId")
+    @Mapping(target = "wargearDefinitionId", source = "wargearDefinition.id")
+    WargearOptionDraft toDtoWithoutSlots(WargearOptionDraftEntity entity);
+
     default UUID attachmentSlotDraftToId(AttachmentSlotDraftEntity slot) {
         return slot.getId();
     }
