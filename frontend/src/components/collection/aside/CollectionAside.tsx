@@ -24,9 +24,11 @@ export default function CollectionAside() {
   } = useCollectionContext();
 
   const focusedModel = collectionModels.models.find((model) => model.id === focus.focusedModelId) ?? null;
-  const focusedVisible = groupedModels.groupedModels.some((group) =>
-    group.models.some((model) => model.id === focus.focusedModelId),
+  const visibleModels = useMemo(
+    () => groupedModels.groupedModels.flatMap((group) => group.models),
+    [groupedModels.groupedModels],
   );
+  const focusedVisible = visibleModels.some((model) => model.id === focus.focusedModelId);
 
   useEffect(() => {
     if (focus.focusedModelId && !focusedVisible) {
@@ -41,7 +43,7 @@ export default function CollectionAside() {
     return (
       <CollectionAsideSummary
         collectionName={collection.collection?.name ?? "Collection"}
-        models={collectionModels.models}
+        models={visibleModels}
         recipes={paintRecipes.recipes}
         modelDefinitionOrder={collection.collection?.modelDefinitionOrder ?? []}
         filters={{
@@ -61,7 +63,7 @@ export default function CollectionAside() {
     focusedVisible,
     collection.collection?.name,
     collection.collection?.modelDefinitionOrder,
-    collectionModels.models,
+    visibleModels,
     paintRecipes.recipes,
     focus.clearFocus,
     statusFilter,

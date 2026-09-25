@@ -138,8 +138,8 @@ export function CollectionAsideSummary({
       <div>
         <Title order={4}>{collectionName}</Title>
         <Text c="dimmed" size="sm">
-          Overview of this collection. Click a summary to filter, or a model to inspect it. Wargear counts every
-          magnetised option you can field.
+          Overview of the models currently shown. Click a summary to filter, or a model to inspect it. Wargear counts
+          every magnetised option you can field.
         </Text>
       </div>
       <CollectionStatsPanel

@@ -76,4 +76,32 @@ describe("CollectionAsideSummary", () => {
     fireEvent.click(screen.getByTitle("Filter by Plague Marine"));
     expect(setTypeFilter).toHaveBeenCalledWith(["plague-marine"]);
   });
+
+  it("summarises only the models it is given so the page can pass the filtered set", () => {
+    render(
+      <MantineProvider>
+        <CollectionAsideSummary
+          collectionName="Death Guard"
+          models={[plagueMarine(flail)]}
+          recipes={[]}
+          modelDefinitionOrder={["plague-marine", "poxwalker"]}
+          filters={{
+            statusFilter: [],
+            setStatusFilter: vi.fn(),
+            typeFilter: ["plague-marine"],
+            setTypeFilter: vi.fn(),
+            paintFilter: [],
+            setPaintFilter: vi.fn(),
+            wargearFilter: [],
+            setWargearFilter: vi.fn(),
+          }}
+        />
+      </MantineProvider>,
+    );
+
+    expect(screen.getByTitle("Clear Plague Marine filter")).toBeTruthy();
+    expect(screen.getByTitle(`Filter by ${flail}`)).toBeTruthy();
+    expect(screen.queryByText("Poxwalker")).toBeNull();
+    expect(screen.queryByText("Claw")).toBeNull();
+  });
 });
