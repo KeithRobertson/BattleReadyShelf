@@ -6,14 +6,14 @@ import { PAINT_RECIPE_SCOPE_COLOURS, PAINT_RECIPE_SCOPE_LABELS } from "@/utils/p
 type PaintRecipeSummaryProps = Readonly<{
   recipes: PaintRecipe[];
   /**
-   * Whether to say which scope each block came from. Worth showing on a model card, which stacks
+   * Whether to say which scope each block came from. Worth showing in the inspector, which stacks
    * up to three inherited recipes, but noise on an editor that is only ever showing one.
    */
   showScope?: boolean;
   /**
-   * Swatches only, limited to the steps marked for the card. A model card is a photo with a name
-   * under it, so a full recipe read as text crowds out what the card is for - the colours alone
-   * still say at a glance what the model is painted in, and the names are a tooltip away.
+   * Swatches only, limited to the steps marked for the list. A row is a name and a status, so a
+   * full recipe read as text would bury the line - the colours alone still say what the model is
+   * painted in, and the names are a tooltip away.
    */
   compact?: boolean;
   align?: "flex-start" | "flex-end";

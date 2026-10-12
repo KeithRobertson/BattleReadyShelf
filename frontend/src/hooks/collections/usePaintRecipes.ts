@@ -33,7 +33,7 @@ function matchesTarget(recipe: PaintRecipe, target: RecipeTarget): boolean {
  * The paint recipes attached anywhere in one collection, plus the paints available to name in them.
  *
  * Every recipe for the collection is fetched in a single request and matched client-side, because a
- * model card has to show not just its own recipe but the broader ones it inherits, and a per-card
+ * row has to show not just its own recipe but the broader ones it inherits, and a per-model
  * request would mean one round trip per miniature on screen.
  */
 export default function usePaintRecipes(collectionId: string | undefined) {

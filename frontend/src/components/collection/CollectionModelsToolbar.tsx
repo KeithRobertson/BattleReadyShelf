@@ -1,5 +1,4 @@
-import { Badge, Button, Group, MultiSelect, Select, Text } from "@mantine/core";
-import { IconTrash } from "@tabler/icons-react";
+import { Badge, Group, MultiSelect, Select, Text } from "@mantine/core";
 import { useCallback } from "react";
 import type { CollectionModel, CollectionModelStatus } from "@/generated";
 import type { SortOrder } from "@/types/ModelSort.ts";
@@ -71,10 +70,6 @@ export type CollectionModelsToolbarProps = Readonly<{
     sortOrder: SortOrder;
     setSortOrder: (order: SortOrder) => void;
   };
-
-  deletion: {
-    requestBulkDelete: (ids: Set<string>) => void;
-  };
 }>;
 
 export function CollectionModelsToolbar({
@@ -94,7 +89,6 @@ export function CollectionModelsToolbar({
   collectionModelsCount,
   selection,
   modelSort,
-  deletion,
 }: CollectionModelsToolbarProps) {
   const shownCount = groupedModels.groupedModels.reduce((sum, g) => sum + g.models.length, 0);
   const isFiltered =
@@ -206,19 +200,6 @@ export function CollectionModelsToolbar({
           size="xs"
           allowDeselect={false}
         />
-
-        {isEditMode && (
-          <Button
-            color="red"
-            variant="light"
-            size="xs"
-            leftSection={<IconTrash size={14} />}
-            onClick={() => deletion.requestBulkDelete(selection.selectedModelIds)}
-            disabled={selection.selectedModelIds.size === 0}
-          >
-            Delete selected
-          </Button>
-        )}
       </Group>
     </Group>
   );

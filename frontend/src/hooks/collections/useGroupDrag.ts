@@ -12,22 +12,17 @@ export default function useGroupDrag(
   groupedModels: ModelGroup[],
   collection: ArmyCollection | null,
   setCollection: (updater: (prev: ArmyCollection | null) => ArmyCollection | null) => void,
-  setOpenGroups: (openGroups: string[]) => void,
 ) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const [draggingGroupKey, setDraggingGroupKey] = useState<string | null>(null);
 
   function handleGroupDragStart(event: DragStartEvent) {
-    const key = String(event.active.id);
-    setDraggingGroupKey(key);
-    setOpenGroups([key]);
+    setDraggingGroupKey(String(event.active.id));
   }
 
   async function handleGroupDragEnd(event: DragEndEvent) {
-    const key = String(event.active.id);
     setDraggingGroupKey(null);
-    setOpenGroups([key]);
 
     const { active, over } = event;
     if (!over || active.id === over.id || !collectionId) return;

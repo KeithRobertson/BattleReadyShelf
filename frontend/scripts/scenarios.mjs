@@ -311,14 +311,12 @@ export const SCENARIOS = [
       },
     ],
     prepare: async (page) => {
-      // Mantine's SegmentedControl keeps the real radio off-screen, so the label is what can be
-      // clicked.
-      await page.locator("label").filter({ hasText: /^Edit$/ }).click();
-
-      await page.getByText("Biologus Putrifier", { exact: true }).first().click();
+      // Groups start open. Delete lives in the aside, after choosing to edit the focused model.
+      await page.getByRole("row").nth(1).click();
       await settle(page);
+      await page.getByRole("button", { name: "Edit model" }).click();
 
-      const deleteModel = page.getByRole("button", { name: "Delete model" }).first();
+      const deleteModel = page.getByRole("button", { name: "Delete model" });
       await deleteModel.scrollIntoViewIfNeeded();
       await deleteModel.click();
       await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();

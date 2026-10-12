@@ -1,11 +1,10 @@
 import { ActionIcon, Button, Group, Loader, MultiSelect, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
 import { IconCheck, IconMagnet, IconPencil } from "@tabler/icons-react";
 import React from "react";
-import { useCollectionContext } from "@/components/collection/context/CollectionContext.ts";
 import { MagnetizedWargearScroller } from "@/components/collection/MagnetizedWargearScroller.tsx";
 import { WargearLoadoutBadge } from "@/components/collection/WargearLoadoutBadge.tsx";
 import type { AttachmentSlot, CollectionModel, WargearOption } from "@/generated";
-import useCollectionMetadata from "@/hooks/collections/useCollectionMetadata.ts";
+import type { ModelDefinitionSelectData } from "@/pages/CollectionPage.tsx";
 import type { WargearSlotUpdate } from "@/utils/collection/applyWargearSelection.ts";
 import loadoutDisplayItems from "@/utils/collection/loadoutDisplayItems.ts";
 import { allWargearOptions, isMagnetized, optionsEligibleForSlot } from "@/utils/collection/modelLoadout.ts";
@@ -29,6 +28,7 @@ export type ModelCardWargearProps = Readonly<{
   commitWargear: (slotId: string, update: WargearSlotUpdate) => void;
   onUpdateAlternateIdentities?: (ids: string[]) => void;
   onSwitchIdentity?: (modelDefinitionId: string) => void;
+  modelDefinitionSelectData: ModelDefinitionSelectData;
   setCustomWargearModeBySlot: (customWargearModeBySlot: Record<string, boolean>) => void;
   setCustomLabelDraftsBySlot: (customLabelDraftsBySlot: Record<string, string>) => void;
   setIsEditingWargear: (isEditingWargear: boolean) => void;
@@ -46,14 +46,13 @@ export const ModelCardWargear = React.memo(function ModelCardWargear({
   commitWargear,
   onUpdateAlternateIdentities,
   onSwitchIdentity,
+  modelDefinitionSelectData,
   setCustomWargearModeBySlot,
   setCustomLabelDraftsBySlot,
   setIsEditingWargear,
 }: ModelCardWargearProps) {
   const slotOrder = attachmentSlots.map((slot) => slot.id).filter((id): id is string => Boolean(id));
   const resolvedOptions = allWargearOptions(model).length > 0 ? allWargearOptions(model) : wargearOptions;
-  const { collection } = useCollectionContext();
-  const { modelDefinitionSelectData } = useCollectionMetadata(collection.collection?.id);
   const currentDefinitionId = model.modelDefinitionId ?? model.modelDefinition?.id;
   const identitySelectData = modelDefinitionSelectData
     .map((group) => ({
@@ -118,8 +117,8 @@ export const ModelCardWargear = React.memo(function ModelCardWargear({
         </Group>
       </Stack>
     ) : (
-      <Group gap={4} wrap="nowrap" justify="flex-end" style={{ width: "100%" }}>
-        <Group gap={4} justify="flex-end" wrap="wrap" style={{ flex: 1 }}>
+      <Group gap={4} wrap="nowrap" justify="flex-start" style={{ width: "100%" }}>
+        <Group gap={4} justify="flex-start" wrap="wrap" style={{ flex: 1 }}>
           {loadoutDisplayItems(attachmentSlots, model, resolvedOptions).map((item) => (
             <WargearLoadoutBadge key={item.key} item={item} />
           ))}

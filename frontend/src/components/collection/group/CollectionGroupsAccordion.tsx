@@ -6,7 +6,7 @@ import SortableAccordionGroup from "@/components/collection/group/SortableAccord
 export function CollectionGroupsAccordion() {
   const { groupedModels, openGroups, setOpenGroups } = useCollectionContext();
   return (
-    <Accordion multiple value={openGroups} onChange={setOpenGroups} defaultValue={[]} variant="separated">
+    <Accordion multiple value={openGroups} onChange={setOpenGroups} variant="separated">
       {groupedModels.groupedModels.map((group) => (
         <SortableAccordionGroup key={group.key} group={group}>
           {(dragProps) => <CollectionGroup group={group} dragProps={dragProps} />}

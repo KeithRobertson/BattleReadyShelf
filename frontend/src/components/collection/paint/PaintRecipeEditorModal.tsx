@@ -197,7 +197,7 @@ export default function PaintRecipeEditorModal({
 
               <Checkbox
                 size="xs"
-                label="Show on the model card"
+                label="Show in the collection list"
                 checked={step.showOnCard}
                 onChange={(e) => updateStep(step.key, { showOnCard: e.currentTarget.checked })}
               />

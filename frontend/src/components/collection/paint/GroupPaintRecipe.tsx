@@ -9,8 +9,8 @@ export type GroupPaintRecipeProps = Readonly<{ group: ModelGroup }>;
 /**
  * The recipe shared by every model of one type in this collection.
  *
- * It sits at the top of the group rather than on each card because it is identical for all of them;
- * only what differs between individual miniatures belongs on a card.
+ * It sits at the top of the group rather than on each row because it is identical for all of them;
+ * only what differs between individual miniatures belongs on a row.
  */
 export default function GroupPaintRecipe({ group }: GroupPaintRecipeProps) {
   const { collection, paintRecipes, isEditMode } = useCollectionContext();

@@ -1,13 +1,14 @@
 import { Anchor, Loader, Stack, Text, Title } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
 import { AddModelModal } from "@/components/collection/AddModelModal.tsx";
 import CollectionAside from "@/components/collection/aside/CollectionAside.tsx";
+import { CollectionEditBar } from "@/components/collection/CollectionEditBar.tsx";
 import CollectionHeader from "@/components/collection/CollectionHeader.tsx";
 import { CollectionModelsToolbar } from "@/components/collection/CollectionModelsToolbar.tsx";
-import CollectionPublicToggle from "@/components/collection/CollectionPublicToggle.tsx";
 import { CollectionContextProvider } from "@/components/collection/context/CollectionContextProvider.tsx";
 import DeleteModel from "@/components/collection/DeleteModel.tsx";
 import { CollectionGroupsAccordion } from "@/components/collection/group/CollectionGroupsAccordion.tsx";
@@ -26,6 +27,7 @@ import useModelFocus from "@/hooks/collections/useModelFocus.ts";
 import useModelImages from "@/hooks/collections/useModelImages.ts";
 import useModelSelection from "@/hooks/collections/useModelSelection.ts";
 import { useModelSort } from "@/hooks/collections/useModelSort.ts";
+import useOpenGroups from "@/hooks/collections/useOpenGroups.ts";
 import usePaintRecipes from "@/hooks/collections/usePaintRecipes.ts";
 import NotFoundPage from "@/pages//NotFoundPage";
 
@@ -42,6 +44,7 @@ export default function CollectionPage() {
   const [status, setStatus] = useState<CollectionModelStatus>("BOXED");
   const [factionFilter, setFactionFilter] = useState<string[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [addModelOpened, { open: openAddModel, close: closeAddModel }] = useDisclosure(false);
 
   const { collectionId } = useParams<{ collectionId: string }>();
   const collection = useCollection(collectionId);
@@ -62,13 +65,15 @@ export default function CollectionPage() {
   const selection = useModelSelection();
   const focus = useModelFocus();
   const deletion = useDeleteConfirmation();
-  const [openGroups, setOpenGroups] = useState<string[]>([]);
+  const { openGroups, setOpenGroups } = useOpenGroups(
+    collectionId,
+    groupedModels.groupedModels.map((group) => group.key),
+  );
   const drag = useGroupDrag(
     collectionId,
     groupedModels.groupedModels,
     collection.collection ?? null,
     collection.setCollection,
-    setOpenGroups,
   );
   const editing = useCollectionEditing(collectionId, collection.collection ?? null, collection.setCollection);
   const modelImages = useModelImages(collectionModels.setModels);
@@ -117,13 +122,22 @@ export default function CollectionPage() {
 
         <Title order={3}>Collection models</Title>
 
-        <CollectionPublicToggle />
+        <CollectionEditBar
+          onAddModel={openAddModel}
+          onDone={() => {
+            selection.clearSelection();
+            closeAddModel();
+            setIsEditMode(false);
+          }}
+        />
 
         {loading ? (
           <Loader />
         ) : (
           <>
             <AddModelModal
+              opened={addModelOpened}
+              onClose={closeAddModel}
               isOwner={collection.isOwner}
               isEditMode={isEditMode}
               collectionId={collectionId}
@@ -166,7 +180,6 @@ export default function CollectionPage() {
                   collectionModelsCount={collectionModels.models.length}
                   selection={selection}
                   modelSort={modelSort}
-                  deletion={deletion}
                 />
 
                 <CollectionGroupsDndWrapper>

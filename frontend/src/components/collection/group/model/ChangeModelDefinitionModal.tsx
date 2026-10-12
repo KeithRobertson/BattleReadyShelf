@@ -1,17 +1,17 @@
 import { Alert, Badge, Button, Group, Loader, Select, Stack, Table, Text } from "@mantine/core";
 import { IconAlertTriangle, IconInfoCircle } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
-import { useCollectionContext } from "@/components/collection/context/CollectionContext.ts";
 import ResponsiveModal from "@/components/ResponsiveModal.tsx";
 import ResponsiveTable from "@/components/ResponsiveTable.tsx";
 import type { ChangeModelDefinitionPreview, CollectionModel, WargearRemapOutcome } from "@/generated";
 import { previewModelDefinitionChange } from "@/generated";
-import useCollectionMetadata from "@/hooks/collections/useCollectionMetadata.ts";
+import type { ModelDefinitionSelectData } from "@/pages/CollectionPage.tsx";
 
 export type ChangeModelDefinitionModalProps = Readonly<{
   opened: boolean;
   onClose: () => void;
   model: CollectionModel;
+  modelDefinitionSelectData: ModelDefinitionSelectData;
   onConfirm: (modelDefinitionId: string) => void;
 }>;
 
@@ -74,10 +74,9 @@ export default function ChangeModelDefinitionModal({
   opened,
   onClose,
   model,
+  modelDefinitionSelectData,
   onConfirm,
 }: ChangeModelDefinitionModalProps) {
-  const { collection } = useCollectionContext();
-  const { modelDefinitionSelectData } = useCollectionMetadata(collection.collection?.id);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [preview, setPreview] = useState<ChangeModelDefinitionPreview | null>(null);
   const [loading, setLoading] = useState(false);
