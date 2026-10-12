@@ -23,11 +23,6 @@ export function useModelActions() {
 
   const deleteModel = useCallback((id: string | undefined) => id && deletion.requestDelete(id), [deletion]);
 
-  const updateFinishedOn = useCallback(
-    (id: string | undefined, finishedOn: string | null) => id && collectionModels.updateFinishedOn(id, finishedOn),
-    [collectionModels],
-  );
-
   const updateDescription = useCallback(
     (id: string | undefined, description: string) => id && collectionModels.updateDescription(id, description),
     [collectionModels],
@@ -66,7 +61,6 @@ export function useModelActions() {
     uploadImage,
     deleteImage,
     deleteModel,
-    updateFinishedOn,
     updateDescription,
     updateStatus,
     toggleSelected,

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -28,6 +29,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,6 +46,7 @@ class CollectionModelImagesServiceTest {
     @Mock private CollectionModelWargearSelectionRepository collectionModelWargearSelectionRepository;
     @Mock private CollectionModelMagnetizedSlotRepository collectionModelMagnetizedSlotRepository;
     @Mock private CollectionModelIdentityRepository collectionModelIdentityRepository;
+    @Mock private CollectionModelStatusEventRepository collectionModelStatusEventRepository;
     @Mock private ModelDefinitionsService modelDefinitionsService;
     @Mock private PresignedUrlService presignedUrlService;
 
@@ -54,6 +57,9 @@ class CollectionModelImagesServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient()
+                .when(collectionModelStatusEventRepository.findAllByCollectionModelIdIn(any()))
+                .thenReturn(List.of());
         collectionModelsService =
                 new CollectionModelsService(
                         collectionModelRepository,
@@ -64,6 +70,7 @@ class CollectionModelImagesServiceTest {
                         collectionModelWargearSelectionRepository,
                         collectionModelMagnetizedSlotRepository,
                         collectionModelIdentityRepository,
+                        collectionModelStatusEventRepository,
                         new CollectionModelMapperImpl(new ModelDefinitionMapperImpl()),
                         new CollectionModelImageMapperImpl(),
                         new ModelDefinitionMapperImpl(),

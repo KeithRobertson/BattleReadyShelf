@@ -10,7 +10,11 @@ const model: CollectionModel = {
   modelDefinitionId: "plague-marine",
   name: "Champion",
   status: "PAINTED",
-  finishedOn: "2024-03-01",
+  statusChangedAt: "2024-03-01T15:04:00Z",
+  statusHistory: [
+    { status: "PAINTED", changedAt: "2024-03-01T15:04:00Z" },
+    { status: "PAINTING", changedAt: "2024-02-01T09:00:00Z" },
+  ],
   modelDefinition: {
     id: "plague-marine",
     name: "Plague Marine",
@@ -67,5 +71,13 @@ describe("ModelRow", () => {
 
     expect(screen.getAllByText("Painted").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Arm: Flail").length).toBeGreaterThan(0);
+  });
+
+  it("expands earlier status changes", () => {
+    renderRow({ editMode: false });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "1 Mar 2024, 15:04 UTC" })[0]);
+
+    expect(screen.getAllByText("Painting · 1 Feb 2024, 09:00 UTC").length).toBeGreaterThan(0);
   });
 });

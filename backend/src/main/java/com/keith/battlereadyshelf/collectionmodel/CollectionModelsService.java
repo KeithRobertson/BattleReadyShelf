@@ -26,8 +26,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -50,6 +53,7 @@ public class CollectionModelsService {
     private final CollectionModelWargearSelectionRepository collectionModelWargearSelectionRepository;
     private final CollectionModelMagnetizedSlotRepository collectionModelMagnetizedSlotRepository;
     private final CollectionModelIdentityRepository collectionModelIdentityRepository;
+    private final CollectionModelStatusEventRepository collectionModelStatusEventRepository;
     private final CollectionModelMapper collectionModelMapper;
     private final CollectionModelImageMapper collectionModelImageMapper;
     private final ModelDefinitionMapper modelDefinitionMapper;
@@ -74,6 +78,7 @@ public class CollectionModelsService {
         var savedCollectionModel =
                 collectionModelRepository.save(
                         collectionModelMapper.toEntity(armyCollectionId, modelDefinition, collectionModel));
+        recordStatusChange(savedCollectionModel.getId(), savedCollectionModel.getStatus());
         applyDefaultLoadout(savedCollectionModel, modelDefinition.getId());
 
         return toDtoWithImages(savedCollectionModel);
@@ -106,13 +111,15 @@ public class CollectionModelsService {
                         .toList();
 
         var saved = collectionModelRepository.saveAll(newEntities);
+        recordStatusChanges(saved);
         applyDefaultLoadouts(saved, modelDefinitionId);
         return toDtosWithImages(saved);
     }
 
     /**
-     * Renames/updates the name, description, finished-on date, and/or wargear slot assignments of
-     * an existing collection model.
+     * Renames/updates the name, description, status, and/or wargear slot assignments of an existing
+     * collection model. A status that differs from the current one is recorded as a new event at
+     * the current UTC time; sending the status the model already has does not add a row.
      */
     @Transactional
     public CollectionModel updateCollectionModel(
@@ -120,7 +127,6 @@ public class CollectionModelsService {
             UUID collectionModelId,
             String name,
             String description,
-            LocalDate finishedOn,
             com.keith.battlereadyshelf.generated.model.CollectionModelStatus status,
             UUID modelDefinitionId,
             List<WargearSelection> wargearSelections,
@@ -134,11 +140,12 @@ public class CollectionModelsService {
         if (description != null) {
             collectionModel.setDescription(description);
         }
-        if (finishedOn != null) {
-            collectionModel.setFinishedOn(finishedOn);
-        }
         if (status != null) {
-            collectionModel.setStatus(CollectionModelStatus.valueOf(status.name()));
+            var nextStatus = CollectionModelStatus.valueOf(status.name());
+            if (nextStatus != collectionModel.getStatus()) {
+                collectionModel.setStatus(nextStatus);
+                recordStatusChange(collectionModel.getId(), nextStatus);
+            }
         }
 
         var isMovingToAnotherDefinition =
@@ -163,6 +170,38 @@ public class CollectionModelsService {
             }
         }
 
+        return toDtoWithImages(collectionModelRepository.save(collectionModel));
+    }
+
+    /**
+     * Records that the miniature entered {@code status} on {@code changedOn}. The date is stored as
+     * 00:00 UTC. When that moment is the latest change, it also becomes the current status.
+     */
+    @Transactional
+    public CollectionModel recordStatusEvent(
+            UUID userId,
+            UUID collectionModelId,
+            com.keith.battlereadyshelf.generated.model.CollectionModelStatus status,
+            LocalDate changedOn) {
+        if (status == null || changedOn == null) {
+            throw new BadRequestException("A status and the date it was entered are required.");
+        }
+        if (changedOn.isAfter(LocalDate.now(ZoneOffset.UTC))) {
+            throw new BadRequestException("Status changes cannot be dated in the future.");
+        }
+
+        var collectionModel = requireOwnedCollectionModel(userId, collectionModelId);
+        var changedAt = changedOn.atStartOfDay().toInstant(ZoneOffset.UTC);
+        var nextStatus = CollectionModelStatus.valueOf(status.name());
+        var newestSoFar =
+                collectionModelStatusEventRepository.findAllByCollectionModelIdIn(List.of(collectionModelId)).stream()
+                        .map(CollectionModelStatusEventEntity::getChangedAt)
+                        .max(Comparator.naturalOrder());
+
+        collectionModelStatusEventRepository.save(statusEvent(collectionModelId, nextStatus, changedAt));
+        if (newestSoFar.isEmpty() || !changedAt.isBefore(newestSoFar.get())) {
+            collectionModel.setStatus(nextStatus);
+        }
         return toDtoWithImages(collectionModelRepository.save(collectionModel));
     }
 
@@ -535,6 +574,10 @@ public class CollectionModelsService {
                 collectionModelIdentityRepository.findAllByCollectionModelIdIn(collectionModelIds).stream()
                         .collect(Collectors.groupingBy(CollectionModelIdentityEntity::getCollectionModelId));
 
+        var statusEventsByCollectionModelId =
+                collectionModelStatusEventRepository.findAllByCollectionModelIdIn(collectionModelIds).stream()
+                        .collect(Collectors.groupingBy(CollectionModelStatusEventEntity::getCollectionModelId));
+
         var dtos = entities.stream().map(collectionModelMapper::toDto).toList();
 
         var alternateIds =
@@ -581,9 +624,48 @@ public class CollectionModelsService {
                             .map(enrichedAlternatesById::get)
                             .filter(Objects::nonNull)
                             .toList());
+            var history =
+                    statusEventsByCollectionModelId.getOrDefault(entity.getId(), List.of()).stream()
+                            .sorted(Comparator.comparing(CollectionModelStatusEventEntity::getChangedAt).reversed())
+                            .map(this::toStatusEvent)
+                            .toList();
+            if (!history.isEmpty()) {
+                dto.setStatusHistory(history);
+                dto.setStatusChangedAt(history.getFirst().getChangedAt());
+            }
         }
 
         return dtos;
+    }
+
+    private void recordStatusChange(UUID collectionModelId, CollectionModelStatus status) {
+        collectionModelStatusEventRepository.save(statusEvent(collectionModelId, status, Instant.now()));
+    }
+
+    private void recordStatusChanges(List<CollectionModelEntity> models) {
+        var changedAt = Instant.now();
+        collectionModelStatusEventRepository.saveAll(
+                models.stream()
+                        .map(model -> statusEvent(model.getId(), model.getStatus(), changedAt))
+                        .toList());
+    }
+
+    private static CollectionModelStatusEventEntity statusEvent(
+            UUID collectionModelId, CollectionModelStatus status, Instant changedAt) {
+        return CollectionModelStatusEventEntity.builder()
+                .collectionModelId(collectionModelId)
+                .status(status == null ? CollectionModelStatus.BOXED : status)
+                .changedAt(changedAt)
+                .build();
+    }
+
+    private com.keith.battlereadyshelf.generated.model.CollectionModelStatusEvent toStatusEvent(
+            CollectionModelStatusEventEntity event) {
+        return new com.keith.battlereadyshelf.generated.model.CollectionModelStatusEvent()
+                .status(
+                        com.keith.battlereadyshelf.generated.model.CollectionModelStatus.valueOf(
+                                event.getStatus().name()))
+                .changedAt(event.getChangedAt().atOffset(ZoneOffset.UTC));
     }
 
     private CollectionModel toDtoWithImages(CollectionModelEntity entity) {

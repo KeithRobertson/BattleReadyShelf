@@ -14,11 +14,11 @@ type EditorHandlers = Pick<
   ModelInspectorEditing,
   | "onRename"
   | "onDeleteModel"
-  | "onUpdateFinishedOn"
   | "onUpdateDescription"
   | "onUpdateWargearSelection"
   | "onUpdateAlternateIdentities"
   | "onUpdateStatus"
+  | "onRecordStatusChange"
   | "onChangeModelDefinition"
   | "onUploadImage"
   | "onDeleteImage"
@@ -68,11 +68,11 @@ export default function CollectionAside() {
   const handlersRef = useRef<EditorHandlers>({
     onRename: () => {},
     onDeleteModel: () => {},
-    onUpdateFinishedOn: () => {},
     onUpdateDescription: () => {},
     onUpdateWargearSelection: () => {},
     onUpdateAlternateIdentities: () => {},
     onUpdateStatus: () => {},
+    onRecordStatusChange: () => {},
     onChangeModelDefinition: () => {},
     onUploadImage: () => {},
     onDeleteImage: () => {},
@@ -86,9 +86,6 @@ export default function CollectionAside() {
     onDeleteModel: () => {
       if (modelId) deletion.requestDelete(modelId);
     },
-    onUpdateFinishedOn: (finishedOn: string | null) => {
-      if (modelId) collectionModels.updateFinishedOn(modelId, finishedOn);
-    },
     onUpdateDescription: (description: string) => {
       if (modelId) collectionModels.updateDescription(modelId, description);
     },
@@ -100,6 +97,9 @@ export default function CollectionAside() {
     },
     onUpdateStatus: (status: CollectionModelStatus) => {
       if (modelId) collectionModels.updateStatus(modelId, status);
+    },
+    onRecordStatusChange: (status: CollectionModelStatus, changedOn: string) => {
+      if (modelId) collectionModels.recordStatusEvent(modelId, status, changedOn);
     },
     onChangeModelDefinition: (modelDefinitionId: string) => {
       if (modelId) collectionModels.changeModelDefinition(modelId, modelDefinitionId);
@@ -117,11 +117,11 @@ export default function CollectionAside() {
     () => ({
       onRename: (newName) => handlersRef.current.onRename(newName),
       onDeleteModel: () => handlersRef.current.onDeleteModel(),
-      onUpdateFinishedOn: (finishedOn) => handlersRef.current.onUpdateFinishedOn(finishedOn),
       onUpdateDescription: (description) => handlersRef.current.onUpdateDescription(description),
       onUpdateWargearSelection: (slotId, update) => handlersRef.current.onUpdateWargearSelection(slotId, update),
       onUpdateAlternateIdentities: (ids) => handlersRef.current.onUpdateAlternateIdentities(ids),
       onUpdateStatus: (status) => handlersRef.current.onUpdateStatus(status),
+      onRecordStatusChange: (status, changedOn) => handlersRef.current.onRecordStatusChange(status, changedOn),
       onChangeModelDefinition: (modelDefinitionId) => handlersRef.current.onChangeModelDefinition(modelDefinitionId),
       onUploadImage: (file) => handlersRef.current.onUploadImage(file),
       onDeleteImage: (imageId) => handlersRef.current.onDeleteImage(imageId),
@@ -141,6 +141,7 @@ export default function CollectionAside() {
             recipe: ownRecipe,
             paints: paintRecipes.paints,
             savingPaints: paintRecipes.saving,
+            recordingStatusChange: collectionModels.recordingStatusEvent,
             armyCollectionId: collection.collection?.id,
             ...handlers,
           }
@@ -184,6 +185,7 @@ export default function CollectionAside() {
     ownRecipe,
     paintRecipes.paints,
     paintRecipes.saving,
+    collectionModels.recordingStatusEvent,
     paintRecipes.recipes,
     collection.collection?.id,
     collection.collection?.name,

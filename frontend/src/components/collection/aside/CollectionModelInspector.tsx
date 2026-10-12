@@ -2,7 +2,6 @@ import { Badge, Button, Group, Select, Stack, Text, Textarea, TextInput, Title }
 import { DateInput } from "@mantine/dates";
 import {
   IconArrowLeft,
-  IconCalendar,
   IconCheck,
   IconExchange,
   IconMagnet,
@@ -17,6 +16,7 @@ import ChangeModelDefinitionModal from "@/components/collection/group/model/Chan
 import { ModelCardWargear } from "@/components/collection/group/model/ModelCardWargear.tsx";
 import PaintRecipeEditorModal from "@/components/collection/paint/PaintRecipeEditorModal.tsx";
 import PaintRecipeSummary from "@/components/collection/paint/PaintRecipeSummary.tsx";
+import { StatusHistory } from "@/components/collection/StatusHistory.tsx";
 import { WargearLoadoutBadge } from "@/components/collection/WargearLoadoutBadge.tsx";
 import ModelDefinitionOriginBadge from "@/components/modeldefinitions/ModelDefinitionOriginBadge.tsx";
 import type { CollectionModel, CollectionModelStatus, Paint, PaintRecipe, SavePaintRecipeRequest } from "@/generated";
@@ -44,11 +44,12 @@ export type ModelInspectorEditing = Readonly<{
   armyCollectionId: string | undefined;
   onRename: (newName: string) => void;
   onDeleteModel: () => void;
-  onUpdateFinishedOn: (finishedOn: string | null) => void;
   onUpdateDescription: (description: string) => void;
   onUpdateWargearSelection: (slotId: string, update: WargearSlotUpdate) => void;
   onUpdateAlternateIdentities: (ids: string[]) => void;
   onUpdateStatus: (status: CollectionModelStatus) => void;
+  onRecordStatusChange: (status: CollectionModelStatus, changedOn: string) => void;
+  recordingStatusChange: boolean;
   onChangeModelDefinition: (modelDefinitionId: string) => void;
   onUploadImage: (file: File) => void;
   onDeleteImage: (imageId: string) => void;
@@ -115,12 +116,12 @@ function ReadOnlyDetails({ model, recipes }: Readonly<{ model: CollectionModel; 
         </Text>
       )}
 
-      <Group gap={6} wrap="nowrap">
-        <IconCalendar size={14} color="var(--mantine-color-dimmed)" />
-        <Text size="xs" c="dimmed">
-          {model.finishedOn ? `Finished ${model.finishedOn}` : "Not finished"}
+      <Stack gap={4}>
+        <Text size="sm" fw={600}>
+          Status changes
         </Text>
-      </Group>
+        <StatusHistory model={model} />
+      </Stack>
 
       {attachmentSlots.length > 0 && (
         <Stack gap={4}>
@@ -161,8 +162,9 @@ function ModelInspectorEditor({
   const description = model.description?.trim() ?? "";
   const [nameDraft, setNameDraft] = useState(displayName);
   const [descriptionDraft, setDescriptionDraft] = useState(description);
-  const [finishedOnDraft, setFinishedOnDraft] = useState<string | null>(model.finishedOn ?? null);
   const [changingType, setChangingType] = useState(false);
+  const [pastStatus, setPastStatus] = useState<CollectionModelStatus | null>(null);
+  const [changedOn, setChangedOn] = useState<string | null>(null);
   const [editingPaints, setEditingPaints] = useState(false);
   const [isEditingWargear, setIsEditingWargear] = useState(true);
   const [customWargearModeBySlot, setCustomWargearModeBySlot] = useState<Record<string, boolean>>({});
@@ -270,18 +272,42 @@ function ModelInspectorEditor({
         placeholder="Notes about this miniature"
       />
 
-      <DateInput
-        label="Finished"
-        value={finishedOnDraft}
-        onChange={(value) => {
-          setFinishedOnDraft(value);
-          if (value !== (model.finishedOn ?? null)) editing.onUpdateFinishedOn(value);
-        }}
-        valueFormat="DD MMM YYYY"
-        placeholder="Not finished"
-        clearable
-        leftSection={<IconCalendar size={14} />}
-      />
+      <Stack gap={4}>
+        <Text size="sm" fw={600}>
+          Status changes
+        </Text>
+        <StatusHistory model={model} />
+        <Select
+          label="Changed to"
+          placeholder="Status"
+          data={COLLECTION_MODEL_STATUS_OPTIONS}
+          value={pastStatus}
+          onChange={(value) => setPastStatus(value as CollectionModelStatus | null)}
+          clearable
+        />
+        <DateInput
+          label="On"
+          value={changedOn}
+          onChange={setChangedOn}
+          valueFormat="DD MMM YYYY"
+          placeholder="Date"
+          maxDate={new Date()}
+          clearable
+        />
+        <Button
+          size="xs"
+          variant="light"
+          disabled={!pastStatus || !changedOn}
+          loading={editing.recordingStatusChange}
+          onClick={() => {
+            if (!pastStatus || !changedOn) return;
+            editing.onRecordStatusChange(pastStatus, changedOn);
+            setChangedOn(null);
+          }}
+        >
+          Add to history
+        </Button>
+      </Stack>
 
       <ModelCardWargear
         model={model}

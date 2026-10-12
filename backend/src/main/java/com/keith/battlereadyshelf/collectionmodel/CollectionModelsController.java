@@ -6,6 +6,7 @@ import com.keith.battlereadyshelf.generated.model.BulkDeleteCollectionModelsRequ
 import com.keith.battlereadyshelf.generated.model.ChangeModelDefinitionPreview;
 import com.keith.battlereadyshelf.generated.model.ChangeModelDefinitionPreviewRequest;
 import com.keith.battlereadyshelf.generated.model.CollectionModel;
+import com.keith.battlereadyshelf.generated.model.RecordCollectionModelStatusEventRequest;
 import com.keith.battlereadyshelf.generated.model.UpdateCollectionModelRequest;
 import com.keith.battlereadyshelf.security.AuthenticatedUserProvider;
 
@@ -69,13 +70,25 @@ public class CollectionModelsController implements CollectionModelsApi {
                         collectionModelId,
                         updateCollectionModelRequest.getName(),
                         updateCollectionModelRequest.getDescription(),
-                        updateCollectionModelRequest.getFinishedOn(),
                         updateCollectionModelRequest.getStatus(),
                         updateCollectionModelRequest.getModelDefinitionId(),
                         updateCollectionModelRequest.getWargearSelections(),
                         updateCollectionModelRequest.getMagnetizedSlotIds(),
                         updateCollectionModelRequest.getAlternateModelDefinitionIds());
         return ResponseEntity.ok(updatedCollectionModel);
+    }
+
+    @Override
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<CollectionModel> recordCollectionModelStatusEvent(
+            UUID collectionModelId, RecordCollectionModelStatusEventRequest recordCollectionModelStatusEventRequest) {
+        var currentUser = authenticatedUserProvider.getCurrentUser();
+        return ResponseEntity.ok(
+                collectionModelsService.recordStatusEvent(
+                        currentUser.id(),
+                        collectionModelId,
+                        recordCollectionModelStatusEventRequest.getStatus(),
+                        recordCollectionModelStatusEventRequest.getChangedOn()));
     }
 
     @Override

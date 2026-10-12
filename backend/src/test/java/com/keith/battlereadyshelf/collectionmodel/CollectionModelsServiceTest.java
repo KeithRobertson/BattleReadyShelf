@@ -5,10 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import static java.time.Month.JUNE;
-
 import com.keith.battlereadyshelf.armycollection.ArmyCollectionEntity;
 import com.keith.battlereadyshelf.armycollection.ArmyCollectionRepository;
+import com.keith.battlereadyshelf.error.BadRequestException;
 import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.generated.model.CollectionModel;
 import com.keith.battlereadyshelf.generated.model.CollectionModelStatus;
@@ -30,6 +29,7 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -48,11 +48,13 @@ class CollectionModelsServiceTest {
 
     @Mock private CollectionModelMagnetizedSlotRepository collectionModelMagnetizedSlotRepository;
     @Mock private CollectionModelIdentityRepository collectionModelIdentityRepository;
+    @Mock private CollectionModelStatusEventRepository collectionModelStatusEventRepository;
 
     @Mock private ModelDefinitionsService modelDefinitionsService;
     @Mock private PresignedUrlService presignedUrlService;
 
     @Captor private ArgumentCaptor<CollectionModelEntity> collectionModelEntityCaptor;
+    @Captor private ArgumentCaptor<CollectionModelStatusEventEntity> statusEventCaptor;
     @Captor private ArgumentCaptor<List<CollectionModelWargearSelectionEntity>> selectionCaptor;
 
     private CollectionModelsService collectionModelsService;
@@ -81,6 +83,9 @@ class CollectionModelsServiceTest {
                 .when(collectionModelIdentityRepository.findAllByCollectionModelIdIn(any()))
                 .thenReturn(List.of());
         lenient()
+                .when(collectionModelStatusEventRepository.findAllByCollectionModelIdIn(any()))
+                .thenReturn(List.of());
+        lenient()
                 .when(modelDefinitionsService.enrichWithAttachmentSlotsAndWargearOptions(any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         lenient()
@@ -96,6 +101,7 @@ class CollectionModelsServiceTest {
                         collectionModelWargearSelectionRepository,
                         collectionModelMagnetizedSlotRepository,
                         collectionModelIdentityRepository,
+                        collectionModelStatusEventRepository,
                         new CollectionModelMapperImpl(new ModelDefinitionMapperImpl()),
                         new CollectionModelImageMapperImpl(),
                         new ModelDefinitionMapperImpl(),
@@ -301,6 +307,7 @@ class CollectionModelsServiceTest {
                                 .description("Freshly painted"));
 
         verify(collectionModelRepository).save(collectionModelEntityCaptor.capture());
+        verify(collectionModelStatusEventRepository).save(any(CollectionModelStatusEventEntity.class));
         assertThat(collectionModelEntityCaptor.getValue().getArmyCollectionId())
                 .isEqualTo(armyCollectionId);
         assertThat(collectionModelEntityCaptor.getValue().getModelDefinition().getId())
@@ -514,6 +521,7 @@ class CollectionModelsServiceTest {
                             assertThat(model.getName()).isNull();
                             assertThat(model.getStatus()).isEqualTo(CollectionModelStatus.PAINTED);
                         });
+        verify(collectionModelStatusEventRepository).saveAll(any());
     }
 
     @Test
@@ -592,14 +600,14 @@ class CollectionModelsServiceTest {
 
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, "Poxwalker #1", "Front rank", null, null, null, null, null, null);
+                        userId, collectionModelId, "Poxwalker #1", "Front rank", null, null, null, null, null);
 
         assertThat(updated.getName()).isEqualTo("Poxwalker #1");
         assertThat(updated.getDescription()).isEqualTo("Front rank");
     }
 
     @Test
-    void updateCollectionModel_updatesFinishedOn_whenModelIsOwned() {
+    void updateCollectionModel_recordsAStatusChangeAtTheCurrentUtcTime() {
         var userId = UUID.randomUUID();
         var armyCollectionId = UUID.randomUUID();
         var collectionModelId = UUID.randomUUID();
@@ -609,6 +617,7 @@ class CollectionModelsServiceTest {
                                 CollectionModelEntity.builder()
                                         .id(collectionModelId)
                                         .armyCollectionId(armyCollectionId)
+                                        .status(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.PAINTING)
                                         .build()));
         when(armyCollectionRepository.findById(armyCollectionId))
                 .thenReturn(
@@ -621,12 +630,155 @@ class CollectionModelsServiceTest {
         when(collectionModelRepository.save(any(CollectionModelEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        var finishedOn = LocalDate.of(2025, JUNE, 1);
+        var before = Instant.now();
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, null, null, finishedOn, null, null, null, null, null);
+                        userId,
+                        collectionModelId,
+                        null,
+                        null,
+                        CollectionModelStatus.PAINTED,
+                        null,
+                        null,
+                        null,
+                        null);
+        var after = Instant.now();
 
-        assertThat(updated.getFinishedOn()).isEqualTo(finishedOn);
+        assertThat(updated.getStatus()).isEqualTo(CollectionModelStatus.PAINTED);
+        verify(collectionModelStatusEventRepository).save(statusEventCaptor.capture());
+        assertThat(statusEventCaptor.getValue().getCollectionModelId()).isEqualTo(collectionModelId);
+        assertThat(statusEventCaptor.getValue().getStatus())
+                .isEqualTo(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.PAINTED);
+        assertThat(statusEventCaptor.getValue().getChangedAt()).isBetween(before, after);
+    }
+
+    @Test
+    void updateCollectionModel_doesNotRecordAStatusEvent_whenTheStatusIsUnchanged() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .status(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.PAINTED)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelRepository.save(any(CollectionModelEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        collectionModelsService.updateCollectionModel(
+                userId, collectionModelId, null, null, CollectionModelStatus.PAINTED, null, null, null, null);
+
+        verify(collectionModelStatusEventRepository, never()).save(any());
+    }
+
+    @Test
+    void recordStatusEvent_keepsTheCurrentStatus_whenTheDateIsNotTheLatest() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var model =
+                CollectionModelEntity.builder()
+                        .id(collectionModelId)
+                        .armyCollectionId(armyCollectionId)
+                        .status(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.PAINTED)
+                        .build();
+        when(collectionModelRepository.findById(collectionModelId)).thenReturn(Optional.of(model));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelRepository.save(any(CollectionModelEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(collectionModelStatusEventRepository.findAllByCollectionModelIdIn(any()))
+                .thenReturn(
+                        List.of(
+                                CollectionModelStatusEventEntity.builder()
+                                        .collectionModelId(collectionModelId)
+                                        .status(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.PAINTED)
+                                        .changedAt(Instant.parse("2024-06-01T12:00:00Z"))
+                                        .build()));
+
+        var updated =
+                collectionModelsService.recordStatusEvent(
+                        userId, collectionModelId, CollectionModelStatus.PAINTING, LocalDate.of(2020, 1, 15));
+
+        verify(collectionModelStatusEventRepository).save(statusEventCaptor.capture());
+        assertThat(statusEventCaptor.getValue().getStatus())
+                .isEqualTo(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.PAINTING);
+        assertThat(statusEventCaptor.getValue().getChangedAt()).isEqualTo(Instant.parse("2020-01-15T00:00:00Z"));
+        assertThat(updated.getStatus()).isEqualTo(CollectionModelStatus.PAINTED);
+    }
+
+    @Test
+    void recordStatusEvent_becomesTheCurrentStatus_whenTheDateIsTheLatest() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .status(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.BOXED)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelRepository.save(any(CollectionModelEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(collectionModelStatusEventRepository.findAllByCollectionModelIdIn(any()))
+                .thenReturn(
+                        List.of(
+                                CollectionModelStatusEventEntity.builder()
+                                        .collectionModelId(collectionModelId)
+                                        .status(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.BOXED)
+                                        .changedAt(Instant.parse("2020-01-01T00:00:00Z"))
+                                        .build()));
+
+        var updated =
+                collectionModelsService.recordStatusEvent(
+                        userId, collectionModelId, CollectionModelStatus.ASSEMBLED, LocalDate.of(2021, 3, 2));
+
+        assertThat(updated.getStatus()).isEqualTo(CollectionModelStatus.ASSEMBLED);
+        verify(collectionModelStatusEventRepository).save(statusEventCaptor.capture());
+        assertThat(statusEventCaptor.getValue().getChangedAt()).isEqualTo(Instant.parse("2021-03-02T00:00:00Z"));
+    }
+
+    @Test
+    void recordStatusEvent_rejectsAFutureDate() {
+        var userId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+
+        assertThatThrownBy(
+                        () ->
+                                collectionModelsService.recordStatusEvent(
+                                        userId,
+                                        collectionModelId,
+                                        CollectionModelStatus.PAINTED,
+                                        LocalDate.now(java.time.ZoneOffset.UTC).plusDays(1)))
+                .isInstanceOf(BadRequestException.class);
+        verify(collectionModelStatusEventRepository, never()).save(any());
     }
 
     @Test
@@ -661,7 +813,7 @@ class CollectionModelsServiceTest {
 
         var updated =
                 collectionModelsService.updateCollectionModel(
-                        userId, collectionModelId, "Poxwalker #1", null, null, null, null, null, null, null);
+                        userId, collectionModelId, "Poxwalker #1", null, null, null, null, null, null);
 
         assertThat(updated.getName()).isEqualTo("Poxwalker #1");
         assertThat(updated.getDescription()).isEqualTo("Original description");
@@ -704,7 +856,7 @@ class CollectionModelsServiceTest {
                                 .wargearOptionId(boltgunId));
 
         collectionModelsService.updateCollectionModel(
-                userId, collectionModelId, null, null, null, null, null, wargearSelections, null, null);
+                userId, collectionModelId, null, null, null, null, wargearSelections, null, null);
 
         verify(collectionModelWargearSelectionRepository)
                 .deleteAllByCollectionModelId(collectionModelId);
@@ -755,7 +907,7 @@ class CollectionModelsServiceTest {
                                 .customLabel("  Converted power sword  "));
 
         collectionModelsService.updateCollectionModel(
-                userId, collectionModelId, null, null, null, null, null, wargearSelections, null, null);
+                userId, collectionModelId, null, null, null, null, wargearSelections, null, null);
 
         verify(collectionModelWargearSelectionRepository).saveAll(selectionCaptor.capture());
         var savedSelections = selectionCaptor.getValue();
@@ -812,7 +964,6 @@ class CollectionModelsServiceTest {
         collectionModelsService.updateCollectionModel(
                 userId,
                 collectionModelId,
-                null,
                 null,
                 null,
                 null,
@@ -937,7 +1088,7 @@ class CollectionModelsServiceTest {
                                         .build()));
 
         collectionModelsService.updateCollectionModel(
-                userId, collectionModelId, null, null, null, null, personalDefinitionId, null, null, null);
+                userId, collectionModelId, null, null, null, personalDefinitionId, null, null, null);
 
         verify(collectionModelWargearSelectionRepository)
                 .deleteAllByCollectionModelId(collectionModelId);
@@ -1083,7 +1234,6 @@ class CollectionModelsServiceTest {
                                         null,
                                         null,
                                         null,
-                                        null,
                                         wargearSelections,
                                         null,
                                         null))
@@ -1119,7 +1269,6 @@ class CollectionModelsServiceTest {
                                         userId,
                                         collectionModelId,
                                         "New name",
-                                        null,
                                         null,
                                         null,
                                         null,

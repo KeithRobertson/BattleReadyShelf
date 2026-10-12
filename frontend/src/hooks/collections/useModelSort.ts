@@ -12,8 +12,8 @@ function compareStatus(a: CollectionModel, b: CollectionModel): number {
 }
 
 function compareDate(a: CollectionModel, b: CollectionModel): number {
-  const dateA = a.finishedOn;
-  const dateB = b.finishedOn;
+  const dateA = a.statusChangedAt;
+  const dateB = b.statusChangedAt;
   if (!dateA && !dateB) return 0;
   if (!dateA) return 1;
   if (!dateB) return -1;
@@ -35,8 +35,8 @@ export function useModelSort() {
     { value: "name-desc", label: "Name (Z–A)" },
     { value: "status-asc", label: "Status (Boxed → Painted)" },
     { value: "status-desc", label: "Status (Painted → Boxed)" },
-    { value: "date-asc", label: "Date finished (oldest first)" },
-    { value: "date-desc", label: "Date finished (newest first)" },
+    { value: "date-asc", label: "Status changed (oldest first)" },
+    { value: "date-desc", label: "Status changed (newest first)" },
   ];
 
   const [sortOrder, setSortOrder] = useState<SortOrder>("name-asc");

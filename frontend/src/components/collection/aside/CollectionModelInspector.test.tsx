@@ -33,11 +33,12 @@ function editing(overrides: Partial<ModelInspectorEditing> = {}): ModelInspector
     armyCollectionId: "collection-1",
     onRename: vi.fn(),
     onDeleteModel: vi.fn(),
-    onUpdateFinishedOn: vi.fn(),
     onUpdateDescription: vi.fn(),
     onUpdateWargearSelection: vi.fn(),
     onUpdateAlternateIdentities: vi.fn(),
     onUpdateStatus: vi.fn(),
+    onRecordStatusChange: vi.fn(),
+    recordingStatusChange: false,
     onChangeModelDefinition: vi.fn(),
     onUploadImage: vi.fn(),
     onDeleteImage: vi.fn(),
@@ -60,8 +61,9 @@ describe("CollectionModelInspector", () => {
 
     expect(screen.getByText("Champion")).toBeTruthy();
     expect(screen.getByText("Converted banner")).toBeTruthy();
-    expect(screen.getByText("Not finished")).toBeTruthy();
+    expect(screen.queryByLabelText("Finished")).toBeNull();
     expect(screen.queryByRole("button", { name: "Edit model" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add to history" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Delete model" })).toBeNull();
     expect(screen.queryByLabelText("Status")).toBeNull();
   });
@@ -79,6 +81,7 @@ describe("CollectionModelInspector", () => {
     expect(screen.getByLabelText("Description")).toHaveProperty("value", "Converted banner");
     expect(screen.getByRole("button", { name: "Delete model" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add photo" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add to history" })).toHaveProperty("disabled", true);
 
     fireEvent.click(screen.getByRole("button", { name: "Done editing model" }));
 

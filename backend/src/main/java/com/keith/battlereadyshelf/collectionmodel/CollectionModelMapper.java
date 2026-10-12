@@ -23,6 +23,8 @@ public interface CollectionModelMapper {
     @Mapping(target = "magnetizedSlotIds", ignore = true)
     @Mapping(target = "alternateModelDefinitionIds", ignore = true)
     @Mapping(target = "alternateModelDefinitions", ignore = true)
+    @Mapping(target = "statusChangedAt", ignore = true)
+    @Mapping(target = "statusHistory", ignore = true)
     CollectionModel toDto(CollectionModelEntity entity);
 
     WargearSelection toDto(CollectionModelWargearSelectionEntity entity);

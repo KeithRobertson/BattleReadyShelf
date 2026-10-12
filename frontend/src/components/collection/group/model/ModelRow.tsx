@@ -2,6 +2,7 @@ import { Badge, Box, Checkbox, Group, Image, Table, Text } from "@mantine/core";
 import { IconPhoto } from "@tabler/icons-react";
 import React from "react";
 import PaintRecipeSummary from "@/components/collection/paint/PaintRecipeSummary.tsx";
+import { StatusHistory } from "@/components/collection/StatusHistory.tsx";
 import { WargearLoadoutBadge } from "@/components/collection/WargearLoadoutBadge.tsx";
 import type { CollectionModel, PaintRecipe } from "@/generated";
 import isFromInteractiveTarget from "@/utils/collection/isFromInteractiveTarget.ts";
@@ -150,9 +151,9 @@ export const ModelRow = React.memo(function ModelRow({
               <LoadoutSummary model={model} />
               <PaintSummary recipe={recipe} />
             </Group>
-            <Text size="xs" c={model.finishedOn ? undefined : "dimmed"} mt={4} hiddenFrom="md">
-              {model.finishedOn ?? "—"}
-            </Text>
+            <Box hiddenFrom="md">
+              <StatusHistory model={model} />
+            </Box>
           </div>
         </Group>
       </Table.Td>
@@ -166,9 +167,7 @@ export const ModelRow = React.memo(function ModelRow({
         <PaintSummary recipe={recipe} />
       </Table.Td>
       <Table.Td visibleFrom="md">
-        <Text size="xs" c={model.finishedOn ? undefined : "dimmed"}>
-          {model.finishedOn ?? "—"}
-        </Text>
+        <StatusHistory model={model} />
       </Table.Td>
     </Table.Tr>
   );

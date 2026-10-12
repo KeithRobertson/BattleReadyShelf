@@ -6,6 +6,7 @@ import {
   createCollectionModel,
   deleteCollectionModel,
   getCollectionModels,
+  recordCollectionModelStatusEvent,
   updateCollectionModel,
 } from "@/generated";
 import { COLLECTION_MODELS_KEY } from "@/queryKeys.ts";
@@ -113,10 +114,27 @@ export default function useCollectionModels(collectionId: string | undefined) {
   }
 
   const renameModel = (id: string, name: string) => updateModel(id, { name });
-  const updateFinishedOn = (id: string, finishedOn: string | null) =>
-    updateModel(id, { finishedOn: finishedOn ?? undefined });
   const updateDescription = (id: string, description: string) => updateModel(id, { description });
   const updateStatus = (id: string, status: CollectionModelStatus) => updateModel(id, { status });
+
+  const recordStatusEventMutation = useMutation({
+    mutationFn: async (params: { modelId: string; status: CollectionModelStatus; changedOn: string }) => {
+      const res = await recordCollectionModelStatusEvent({
+        path: { collectionModelId: params.modelId },
+        body: { status: params.status, changedOn: params.changedOn },
+        throwOnError: true,
+      });
+      return res.data;
+    },
+    onSuccess: (updated) => {
+      if (!updated) return;
+      setModels((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+    },
+  });
+
+  function recordStatusEvent(modelId: string, status: CollectionModelStatus, changedOn: string) {
+    recordStatusEventMutation.mutate({ modelId, status, changedOn });
+  }
 
   /**
    * Moves a model onto a different definition. The backend remaps the loadout onto the new
@@ -186,9 +204,10 @@ export default function useCollectionModels(collectionId: string | undefined) {
     setModels,
     addModel,
     renameModel,
-    updateFinishedOn,
     updateDescription,
     updateStatus,
+    recordStatusEvent,
+    recordingStatusEvent: recordStatusEventMutation.isPending,
     changeModelDefinition,
     updateAlternateIdentities,
     updateWargearSelection,

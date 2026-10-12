@@ -52,7 +52,7 @@ export const CollectionGroupPanel = React.memo(function CollectionGroupPanel({ g
               <Table.Th visibleFrom="sm">Status</Table.Th>
               <Table.Th visibleFrom="sm">Loadout</Table.Th>
               <Table.Th visibleFrom="sm">Paints</Table.Th>
-              <Table.Th visibleFrom="md">Finished</Table.Th>
+              <Table.Th visibleFrom="md">Changed</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>

@@ -2634,6 +2634,49 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /api/v1/collection-models/{collectionModelId}/status-events:
+    post:
+      tags: [ "CollectionModels" ]
+      summary: Record a status the miniature entered on a chosen date
+      description: >-
+        Adds one historical transition: the status it moved to, and the calendar date that
+        happened. There is no "before" status. The date is stored as 00:00 UTC. If that moment is
+        the latest change, it also becomes the miniature's current status.
+      operationId: recordCollectionModelStatusEvent
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: collectionModelId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordCollectionModelStatusEventRequest'
+      responses:
+        '200':
+          description: The collection model, including the new status history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionModel'
+        '400':
+          description: The date is missing or in the future
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Collection model not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/army-collections/{armyCollectionId}/models/bulk-delete:
     post:
       tags: [ "CollectionModels" ]
@@ -4147,10 +4190,6 @@ components:
           type: string
         description:
           type: string
-        finishedOn:
-          type: string
-          format: date
-          description: The date the model was finished being painted, if known.
         status:
           allOf:
             - $ref: '#/components/schemas/CollectionModelStatus'
@@ -4189,7 +4228,28 @@ components:
           description: Enriched alternate identities, including slots and wargear options for pickers.
           items:
             $ref: '#/components/schemas/ModelDefinition'
+        statusChangedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          description: When this miniature most recently entered its current status, in UTC.
+        statusHistory:
+          type: array
+          readOnly: true
+          description: Status transitions, newest first. The first entry is the current status.
+          items:
+            $ref: '#/components/schemas/CollectionModelStatusEvent'
       required: [ modelDefinitionId ]
+    CollectionModelStatusEvent:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/CollectionModelStatus'
+        changedAt:
+          type: string
+          format: date-time
+          description: When the miniature entered this status, in UTC.
+      required: [ status, changedAt ]
     WargearSelection:
       type: object
       properties:
@@ -4254,6 +4314,17 @@ components:
             format: uuid
           minItems: 1
       required: [ collectionModelIds ]
+    RecordCollectionModelStatusEventRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/CollectionModelStatus'
+          description: The status the miniature moved to.
+        changedOn:
+          type: string
+          format: date
+          description: The calendar date that transition happened. Stored as 00:00 UTC.
+      required: [ status, changedOn ]
     UpdateCollectionModelRequest:
       type: object
       properties:
@@ -4261,9 +4332,6 @@ components:
           type: string
         description:
           type: string
-        finishedOn:
-          type: string
-          format: date
         status:
           $ref: '#/components/schemas/CollectionModelStatus'
         modelDefinitionId:
