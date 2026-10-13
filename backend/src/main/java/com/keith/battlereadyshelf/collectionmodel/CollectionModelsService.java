@@ -206,6 +206,32 @@ public class CollectionModelsService {
     }
 
     /**
+     * Removes one recorded status change. The last remaining change is kept, because a miniature
+     * always has a current status. When the removed change was the latest, the current status
+     * becomes the newest change that is left.
+     */
+    @Transactional
+    public CollectionModel deleteStatusEvent(UUID userId, UUID collectionModelId, UUID statusEventId) {
+        var collectionModel = requireOwnedCollectionModel(userId, collectionModelId);
+        var events = collectionModelStatusEventRepository.findAllByCollectionModelIdIn(List.of(collectionModelId));
+        var target =
+                events.stream()
+                        .filter(event -> statusEventId.equals(event.getId()))
+                        .findFirst()
+                        .orElseThrow(() -> new NotFoundException("Status change not found."));
+        if (events.size() <= 1) {
+            throw new BadRequestException("The only status change cannot be removed.");
+        }
+
+        collectionModelStatusEventRepository.delete(target);
+        events.stream()
+                .filter(event -> !statusEventId.equals(event.getId()))
+                .max(Comparator.comparing(CollectionModelStatusEventEntity::getChangedAt))
+                .ifPresent(newest -> collectionModel.setStatus(newest.getStatus()));
+        return toDtoWithImages(collectionModelRepository.save(collectionModel));
+    }
+
+    /**
      * Previews moving a collection model onto a different definition without persisting anything,
      * so the user can be shown what it would do to their recorded loadout first.
      */
@@ -662,6 +688,7 @@ public class CollectionModelsService {
     private com.keith.battlereadyshelf.generated.model.CollectionModelStatusEvent toStatusEvent(
             CollectionModelStatusEventEntity event) {
         return new com.keith.battlereadyshelf.generated.model.CollectionModelStatusEvent()
+                .id(event.getId())
                 .status(
                         com.keith.battlereadyshelf.generated.model.CollectionModelStatus.valueOf(
                                 event.getStatus().name()))

@@ -50,6 +50,8 @@ export type ModelInspectorEditing = Readonly<{
   onUpdateStatus: (status: CollectionModelStatus) => void;
   onRecordStatusChange: (status: CollectionModelStatus, changedOn: string) => void;
   recordingStatusChange: boolean;
+  onDeleteStatusEvent: (eventId: string) => void;
+  deletingStatusEventId: string | null;
   onChangeModelDefinition: (modelDefinitionId: string) => void;
   onUploadImage: (file: File) => void;
   onDeleteImage: (imageId: string) => void;
@@ -276,7 +278,11 @@ function ModelInspectorEditor({
         <Text size="sm" fw={600}>
           Status changes
         </Text>
-        <StatusHistory model={model} />
+        <StatusHistory
+          model={model}
+          onDeleteEvent={editing.onDeleteStatusEvent}
+          deletingEventId={editing.deletingStatusEventId}
+        />
         <Select
           label="Changed to"
           placeholder="Status"

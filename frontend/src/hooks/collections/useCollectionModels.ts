@@ -5,6 +5,7 @@ import {
   bulkDeleteCollectionModels,
   createCollectionModel,
   deleteCollectionModel,
+  deleteCollectionModelStatusEvent,
   getCollectionModels,
   recordCollectionModelStatusEvent,
   updateCollectionModel,
@@ -136,6 +137,24 @@ export default function useCollectionModels(collectionId: string | undefined) {
     recordStatusEventMutation.mutate({ modelId, status, changedOn });
   }
 
+  const deleteStatusEventMutation = useMutation({
+    mutationFn: async (params: { modelId: string; statusEventId: string }) => {
+      const res = await deleteCollectionModelStatusEvent({
+        path: { collectionModelId: params.modelId, statusEventId: params.statusEventId },
+        throwOnError: true,
+      });
+      return res.data;
+    },
+    onSuccess: (updated) => {
+      if (!updated) return;
+      setModels((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+    },
+  });
+
+  function deleteStatusEvent(modelId: string, statusEventId: string) {
+    deleteStatusEventMutation.mutate({ modelId, statusEventId });
+  }
+
   /**
    * Moves a model onto a different definition. The backend remaps the loadout onto the new
    * definition's slots, so the wargear selections are deliberately not sent here.
@@ -208,6 +227,10 @@ export default function useCollectionModels(collectionId: string | undefined) {
     updateStatus,
     recordStatusEvent,
     recordingStatusEvent: recordStatusEventMutation.isPending,
+    deleteStatusEvent,
+    deletingStatusEventId: deleteStatusEventMutation.isPending
+      ? (deleteStatusEventMutation.variables?.statusEventId ?? null)
+      : null,
     changeModelDefinition,
     updateAlternateIdentities,
     updateWargearSelection,

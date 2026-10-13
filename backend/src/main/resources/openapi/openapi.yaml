@@ -2677,6 +2677,48 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /api/v1/collection-models/{collectionModelId}/status-events/{statusEventId}:
+    delete:
+      tags: [ "CollectionModels" ]
+      summary: Remove one status change from a miniature's history
+      description: >-
+        Refused when it is the only remaining change. If the removed change was the latest,
+        the miniature's current status becomes the newest change that is left.
+      operationId: deleteCollectionModelStatusEvent
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: collectionModelId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: statusEventId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The collection model, with the change removed from its history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionModel'
+        '400':
+          description: The change is the only one left
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Collection model or status change not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /api/v1/army-collections/{armyCollectionId}/models/bulk-delete:
     post:
       tags: [ "CollectionModels" ]
@@ -4243,6 +4285,10 @@ components:
     CollectionModelStatusEvent:
       type: object
       properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
         status:
           $ref: '#/components/schemas/CollectionModelStatus'
         changedAt:

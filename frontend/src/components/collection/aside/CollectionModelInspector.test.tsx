@@ -39,6 +39,8 @@ function editing(overrides: Partial<ModelInspectorEditing> = {}): ModelInspector
     onUpdateStatus: vi.fn(),
     onRecordStatusChange: vi.fn(),
     recordingStatusChange: false,
+    onDeleteStatusEvent: vi.fn(),
+    deletingStatusEventId: null,
     onChangeModelDefinition: vi.fn(),
     onUploadImage: vi.fn(),
     onDeleteImage: vi.fn(),
@@ -81,6 +83,7 @@ describe("CollectionModelInspector", () => {
     expect(screen.getByLabelText("Description")).toHaveProperty("value", "Converted banner");
     expect(screen.getByRole("button", { name: "Delete model" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add photo" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Remove / })).toBeNull();
     expect(screen.getByRole("button", { name: "Add to history" })).toHaveProperty("disabled", true);
 
     fireEvent.click(screen.getByRole("button", { name: "Done editing model" }));
@@ -88,5 +91,49 @@ describe("CollectionModelInspector", () => {
     expect(screen.getByRole("heading", { name: "Champion" })).toBeTruthy();
     expect(screen.queryByLabelText("Name")).toBeNull();
     expect(screen.queryByRole("button", { name: "Delete model" })).toBeNull();
+  });
+
+  it("removes a status change from the timeline, but not the only one", () => {
+    const onDeleteStatusEvent = vi.fn();
+    const withHistory: CollectionModel = {
+      ...model,
+      statusChangedAt: "2024-03-01T15:04:00Z",
+      statusHistory: [
+        { id: "event-new", status: "PAINTED", changedAt: "2024-03-01T15:04:00Z" },
+        { id: "event-old", status: "PAINTING", changedAt: "2024-02-01T09:00:00Z" },
+      ],
+    };
+    const { rerender } = render(
+      <MantineProvider>
+        <CollectionModelInspector
+          model={withHistory}
+          recipes={[]}
+          onBack={vi.fn()}
+          editing={editing({ onDeleteStatusEvent })}
+        />
+      </MantineProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit model" }));
+    fireEvent.click(screen.getByRole("button", { name: "1 Mar 2024, 15:04 UTC" }));
+    fireEvent.click(screen.getByRole("button", { name: /Remove Painting/ }));
+
+    expect(onDeleteStatusEvent).toHaveBeenCalledWith("event-old");
+
+    rerender(
+      <MantineProvider>
+        <CollectionModelInspector
+          model={{
+            ...withHistory,
+            statusHistory: [{ id: "event-new", status: "PAINTED", changedAt: "2024-03-01T15:04:00Z" }],
+          }}
+          recipes={[]}
+          onBack={vi.fn()}
+          editing={editing({ onDeleteStatusEvent })}
+        />
+      </MantineProvider>,
+    );
+
+    expect(screen.queryByRole("button", { name: /^Remove / })).toBeNull();
   });
 });

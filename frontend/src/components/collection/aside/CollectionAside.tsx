@@ -19,6 +19,7 @@ type EditorHandlers = Pick<
   | "onUpdateAlternateIdentities"
   | "onUpdateStatus"
   | "onRecordStatusChange"
+  | "onDeleteStatusEvent"
   | "onChangeModelDefinition"
   | "onUploadImage"
   | "onDeleteImage"
@@ -73,6 +74,7 @@ export default function CollectionAside() {
     onUpdateAlternateIdentities: () => {},
     onUpdateStatus: () => {},
     onRecordStatusChange: () => {},
+    onDeleteStatusEvent: () => {},
     onChangeModelDefinition: () => {},
     onUploadImage: () => {},
     onDeleteImage: () => {},
@@ -101,6 +103,9 @@ export default function CollectionAside() {
     onRecordStatusChange: (status: CollectionModelStatus, changedOn: string) => {
       if (modelId) collectionModels.recordStatusEvent(modelId, status, changedOn);
     },
+    onDeleteStatusEvent: (eventId: string) => {
+      if (modelId) collectionModels.deleteStatusEvent(modelId, eventId);
+    },
     onChangeModelDefinition: (modelDefinitionId: string) => {
       if (modelId) collectionModels.changeModelDefinition(modelId, modelDefinitionId);
     },
@@ -122,6 +127,7 @@ export default function CollectionAside() {
       onUpdateAlternateIdentities: (ids) => handlersRef.current.onUpdateAlternateIdentities(ids),
       onUpdateStatus: (status) => handlersRef.current.onUpdateStatus(status),
       onRecordStatusChange: (status, changedOn) => handlersRef.current.onRecordStatusChange(status, changedOn),
+      onDeleteStatusEvent: (eventId) => handlersRef.current.onDeleteStatusEvent(eventId),
       onChangeModelDefinition: (modelDefinitionId) => handlersRef.current.onChangeModelDefinition(modelDefinitionId),
       onUploadImage: (file) => handlersRef.current.onUploadImage(file),
       onDeleteImage: (imageId) => handlersRef.current.onDeleteImage(imageId),
@@ -142,6 +148,7 @@ export default function CollectionAside() {
             paints: paintRecipes.paints,
             savingPaints: paintRecipes.saving,
             recordingStatusChange: collectionModels.recordingStatusEvent,
+            deletingStatusEventId: collectionModels.deletingStatusEventId,
             armyCollectionId: collection.collection?.id,
             ...handlers,
           }
@@ -186,6 +193,7 @@ export default function CollectionAside() {
     paintRecipes.paints,
     paintRecipes.saving,
     collectionModels.recordingStatusEvent,
+    collectionModels.deletingStatusEventId,
     paintRecipes.recipes,
     collection.collection?.id,
     collection.collection?.name,

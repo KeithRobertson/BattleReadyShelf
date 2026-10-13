@@ -782,6 +782,137 @@ class CollectionModelsServiceTest {
     }
 
     @Test
+    void deleteStatusEvent_keepsTheCurrentStatus_whenAnOlderChangeIsRemoved() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var olderId = UUID.randomUUID();
+        var model =
+                CollectionModelEntity.builder()
+                        .id(collectionModelId)
+                        .armyCollectionId(armyCollectionId)
+                        .status(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.PAINTED)
+                        .build();
+        var older =
+                CollectionModelStatusEventEntity.builder()
+                        .id(olderId)
+                        .collectionModelId(collectionModelId)
+                        .status(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.PAINTING)
+                        .changedAt(Instant.parse("2024-01-01T00:00:00Z"))
+                        .build();
+        when(collectionModelRepository.findById(collectionModelId)).thenReturn(Optional.of(model));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelRepository.save(any(CollectionModelEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(collectionModelStatusEventRepository.findAllByCollectionModelIdIn(any()))
+                .thenReturn(
+                        List.of(
+                                older,
+                                CollectionModelStatusEventEntity.builder()
+                                        .id(UUID.randomUUID())
+                                        .collectionModelId(collectionModelId)
+                                        .status(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.PAINTED)
+                                        .changedAt(Instant.parse("2024-06-01T12:00:00Z"))
+                                        .build()));
+
+        var updated = collectionModelsService.deleteStatusEvent(userId, collectionModelId, olderId);
+
+        verify(collectionModelStatusEventRepository).delete(older);
+        assertThat(updated.getStatus()).isEqualTo(CollectionModelStatus.PAINTED);
+    }
+
+    @Test
+    void deleteStatusEvent_becomesThePreviousStatus_whenTheLatestChangeIsRemoved() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var latestId = UUID.randomUUID();
+        var model =
+                CollectionModelEntity.builder()
+                        .id(collectionModelId)
+                        .armyCollectionId(armyCollectionId)
+                        .status(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.PAINTED)
+                        .build();
+        var latest =
+                CollectionModelStatusEventEntity.builder()
+                        .id(latestId)
+                        .collectionModelId(collectionModelId)
+                        .status(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.PAINTED)
+                        .changedAt(Instant.parse("2024-06-01T12:00:00Z"))
+                        .build();
+        when(collectionModelRepository.findById(collectionModelId)).thenReturn(Optional.of(model));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelRepository.save(any(CollectionModelEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(collectionModelStatusEventRepository.findAllByCollectionModelIdIn(any()))
+                .thenReturn(
+                        List.of(
+                                CollectionModelStatusEventEntity.builder()
+                                        .id(UUID.randomUUID())
+                                        .collectionModelId(collectionModelId)
+                                        .status(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.PAINTING)
+                                        .changedAt(Instant.parse("2024-01-01T00:00:00Z"))
+                                        .build(),
+                                latest));
+
+        var updated = collectionModelsService.deleteStatusEvent(userId, collectionModelId, latestId);
+
+        verify(collectionModelStatusEventRepository).delete(latest);
+        assertThat(updated.getStatus()).isEqualTo(CollectionModelStatus.PAINTING);
+    }
+
+    @Test
+    void deleteStatusEvent_rejectsRemovingTheOnlyChange() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var onlyId = UUID.randomUUID();
+        when(collectionModelRepository.findById(collectionModelId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelEntity.builder()
+                                        .id(collectionModelId)
+                                        .armyCollectionId(armyCollectionId)
+                                        .status(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.PAINTED)
+                                        .build()));
+        when(armyCollectionRepository.findById(armyCollectionId))
+                .thenReturn(
+                        Optional.of(
+                                ArmyCollectionEntity.builder()
+                                        .id(armyCollectionId)
+                                        .userId(userId)
+                                        .name("Starter Collection")
+                                        .build()));
+        when(collectionModelStatusEventRepository.findAllByCollectionModelIdIn(any()))
+                .thenReturn(
+                        List.of(
+                                CollectionModelStatusEventEntity.builder()
+                                        .id(onlyId)
+                                        .collectionModelId(collectionModelId)
+                                        .status(com.keith.battlereadyshelf.collectionmodel.CollectionModelStatus.PAINTED)
+                                        .changedAt(Instant.parse("2024-06-01T12:00:00Z"))
+                                        .build()));
+
+        assertThatThrownBy(() -> collectionModelsService.deleteStatusEvent(userId, collectionModelId, onlyId))
+                .isInstanceOf(BadRequestException.class);
+        verify(collectionModelStatusEventRepository, never()).delete(any(CollectionModelStatusEventEntity.class));
+    }
+
+    @Test
     void updateCollectionModel_leavesFieldUnchanged_whenNotProvided() {
         var userId = UUID.randomUUID();
         var armyCollectionId = UUID.randomUUID();

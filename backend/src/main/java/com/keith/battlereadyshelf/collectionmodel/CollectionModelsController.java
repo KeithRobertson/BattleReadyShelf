@@ -93,6 +93,15 @@ public class CollectionModelsController implements CollectionModelsApi {
 
     @Override
     @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<CollectionModel> deleteCollectionModelStatusEvent(
+            UUID collectionModelId, UUID statusEventId) {
+        var currentUser = authenticatedUserProvider.getCurrentUser();
+        return ResponseEntity.ok(
+                collectionModelsService.deleteStatusEvent(currentUser.id(), collectionModelId, statusEventId));
+    }
+
+    @Override
+    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<ChangeModelDefinitionPreview> previewModelDefinitionChange(
             UUID collectionModelId,
             ChangeModelDefinitionPreviewRequest changeModelDefinitionPreviewRequest) {
