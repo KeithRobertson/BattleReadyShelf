@@ -14,6 +14,12 @@ function describe(paint: Paint) {
   return paint.brand ? `${paint.brand} ${paint.name}` : paint.name;
 }
 
+function matchingPaints(paints: Paint[], term: string, opened: boolean): Paint[] {
+  if (!opened) return [];
+  if (term === "") return paints;
+  return paints.filter((paint) => describe(paint).toLowerCase().includes(term));
+}
+
 /**
  * Picks one paint from the ones available to the signed-in user: the shared catalogue plus their own.
  *
@@ -29,7 +35,10 @@ export default function PaintPicker({ paints, value, placeholder, onChange }: Pa
   const [search, setSearch] = useState<string | null>(null);
 
   const term = (search ?? "").trim().toLowerCase();
-  const matches = term === "" ? paints : paints.filter((paint) => describe(paint).toLowerCase().includes(term));
+  // The option list is the whole catalogue, one swatch and tooltip each. Building it while the
+  // dropdown is closed makes every keystroke in the recipe editor — a sibling field, not this one —
+  // walk the catalogue again for every step.
+  const matches = matchingPaints(paints, term, combobox.dropdownOpened);
 
   function handleSelect(paintId: string) {
     const picked = paints.find((paint) => paint.id === paintId);

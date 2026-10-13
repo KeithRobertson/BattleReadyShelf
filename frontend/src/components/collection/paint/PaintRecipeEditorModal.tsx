@@ -1,6 +1,6 @@
 import { ActionIcon, Anchor, Button, Card, Checkbox, Group, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import PaintPicker from "@/components/collection/paint/PaintPicker.tsx";
 import ResponsiveModal from "@/components/ResponsiveModal.tsx";
@@ -55,6 +55,73 @@ function emptyDraft(showOnCard: boolean): StepDraft {
   return { key: `step-${nextKey}`, paint: null, stepLabel: "", note: "", showOnCard };
 }
 
+type StepCardProps = Readonly<{
+  step: StepDraft;
+  index: number;
+  count: number;
+  paints: Paint[];
+  onPatch: (key: string, patch: Partial<StepDraft>) => void;
+  onMove: (index: number, delta: number) => void;
+  onRemove: (key: string) => void;
+}>;
+
+const StepCard = memo(function StepCard({ step, index, count, paints, onPatch, onMove, onRemove }: StepCardProps) {
+  return (
+    <Card withBorder radius="sm" padding="xs">
+      <Stack gap="xs">
+        <Group gap="xs" wrap="nowrap" align="flex-start">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <PaintPicker paints={paints} value={step.paint} onChange={(paint) => onPatch(step.key, { paint })} />
+          </div>
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            aria-label="Move earlier"
+            disabled={index === 0}
+            onClick={() => onMove(index, -1)}
+          >
+            <IconArrowUp size={16} />
+          </ActionIcon>
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            aria-label="Move later"
+            disabled={index === count - 1}
+            onClick={() => onMove(index, 1)}
+          >
+            <IconArrowDown size={16} />
+          </ActionIcon>
+          <ActionIcon variant="subtle" color="red" aria-label="Remove this paint" onClick={() => onRemove(step.key)}>
+            <IconTrash size={16} />
+          </ActionIcon>
+        </Group>
+
+        <Group gap="xs" grow wrap="wrap">
+          <TextInput
+            size="xs"
+            placeholder="Step, e.g. Base"
+            value={step.stepLabel}
+            onChange={(e) => onPatch(step.key, { stepLabel: e.currentTarget.value })}
+          />
+          <TextInput
+            size="xs"
+            placeholder="Note, e.g. thinned 2:1"
+            value={step.note}
+            onChange={(e) => onPatch(step.key, { note: e.currentTarget.value })}
+          />
+        </Group>
+
+        <Checkbox
+          size="xs"
+          label="Show in the collection list"
+          checked={step.showOnCard}
+          onChange={(e) => onPatch(step.key, { showOnCard: e.currentTarget.checked })}
+        />
+      </Stack>
+    </Card>
+  );
+});
+
 export default function PaintRecipeEditorModal({
   opened,
   onClose,
@@ -76,11 +143,11 @@ export default function PaintRecipeEditorModal({
     setNotes(recipe?.notes ?? "");
   }, [opened, recipe]);
 
-  function updateStep(key: string, patch: Partial<StepDraft>) {
+  const updateStep = useCallback((key: string, patch: Partial<StepDraft>) => {
     setSteps((current) => current.map((step) => (step.key === key ? { ...step, ...patch } : step)));
-  }
+  }, []);
 
-  function moveStep(index: number, delta: number) {
+  const moveStep = useCallback((index: number, delta: number) => {
     setSteps((current) => {
       const target = index + delta;
       if (target < 0 || target >= current.length) return current;
@@ -88,7 +155,11 @@ export default function PaintRecipeEditorModal({
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
-  }
+  }, []);
+
+  const removeStep = useCallback((key: string) => {
+    setSteps((current) => current.filter((step) => step.key !== key));
+  }, []);
 
   async function handleSave() {
     // A step with no paint chosen is an unfinished row rather than a deliberate blank, so it is
@@ -142,67 +213,16 @@ export default function PaintRecipeEditorModal({
         </Text>
 
         {steps.map((step, index) => (
-          <Card key={step.key} withBorder radius="sm" padding="xs">
-            <Stack gap="xs">
-              <Group gap="xs" wrap="nowrap" align="flex-start">
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <PaintPicker
-                    paints={paints}
-                    value={step.paint}
-                    onChange={(paint) => updateStep(step.key, { paint })}
-                  />
-                </div>
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  aria-label="Move earlier"
-                  disabled={index === 0}
-                  onClick={() => moveStep(index, -1)}
-                >
-                  <IconArrowUp size={16} />
-                </ActionIcon>
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  aria-label="Move later"
-                  disabled={index === steps.length - 1}
-                  onClick={() => moveStep(index, 1)}
-                >
-                  <IconArrowDown size={16} />
-                </ActionIcon>
-                <ActionIcon
-                  variant="subtle"
-                  color="red"
-                  aria-label="Remove this paint"
-                  onClick={() => setSteps((current) => current.filter((s) => s.key !== step.key))}
-                >
-                  <IconTrash size={16} />
-                </ActionIcon>
-              </Group>
-
-              <Group gap="xs" grow wrap="wrap">
-                <TextInput
-                  size="xs"
-                  placeholder="Step, e.g. Base"
-                  value={step.stepLabel}
-                  onChange={(e) => updateStep(step.key, { stepLabel: e.currentTarget.value })}
-                />
-                <TextInput
-                  size="xs"
-                  placeholder="Note, e.g. thinned 2:1"
-                  value={step.note}
-                  onChange={(e) => updateStep(step.key, { note: e.currentTarget.value })}
-                />
-              </Group>
-
-              <Checkbox
-                size="xs"
-                label="Show in the collection list"
-                checked={step.showOnCard}
-                onChange={(e) => updateStep(step.key, { showOnCard: e.currentTarget.checked })}
-              />
-            </Stack>
-          </Card>
+          <StepCard
+            key={step.key}
+            step={step}
+            index={index}
+            count={steps.length}
+            paints={paints}
+            onPatch={updateStep}
+            onMove={moveStep}
+            onRemove={removeStep}
+          />
         ))}
 
         <Group justify="space-between">
