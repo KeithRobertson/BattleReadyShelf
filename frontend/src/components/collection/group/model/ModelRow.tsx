@@ -1,13 +1,11 @@
 import { Badge, Box, Checkbox, Group, Image, Table, Text } from "@mantine/core";
 import { IconPhoto } from "@tabler/icons-react";
 import React from "react";
+import { LoadoutSummary } from "@/components/collection/LoadoutSummary.tsx";
 import PaintRecipeSummary from "@/components/collection/paint/PaintRecipeSummary.tsx";
 import { StatusHistory } from "@/components/collection/StatusHistory.tsx";
-import { WargearLoadoutBadge } from "@/components/collection/WargearLoadoutBadge.tsx";
 import type { CollectionModel, PaintRecipe } from "@/generated";
 import isFromInteractiveTarget from "@/utils/collection/isFromInteractiveTarget.ts";
-import loadoutDisplayItems from "@/utils/collection/loadoutDisplayItems.ts";
-import { allWargearOptions } from "@/utils/collection/modelLoadout.ts";
 import { COLLECTION_MODEL_STATUS_COLORS, COLLECTION_MODEL_STATUS_LABELS } from "@/utils/collectionModelStatus.ts";
 
 export type ModelRowProps = Readonly<{
@@ -25,25 +23,6 @@ function StatusBadge({ model }: Readonly<{ model: CollectionModel }>) {
     <Badge color={model.status ? COLLECTION_MODEL_STATUS_COLORS[model.status] : "gray"} variant="light" size="sm">
       {model.status ? COLLECTION_MODEL_STATUS_LABELS[model.status] : "Unknown"}
     </Badge>
-  );
-}
-
-function LoadoutSummary({ model }: Readonly<{ model: CollectionModel }>) {
-  const attachmentSlots = model.modelDefinition?.attachmentSlots ?? [];
-  if (attachmentSlots.length === 0) {
-    return (
-      <Text size="xs" c="dimmed">
-        —
-      </Text>
-    );
-  }
-
-  return (
-    <Group gap={4} wrap="wrap">
-      {loadoutDisplayItems(attachmentSlots, model, allWargearOptions(model)).map((item) => (
-        <WargearLoadoutBadge key={item.key} item={item} />
-      ))}
-    </Group>
   );
 }
 
@@ -142,8 +121,14 @@ export const ModelRow = React.memo(function ModelRow({
             }}
           />
           <Thumbnail model={model} />
-          <div style={{ minWidth: 0 }}>
-            <Text size="sm" fw={500} fs={displayName ? undefined : "italic"} c={displayName ? undefined : "dimmed"}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <Text
+              size="sm"
+              fw={500}
+              truncate
+              fs={displayName ? undefined : "italic"}
+              c={displayName ? undefined : "dimmed"}
+            >
               {name}
             </Text>
             <Group gap={6} mt={4} hiddenFrom="sm">
@@ -157,14 +142,16 @@ export const ModelRow = React.memo(function ModelRow({
           </div>
         </Group>
       </Table.Td>
-      <Table.Td visibleFrom="sm">
+      <Table.Td visibleFrom="sm" style={{ minWidth: 0 }}>
         <StatusBadge model={model} />
       </Table.Td>
-      <Table.Td visibleFrom="sm">
+      <Table.Td visibleFrom="sm" style={{ minWidth: 0 }}>
         <LoadoutSummary model={model} />
       </Table.Td>
-      <Table.Td visibleFrom="sm">
-        <PaintSummary recipe={recipe} />
+      <Table.Td visibleFrom="sm" style={{ minWidth: 0 }}>
+        <div style={{ width: "100%", minWidth: 0 }}>
+          <PaintSummary recipe={recipe} />
+        </div>
       </Table.Td>
       <Table.Td visibleFrom="md">
         <StatusHistory model={model} />
