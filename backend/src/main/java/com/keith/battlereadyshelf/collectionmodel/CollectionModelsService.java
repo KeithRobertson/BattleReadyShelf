@@ -62,6 +62,15 @@ public class CollectionModelsService {
     private final CollectionModelStatusMapper collectionModelStatusMapper;
     private final WargearRemapPlanner wargearRemapPlanner;
 
+    /** List thumbnail first, then the order the photos were added. */
+    private static final Comparator<CollectionModelImageEntity> IMAGE_DISPLAY_ORDER =
+            Comparator.comparing(CollectionModelImageEntity::isListThumbnail)
+                    .reversed()
+                    .thenComparing(
+                            CollectionModelImageEntity::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                    .thenComparing(
+                            CollectionModelImageEntity::getId, Comparator.nullsLast(Comparator.naturalOrder()));
+
     public List<CollectionModel> getCollectionModels(UUID userId, UUID armyCollectionId) {
         requireViewableArmyCollection(userId, armyCollectionId);
 
@@ -631,6 +640,7 @@ public class CollectionModelsService {
             dto.setModelDefinition(enriched.get(i));
             dto.setImages(
                     imagesByCollectionModelId.getOrDefault(entity.getId(), List.of()).stream()
+                            .sorted(IMAGE_DISPLAY_ORDER)
                             .map(this::toImageDtoWithUrls)
                             .toList());
             dto.setWargearSelections(

@@ -1,5 +1,5 @@
-import { ActionIcon, Box, Group, Image, Loader, ScrollArea, Stack, UnstyledButton } from "@mantine/core";
-import { IconMaximize, IconTrash } from "@tabler/icons-react";
+import { ActionIcon, Badge, Box, Button, Group, Image, Loader, ScrollArea, Stack, UnstyledButton } from "@mantine/core";
+import { IconMaximize, IconPhoto, IconTrash } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import ResponsiveModal from "@/components/ResponsiveModal.tsx";
 import type { CollectionModelImage } from "@/generated";
@@ -9,6 +9,9 @@ export type InspectorImageLibraryProps = Readonly<{
   alt: string;
   onDeleteImage?: (imageId: string) => void;
   deletingImageId?: string | null;
+  /** Present while the miniature is being edited, so a photo can be chosen for the list. */
+  onSetListThumbnail?: (imageId: string) => void;
+  settingListThumbnailId?: string | null;
 }>;
 
 const THUMB_SIZE = 56;
@@ -48,7 +51,49 @@ function DeleteImageButton({
   );
 }
 
-export function InspectorImageLibrary({ images, alt, onDeleteImage, deletingImageId }: InspectorImageLibraryProps) {
+function ListThumbnailControl({
+  imageId,
+  isListThumbnail,
+  imageCount,
+  onSetListThumbnail,
+  settingListThumbnailId,
+}: Readonly<{
+  imageId: string | undefined;
+  isListThumbnail: boolean;
+  imageCount: number;
+  onSetListThumbnail?: (imageId: string) => void;
+  settingListThumbnailId?: string | null;
+}>) {
+  if (imageCount < 2 || !imageId) return null;
+  if (isListThumbnail) {
+    return (
+      <Badge size="sm" variant="light">
+        List photo
+      </Badge>
+    );
+  }
+  if (!onSetListThumbnail) return null;
+  return (
+    <Button
+      size="xs"
+      variant="light"
+      leftSection={<IconPhoto size={14} />}
+      loading={settingListThumbnailId === imageId}
+      onClick={() => onSetListThumbnail(imageId)}
+    >
+      Use in the list
+    </Button>
+  );
+}
+
+export function InspectorImageLibrary({
+  images,
+  alt,
+  onDeleteImage,
+  deletingImageId,
+  onSetListThumbnail,
+  settingListThumbnailId,
+}: InspectorImageLibraryProps) {
   const [selectedId, setSelectedId] = useState<string | null>(images[0]?.id ?? null);
   const [expanded, setExpanded] = useState(false);
   const selected = images.find((image) => image.id === selectedId) ?? images[0];
@@ -90,19 +135,27 @@ export function InspectorImageLibrary({ images, alt, onDeleteImage, deletingImag
         </UnstyledButton>
         <DeleteImageButton imageId={selected.id} onDeleteImage={onDeleteImage} deletingImageId={deletingImageId} />
       </Box>
+      <ListThumbnailControl
+        imageId={selected.id}
+        isListThumbnail={Boolean(selected.listThumbnail)}
+        imageCount={images.length}
+        onSetListThumbnail={onSetListThumbnail}
+        settingListThumbnailId={settingListThumbnailId}
+      />
 
       {images.length > 1 && (
         <ScrollArea type="hover" offsetScrollbars scrollbarSize={6} scrollbars="x">
           <Group gap={6} wrap="nowrap" pb={4}>
             {images.map((image, index) => {
               const isSelected = image.id === selected.id;
+              const listLabel = image.listThumbnail ? ", list photo" : "";
               return (
                 <UnstyledButton
                   key={image.id}
                   onClick={() => setSelectedId(image.id ?? null)}
-                  aria-label={`Photo ${index + 1} of ${images.length}`}
+                  aria-label={`Photo ${index + 1} of ${images.length}${listLabel}`}
                   aria-pressed={isSelected}
-                  style={{ flexShrink: 0 }}
+                  style={{ flexShrink: 0, position: "relative" }}
                 >
                   <Image
                     src={image.thumbnailUrl}
@@ -118,6 +171,15 @@ export function InspectorImageLibrary({ images, alt, onDeleteImage, deletingImag
                       outlineOffset: 1,
                     }}
                   />
+                  {image.listThumbnail && (
+                    <Badge
+                      size="xs"
+                      variant="filled"
+                      style={{ position: "absolute", left: 2, bottom: 2, pointerEvents: "none" }}
+                    >
+                      List
+                    </Badge>
+                  )}
                 </UnstyledButton>
               );
             })}

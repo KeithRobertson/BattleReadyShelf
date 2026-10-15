@@ -48,6 +48,13 @@ public class CollectionModelImagesController implements CollectionModelImagesApi
     }
 
     @Override
+    public ResponseEntity<Void> setCollectionModelListThumbnail(UUID collectionModelId, UUID imageId) {
+        var currentUser = authenticatedUserProvider.getCurrentUser();
+        collectionModelImagesService.setListThumbnail(currentUser.id(), collectionModelId, imageId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
     public ResponseEntity<Void> deleteCollectionModelImage(UUID collectionModelId, UUID imageId) {
         var currentUser = authenticatedUserProvider.getCurrentUser();
         collectionModelImagesService.deleteImage(currentUser.id(), collectionModelId, imageId);

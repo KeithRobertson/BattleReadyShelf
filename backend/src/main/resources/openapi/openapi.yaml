@@ -2855,6 +2855,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /api/v1/collection-models/{collectionModelId}/images/{imageId}/list-thumbnail:
+    put:
+      tags: [ "CollectionModelImages" ]
+      summary: Choose which photo is shown for this miniature in the collection list
+      operationId: setCollectionModelListThumbnail
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: collectionModelId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: imageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: This photo is now the list thumbnail
+        '404':
+          description: Collection model or image not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
 components:
   securitySchemes:
     bearerAuth:
@@ -4175,6 +4204,12 @@ components:
           format: uri
           readOnly: true
           description: A short-lived presigned URL for a large (~1600px) rendition, for use in detail views.
+        listThumbnail:
+          type: boolean
+          readOnly: true
+          description: >-
+            Whether this photo is the one shown for the miniature in the collection list.
+            At most one image per miniature is the list thumbnail.
     ImageVariantUploadRequest:
       type: object
       properties:

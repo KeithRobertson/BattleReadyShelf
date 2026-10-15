@@ -55,6 +55,8 @@ export type ModelInspectorEditing = Readonly<{
   onChangeModelDefinition: (modelDefinitionId: string) => void;
   onUploadImage: (file: File) => void;
   onDeleteImage: (imageId: string) => void;
+  onSetListThumbnail: (imageId: string) => void;
+  settingListThumbnailId: string | null;
   onSavePaintRecipe: (request: SavePaintRecipeRequest) => Promise<unknown>;
 }>;
 
@@ -237,6 +239,8 @@ function ModelInspectorEditor({
           alt={displayName || "Model"}
           onDeleteImage={editing.onDeleteImage}
           deletingImageId={editing.deletingImageId}
+          onSetListThumbnail={editing.onSetListThumbnail}
+          settingListThumbnailId={editing.settingListThumbnailId}
         />
       ) : (
         <Group

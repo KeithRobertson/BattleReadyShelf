@@ -10,9 +10,11 @@ import com.keith.battlereadyshelf.storage.StorageKeyGenerator;
 import com.keith.battlereadyshelf.storage.StorageProperties;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.UUID;
 
 @Service
@@ -67,6 +69,9 @@ public class CollectionModelImagesService {
         var thumbnailVariant =
                 buildVariant(
                         userId, collectionModel.getId(), imageId, VARIANT_THUMBNAIL, thumbnail);
+        var alreadyHasListThumbnail =
+                collectionModelImageRepository.findAllByCollectionModelId(collectionModel.getId()).stream()
+                        .anyMatch(CollectionModelImageEntity::isListThumbnail);
 
         var savedImage =
                 collectionModelImageRepository.save(
@@ -76,6 +81,7 @@ public class CollectionModelImagesService {
                                 .large(largeVariant)
                                 .thumbnail(thumbnailVariant)
                                 .createdAt(Instant.now())
+                                .listThumbnail(!alreadyHasListThumbnail)
                                 .build());
 
         var uploadUrls =
@@ -142,9 +148,63 @@ public class CollectionModelImagesService {
                                         new NotFoundException(
                                                 "Collection model image not found: " + imageId));
 
+        var wasListThumbnail = image.isListThumbnail();
         deleteVariantIfPresent(image.getLarge());
         deleteVariantIfPresent(image.getThumbnail());
         collectionModelImageRepository.delete(image);
+        if (wasListThumbnail) {
+            promoteNextListThumbnail(collectionModel.getId());
+        }
+    }
+
+    /**
+     * Makes this photo the one shown in the collection list. The previous choice is cleared first
+     * so the unique index never sees two list thumbnails for the same miniature.
+     */
+    @Transactional
+    public void setListThumbnail(UUID userId, UUID collectionModelId, UUID imageId) {
+        var collectionModel =
+                collectionModelsService.requireOwnedCollectionModel(userId, collectionModelId);
+        var images = collectionModelImageRepository.findAllByCollectionModelId(collectionModel.getId());
+        var target =
+                images.stream()
+                        .filter(image -> imageId.equals(image.getId()))
+                        .findFirst()
+                        .orElseThrow(
+                                () -> new NotFoundException("Collection model image not found: " + imageId));
+        if (target.isListThumbnail()) {
+            return;
+        }
+
+        var cleared = false;
+        for (var image : images) {
+            if (image.isListThumbnail()) {
+                image.setListThumbnail(false);
+                cleared = true;
+            }
+        }
+        if (cleared) {
+            collectionModelImageRepository.saveAll(images);
+            collectionModelImageRepository.flush();
+        }
+        target.setListThumbnail(true);
+        collectionModelImageRepository.save(target);
+    }
+
+    private void promoteNextListThumbnail(UUID collectionModelId) {
+        collectionModelImageRepository.findAllByCollectionModelId(collectionModelId).stream()
+                .min(
+                        Comparator.comparing(
+                                        CollectionModelImageEntity::getCreatedAt,
+                                        Comparator.nullsLast(Comparator.naturalOrder()))
+                                .thenComparing(
+                                        CollectionModelImageEntity::getId,
+                                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .ifPresent(
+                        next -> {
+                            next.setListThumbnail(true);
+                            collectionModelImageRepository.save(next);
+                        });
     }
 
     private void deleteVariantIfPresent(ImageVariant variant) {

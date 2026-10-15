@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,6 +30,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.net.URI;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -59,6 +61,9 @@ class CollectionModelImagesServiceTest {
     void setUp() {
         lenient()
                 .when(collectionModelStatusEventRepository.findAllByCollectionModelIdIn(any()))
+                .thenReturn(List.of());
+        lenient()
+                .when(collectionModelImageRepository.findAllByCollectionModelId(any()))
                 .thenReturn(List.of());
         collectionModelsService =
                 new CollectionModelsService(
@@ -147,6 +152,7 @@ class CollectionModelImagesServiceTest {
         assertThat(savedEntity.getThumbnail().getStorageKey())
                 .startsWith(expectedKeyPrefix)
                 .endsWith("/thumbnail.jpg");
+        assertThat(savedEntity.isListThumbnail()).isTrue();
 
         assertThat(result.image().getId()).isEqualTo(createdImageId);
         assertThat(result.image().getContentType()).isEqualTo("image/jpeg");
@@ -154,6 +160,36 @@ class CollectionModelImagesServiceTest {
         assertThat(result.image().getThumbnailUrl()).isEqualTo(expectedDownloadUrl);
         assertThat(result.uploadUrls().large()).isEqualTo(expectedUploadUrl);
         assertThat(result.uploadUrls().thumbnail()).isEqualTo(expectedUploadUrl);
+    }
+
+    @Test
+    void createUploadUrl_leavesTheExistingListPhoto_whenTheMiniatureAlreadyHasOne() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+
+        stubOwnedCollectionModel(userId, armyCollectionId, collectionModelId);
+        when(collectionModelImageRepository.findAllByCollectionModelId(collectionModelId))
+                .thenReturn(
+                        List.of(
+                                CollectionModelImageEntity.builder()
+                                        .id(UUID.randomUUID())
+                                        .collectionModelId(collectionModelId)
+                                        .listThumbnail(true)
+                                        .createdAt(Instant.parse("2024-01-01T00:00:00Z"))
+                                        .build()));
+        when(collectionModelImageRepository.save(any(CollectionModelImageEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(presignedUrlService.presignUpload(anyString(), anyString()))
+                .thenReturn(URI.create("https://example-r2-endpoint/upload"));
+        when(presignedUrlService.presignDownload(anyString()))
+                .thenReturn(URI.create("https://example-r2-endpoint/download"));
+
+        collectionModelImagesService.createUploadUrl(
+                userId, collectionModelId, DEFAULT_VARIANT_REQUEST, DEFAULT_VARIANT_REQUEST);
+
+        verify(collectionModelImageRepository).save(collectionModelImageEntityCaptor.capture());
+        assertThat(collectionModelImageEntityCaptor.getValue().isListThumbnail()).isFalse();
     }
 
     @Test
@@ -265,6 +301,99 @@ class CollectionModelImagesServiceTest {
         verify(presignedUrlService).deleteObject(imageEntity.getLarge().getStorageKey());
         verify(presignedUrlService).deleteObject(imageEntity.getThumbnail().getStorageKey());
         verify(collectionModelImageRepository).delete(imageEntity);
+        verify(collectionModelImageRepository, never()).save(any(CollectionModelImageEntity.class));
+    }
+
+    @Test
+    void deleteImage_promotesTheOldestRemainingPhoto_whenTheListPhotoIsRemoved() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var imageId = UUID.randomUUID();
+        var olderId = UUID.randomUUID();
+        var newerId = UUID.randomUUID();
+
+        stubOwnedCollectionModel(userId, armyCollectionId, collectionModelId);
+        when(collectionModelImageRepository.findById(imageId))
+                .thenReturn(
+                        Optional.of(
+                                CollectionModelImageEntity.builder()
+                                        .id(imageId)
+                                        .collectionModelId(collectionModelId)
+                                        .listThumbnail(true)
+                                        .large(ImageVariant.builder().storageKey("large.jpg").build())
+                                        .thumbnail(ImageVariant.builder().storageKey("thumb.jpg").build())
+                                        .build()));
+        var older =
+                CollectionModelImageEntity.builder()
+                        .id(olderId)
+                        .collectionModelId(collectionModelId)
+                        .createdAt(Instant.parse("2024-01-01T00:00:00Z"))
+                        .build();
+        var newer =
+                CollectionModelImageEntity.builder()
+                        .id(newerId)
+                        .collectionModelId(collectionModelId)
+                        .createdAt(Instant.parse("2024-06-01T00:00:00Z"))
+                        .build();
+        when(collectionModelImageRepository.findAllByCollectionModelId(collectionModelId))
+                .thenReturn(List.of(newer, older));
+
+        collectionModelImagesService.deleteImage(userId, collectionModelId, imageId);
+
+        assertThat(older.isListThumbnail()).isTrue();
+        assertThat(newer.isListThumbnail()).isFalse();
+        verify(collectionModelImageRepository).save(older);
+    }
+
+    @Test
+    void setListThumbnail_clearsThePreviousChoice() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+        var currentId = UUID.randomUUID();
+        var nextId = UUID.randomUUID();
+
+        stubOwnedCollectionModel(userId, armyCollectionId, collectionModelId);
+        var current =
+                CollectionModelImageEntity.builder()
+                        .id(currentId)
+                        .collectionModelId(collectionModelId)
+                        .listThumbnail(true)
+                        .build();
+        var next =
+                CollectionModelImageEntity.builder()
+                        .id(nextId)
+                        .collectionModelId(collectionModelId)
+                        .listThumbnail(false)
+                        .build();
+        when(collectionModelImageRepository.findAllByCollectionModelId(collectionModelId))
+                .thenReturn(List.of(current, next));
+
+        collectionModelImagesService.setListThumbnail(userId, collectionModelId, nextId);
+
+        assertThat(current.isListThumbnail()).isFalse();
+        assertThat(next.isListThumbnail()).isTrue();
+        verify(collectionModelImageRepository).flush();
+        verify(collectionModelImageRepository).save(next);
+    }
+
+    @Test
+    void setListThumbnail_throwsNotFound_whenThePhotoBelongsToAnotherMiniature() {
+        var userId = UUID.randomUUID();
+        var armyCollectionId = UUID.randomUUID();
+        var collectionModelId = UUID.randomUUID();
+
+        stubOwnedCollectionModel(userId, armyCollectionId, collectionModelId);
+        when(collectionModelImageRepository.findAllByCollectionModelId(collectionModelId))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(
+                        () ->
+                                collectionModelImagesService.setListThumbnail(
+                                        userId, collectionModelId, UUID.randomUUID()))
+                .isInstanceOf(NotFoundException.class);
+        verify(collectionModelImageRepository, never()).save(any(CollectionModelImageEntity.class));
     }
 
     @Test

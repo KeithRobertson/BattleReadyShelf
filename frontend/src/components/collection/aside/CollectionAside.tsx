@@ -23,6 +23,7 @@ type EditorHandlers = Pick<
   | "onChangeModelDefinition"
   | "onUploadImage"
   | "onDeleteImage"
+  | "onSetListThumbnail"
   | "onSavePaintRecipe"
 >;
 
@@ -78,6 +79,7 @@ export default function CollectionAside() {
     onChangeModelDefinition: () => {},
     onUploadImage: () => {},
     onDeleteImage: () => {},
+    onSetListThumbnail: () => {},
     onSavePaintRecipe: () => Promise.resolve(),
   });
   const modelId = focus.focusedModelId;
@@ -115,6 +117,9 @@ export default function CollectionAside() {
     onDeleteImage: (imageId: string) => {
       if (modelId) modelImages.deleteImage(modelId, imageId);
     },
+    onSetListThumbnail: (imageId: string) => {
+      if (modelId) modelImages.setListThumbnail(modelId, imageId);
+    },
     onSavePaintRecipe: (request: SavePaintRecipeRequest) => paintRecipes.save(request),
   };
 
@@ -131,6 +136,7 @@ export default function CollectionAside() {
       onChangeModelDefinition: (modelDefinitionId) => handlersRef.current.onChangeModelDefinition(modelDefinitionId),
       onUploadImage: (file) => handlersRef.current.onUploadImage(file),
       onDeleteImage: (imageId) => handlersRef.current.onDeleteImage(imageId),
+      onSetListThumbnail: (imageId) => handlersRef.current.onSetListThumbnail(imageId),
       onSavePaintRecipe: (request) => handlersRef.current.onSavePaintRecipe(request),
     }),
     [],
@@ -143,6 +149,7 @@ export default function CollectionAside() {
             modelDefinitionSelectData,
             isUploading: modelImages.uploadingModelId === focusedModel.id,
             deletingImageId: modelImages.deletingImageId,
+            settingListThumbnailId: modelImages.settingListThumbnailId,
             isDeleting: deletion.pendingDelete?.modelId === focusedModel.id,
             recipe: ownRecipe,
             paints: paintRecipes.paints,
@@ -188,6 +195,7 @@ export default function CollectionAside() {
     modelDefinitionSelectData,
     modelImages.uploadingModelId,
     modelImages.deletingImageId,
+    modelImages.settingListThumbnailId,
     deletion.pendingDelete,
     ownRecipe,
     paintRecipes.paints,

@@ -71,6 +71,11 @@ public class CollectionModelImageEntity implements Persistable<UUID> {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    /** The photo shown for this miniature in the collection list. At most one per miniature. */
+    @Builder.Default
+    @Column(name = "list_thumbnail", nullable = false)
+    private boolean listThumbnail = false;
+
     @Override
     public boolean isNew() {
         return isNew;

@@ -1,11 +1,36 @@
 import { useMutation } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
-import type { CollectionModel } from "@/generated";
-import { createCollectionModelImageUploadUrl, deleteCollectionModelImage } from "@/generated";
+import type { CollectionModel, CollectionModelImage } from "@/generated";
+import {
+  createCollectionModelImageUploadUrl,
+  deleteCollectionModelImage,
+  setCollectionModelListThumbnail,
+} from "@/generated";
 import { createImageVariants } from "@/utils/imageVariants";
 import showErrorNotification from "@/utils/showErrorNotification";
 
 export type ModelImages = ReturnType<typeof useModelImages>;
+
+function byCreatedAt(a: CollectionModelImage, b: CollectionModelImage): number {
+  const aTime = a.createdAt ? Date.parse(a.createdAt) : Number.POSITIVE_INFINITY;
+  const bTime = b.createdAt ? Date.parse(b.createdAt) : Number.POSITIVE_INFINITY;
+  if (aTime !== bTime) return aTime - bTime;
+  return (a.id ?? "").localeCompare(b.id ?? "");
+}
+
+/** Puts the chosen photo first and clears the flag on the rest, matching the list row. */
+function withListThumbnail(images: CollectionModelImage[], imageId: string): CollectionModelImage[] {
+  const updated = images.map((image) => ({ ...image, listThumbnail: image.id === imageId }));
+  return [...updated.filter((image) => image.listThumbnail), ...updated.filter((image) => !image.listThumbnail)];
+}
+
+function withoutImage(images: CollectionModelImage[], imageId: string): CollectionModelImage[] {
+  const removed = images.find((image) => image.id === imageId);
+  const remaining = images.filter((image) => image.id !== imageId);
+  if (!removed?.listThumbnail || remaining.length === 0) return remaining;
+  const next = [...remaining].sort(byCreatedAt)[0];
+  return next?.id ? withListThumbnail(remaining, next.id) : remaining;
+}
 
 export default function useModelImages(setModels: (updater: (prev: CollectionModel[]) => CollectionModel[]) => void) {
   const uploadImageMutation = useMutation({
@@ -91,7 +116,7 @@ export default function useModelImages(setModels: (updater: (prev: CollectionMod
     onSuccess: ({ modelId, imageId }) => {
       setModels((prev) =>
         prev.map((model) =>
-          model.id === modelId ? { ...model, images: (model.images ?? []).filter((img) => img.id !== imageId) } : model,
+          model.id === modelId ? { ...model, images: withoutImage(model.images ?? [], imageId) } : model,
         ),
       );
     },
@@ -101,10 +126,35 @@ export default function useModelImages(setModels: (updater: (prev: CollectionMod
     deleteImageMutation.mutate({ modelId, imageId });
   }
 
+  const setListThumbnailMutation = useMutation({
+    mutationFn: async (params: { modelId: string; imageId: string }) => {
+      await setCollectionModelListThumbnail({
+        path: { collectionModelId: params.modelId, imageId: params.imageId },
+        throwOnError: true,
+      });
+      return params;
+    },
+    onSuccess: ({ modelId, imageId }) => {
+      setModels((prev) =>
+        prev.map((model) =>
+          model.id === modelId ? { ...model, images: withListThumbnail(model.images ?? [], imageId) } : model,
+        ),
+      );
+    },
+  });
+
+  function setListThumbnail(modelId: string, imageId: string) {
+    setListThumbnailMutation.mutate({ modelId, imageId });
+  }
+
   return {
     uploadImage,
     deleteImage,
+    setListThumbnail,
     uploadingModelId: uploadImageMutation.isPending ? (uploadImageMutation.variables?.modelId ?? null) : null,
     deletingImageId: deleteImageMutation.isPending ? (deleteImageMutation.variables?.imageId ?? null) : null,
+    settingListThumbnailId: setListThumbnailMutation.isPending
+      ? (setListThumbnailMutation.variables?.imageId ?? null)
+      : null,
   };
 }

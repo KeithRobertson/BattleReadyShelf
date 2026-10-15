@@ -39,7 +39,8 @@ function PaintSummary({ recipe }: Readonly<{ recipe: PaintRecipe | null }>) {
 }
 
 function Thumbnail({ model }: Readonly<{ model: CollectionModel }>) {
-  const thumbnailUrl = model.images?.[0]?.thumbnailUrl;
+  const images = model.images ?? [];
+  const thumbnailUrl = (images.find((image) => image.listThumbnail) ?? images[0])?.thumbnailUrl;
   if (!thumbnailUrl) {
     return (
       <Box

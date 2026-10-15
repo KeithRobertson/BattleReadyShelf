@@ -44,6 +44,8 @@ function editing(overrides: Partial<ModelInspectorEditing> = {}): ModelInspector
     onChangeModelDefinition: vi.fn(),
     onUploadImage: vi.fn(),
     onDeleteImage: vi.fn(),
+    onSetListThumbnail: vi.fn(),
+    settingListThumbnailId: null,
     onSavePaintRecipe: vi.fn(),
     ...overrides,
   };
@@ -135,5 +137,46 @@ describe("CollectionModelInspector", () => {
     );
 
     expect(screen.queryByRole("button", { name: /^Remove / })).toBeNull();
+  });
+
+  it("chooses which photo the list shows", () => {
+    const onSetListThumbnail = vi.fn();
+    const withPhotos: CollectionModel = {
+      ...model,
+      images: [
+        {
+          id: "photo-1",
+          thumbnailUrl: "https://example.test/1.jpg",
+          largeUrl: "https://example.test/1-large.jpg",
+          listThumbnail: true,
+        },
+        {
+          id: "photo-2",
+          thumbnailUrl: "https://example.test/2.jpg",
+          largeUrl: "https://example.test/2-large.jpg",
+          listThumbnail: false,
+        },
+      ],
+    };
+    render(
+      <MantineProvider>
+        <CollectionModelInspector
+          model={withPhotos}
+          recipes={[]}
+          onBack={vi.fn()}
+          editing={editing({ onSetListThumbnail })}
+        />
+      </MantineProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit model" }));
+
+    expect(screen.getByText("List photo")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Use in the list" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Photo 2 of 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use in the list" }));
+
+    expect(onSetListThumbnail).toHaveBeenCalledWith("photo-2");
   });
 });
