@@ -3,7 +3,7 @@ import { apiClient } from "@/auth/apiClient";
 
 export type StubbedReply = Readonly<{ status: number; body?: unknown }>;
 
-export type StubbedRequest = Readonly<{ method: string; url: string }>;
+export type StubbedRequest = Readonly<{ method: string; url: string; body?: unknown }>;
 
 /**
  * Answers requests from the generated API client without a network, so a test can drive the app by
@@ -20,7 +20,11 @@ export function stubApi(replies: Readonly<Record<string, StubbedReply>>): Stubbe
 
   stubApiWith(async (config) => {
     const url = config.url ?? "";
-    requests.push({ method: config.method?.toUpperCase() ?? "GET", url });
+    requests.push({
+      method: config.method?.toUpperCase() ?? "GET",
+      url,
+      body: readRequestBody(config.data),
+    });
 
     const reply = Object.entries(replies).find(([route]) => url.includes(route))?.[1];
     if (!reply) {
@@ -73,4 +77,15 @@ export function stubApiAsUnreachable(): void {
 
 export function resetApiStubs(): void {
   apiClient.defaults.adapter = undefined;
+}
+
+function readRequestBody(data: unknown): unknown {
+  if (typeof data !== "string") {
+    return data;
+  }
+  try {
+    return JSON.parse(data);
+  } catch {
+    return data;
+  }
 }

@@ -8,6 +8,7 @@ import type {
 } from "@/generated";
 import { escapeHtml } from "@/utils/collectionExport/escape";
 import type { ExportDetail } from "@/utils/collectionExport/exportOptions";
+import { type TimeDisplay, formatExportTime } from "@/utils/collectionExport/formatExportTime";
 import {
   footerLine,
   formatLoadoutGroupLine,
@@ -113,29 +114,41 @@ function miniatureThumbnailHtml(
   return dataUri ? `<img src="${escapeHtml(dataUri)}" alt="" />` : "";
 }
 
+function htmlTime(iso: string | null | undefined, time: TimeDisplay): string | null {
+  if (!iso) {
+    return null;
+  }
+  const formatted = formatExportTime(iso, time);
+  return formatted === null ? null : escapeHtml(formatted);
+}
+
 function miniatureStatusBullet(
   miniature: CollectionExportMiniature,
   included: CollectionExport["included"],
+  time: TimeDisplay,
 ): string | null {
   if (!isIncluded(included, "status") || !miniature.status) {
     return null;
   }
-  const when = miniature.statusChangedAt ? ` (${escapeHtml(miniature.statusChangedAt)})` : "";
+  const formatted = htmlTime(miniature.statusChangedAt, time);
+  const when = formatted !== null ? ` (${formatted})` : "";
   return `<li>Status: ${escapeHtml(formatStatusLabel(miniature.status))}${when}</li>`;
 }
 
 function miniatureStatusHistoryBullet(
   miniature: CollectionExportMiniature,
   included: CollectionExport["included"],
+  time: TimeDisplay,
 ): string | null {
   if (!isIncluded(included, "statusHistory") || !miniature.statusHistory?.length) {
     return null;
   }
   const events = miniature.statusHistory
-    .map(
-      (event) =>
-        `<li>${escapeHtml(formatStatusLabel(event.status))} · ${escapeHtml(event.changedAt)}</li>`,
-    )
+    .map((event) => {
+      const formatted = htmlTime(event.changedAt, time);
+      const when = formatted !== null ? ` · ${formatted}` : "";
+      return `<li>${escapeHtml(formatStatusLabel(event.status))}${when}</li>`;
+    })
     .join("");
   return `<li>Status history:<ul>${events}</ul></li>`;
 }
@@ -174,6 +187,7 @@ function renderMiniature(
   index: number,
   included: CollectionExport["included"],
   thumbnails: ReadonlyMap<string, string>,
+  time: TimeDisplay,
 ): string {
   const showDetails = isIncluded(included, "miniatureDetails");
   const title = miniatureTitle(miniature, index, showDetails);
@@ -185,8 +199,8 @@ function renderMiniature(
   }
 
   const bullets = [
-    miniatureStatusBullet(miniature, included),
-    miniatureStatusHistoryBullet(miniature, included),
+    miniatureStatusBullet(miniature, included, time),
+    miniatureStatusHistoryBullet(miniature, included, time),
     miniatureLoadoutBullet(miniature, included),
     miniaturePaintRecipeBullet(miniature, included),
   ].filter((bullet): bullet is string => bullet !== null);
@@ -233,6 +247,7 @@ function renderModelTypeEvery(
   type: CollectionExportModelType,
   included: CollectionExport["included"],
   thumbnails: ReadonlyMap<string, string>,
+  time: TimeDisplay,
 ): string {
   const parts: string[] = [modelTypeHeading(type, isIncluded(included, "faction"))];
 
@@ -248,7 +263,7 @@ function renderModelTypeEvery(
   }
 
   type.miniatures.forEach((miniature, index) => {
-    parts.push(renderMiniature(miniature, index, included, thumbnails));
+    parts.push(renderMiniature(miniature, index, included, thumbnails, time));
   });
 
   return parts.join("");
@@ -259,6 +274,7 @@ function renderCollection(
   detail: ExportDetail,
   included: CollectionExport["included"],
   thumbnails: ReadonlyMap<string, string>,
+  time: TimeDisplay,
 ): string {
   const parts: string[] = [`<h1>${escapeHtml(collection.name)}</h1>`];
 
@@ -283,7 +299,7 @@ function renderCollection(
     if (detail === "summary") {
       parts.push(renderModelTypeSummary(type, included));
     } else {
-      parts.push(renderModelTypeEvery(type, included, thumbnails));
+      parts.push(renderModelTypeEvery(type, included, thumbnails, time));
     }
   }
 
@@ -294,9 +310,10 @@ export function renderHtml(
   doc: CollectionExport,
   detail: ExportDetail,
   thumbnails: ReadonlyMap<string, string>,
+  time: TimeDisplay,
 ): string {
   const body = doc.collections
-    .map((collection) => renderCollection(collection, detail, doc.included, thumbnails))
+    .map((collection) => renderCollection(collection, detail, doc.included, thumbnails, time))
     .join("");
 
   return `<!DOCTYPE html>

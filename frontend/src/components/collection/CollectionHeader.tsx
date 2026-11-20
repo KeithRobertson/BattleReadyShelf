@@ -13,7 +13,7 @@ import ExportCollectionsModal from "@/components/collections/export/ExportCollec
 import useDeleteCollection from "@/hooks/collections/useDeleteCollection.ts";
 
 export default function CollectionHeader() {
-  const { collection } = useCollectionContext();
+  const { collection, selection } = useCollectionContext();
   const navigate = useNavigate();
   const deletion = useDeleteCollection(() => navigate("/"));
   const [exportOpened, setExportOpened] = useState(false);
@@ -63,6 +63,7 @@ export default function CollectionHeader() {
           onClose={() => setExportOpened(false)}
           collections={[armyCollection]}
           initialSelectedIds={armyCollection.id ? [armyCollection.id] : undefined}
+          selectedMiniatureIds={[...selection.selectedModelIds]}
           showCollectionPicker={false}
         />
       )}

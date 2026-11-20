@@ -1,8 +1,14 @@
 import { isAxiosError } from "axios";
 import { useState } from "react";
-import { type CollectionExport, type CollectionExportInclude, exportArmyCollections } from "@/generated";
+import {
+  type CollectionExport,
+  type CollectionExportInclude,
+  type CollectionExportRequest,
+  exportArmyCollections,
+} from "@/generated";
 import { exportFileName } from "@/utils/collectionExport/exportFileName";
 import { type ExportDetail, type ExportFormat, includeFlagsForRequest } from "@/utils/collectionExport/exportOptions";
+import type { TimeDisplay } from "@/utils/collectionExport/formatExportTime";
 import { inlineThumbnails } from "@/utils/collectionExport/inlineThumbnails";
 import { renderHtml } from "@/utils/collectionExport/renderHtml";
 import { renderMarkdown } from "@/utils/collectionExport/renderMarkdown";
@@ -17,6 +23,8 @@ export type ExportCollectionsArgs = {
   include: CollectionExportInclude;
   collections: { id: string; name?: string }[];
   mode: "download" | "copy";
+  time: TimeDisplay;
+  collectionModelIds?: string[];
 };
 
 const MIME: Record<ExportFormat, string> = {
@@ -51,6 +59,7 @@ async function buildContents(
   format: ExportFormat,
   detail: ExportDetail,
   include: CollectionExportInclude,
+  time: TimeDisplay,
   onThumbnailProgress: (done: number, total: number) => void,
 ): Promise<string> {
   if (format === "json") {
@@ -58,7 +67,7 @@ async function buildContents(
   }
 
   if (format === "markdown") {
-    return renderMarkdown(doc, detail);
+    return renderMarkdown(doc, detail, time);
   }
 
   let thumbnails: ReadonlyMap<string, string> = new Map();
@@ -74,7 +83,18 @@ async function buildContents(
     }
   }
 
-  return renderHtml(doc, detail, thumbnails);
+  return renderHtml(doc, detail, thumbnails, time);
+}
+
+function exportRequestBody(args: ExportCollectionsArgs, include: CollectionExportInclude): CollectionExportRequest {
+  const body: CollectionExportRequest = {
+    armyCollectionIds: args.collections.map((collection) => collection.id),
+    include,
+  };
+  if (args.collectionModelIds && args.collectionModelIds.length > 0) {
+    body.collectionModelIds = args.collectionModelIds;
+  }
+  return body;
 }
 
 export default function useCollectionExport(): {
@@ -96,14 +116,11 @@ export default function useCollectionExport(): {
     setProgress(null);
     try {
       const { data } = await exportArmyCollections({
-        body: {
-          armyCollectionIds: args.collections.map((c) => c.id),
-          include,
-        },
+        body: exportRequestBody(args, include),
         throwOnError: true,
       });
 
-      const contents = await buildContents(data, args.format, args.detail, include, (done, total) => {
+      const contents = await buildContents(data, args.format, args.detail, include, args.time, (done, total) => {
         setProgress({ done, total });
       });
 

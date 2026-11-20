@@ -1,4 +1,4 @@
-import { Button, Checkbox, Group, Radio, Stack, Text } from "@mantine/core";
+import { Button, Checkbox, Group, Radio, Select, Stack, Text } from "@mantine/core";
 import { useEffect, useRef, useState } from "react";
 import ResponsiveModal from "@/components/ResponsiveModal";
 import type { ArmyCollection, CollectionExportInclude } from "@/generated";
@@ -9,14 +9,18 @@ import {
   type ExportIncludeFlag,
   optionApplies,
 } from "@/utils/collectionExport/exportOptions";
+import { listTimeZoneOptions, resolveTimeDisplay } from "@/utils/collectionExport/timeZones";
 
 export type ExportCollectionsModalProps = Readonly<{
   opened: boolean;
   onClose: () => void;
   collections: ArmyCollection[];
   initialSelectedIds?: string[];
+  selectedMiniatureIds?: string[];
   showCollectionPicker: boolean;
 }>;
+
+type ExportScope = "whole" | "selected";
 
 const DEFAULT_INCLUDE: CollectionExportInclude = {
   collectionDescription: true,
@@ -41,6 +45,10 @@ const INCLUDE_OPTIONS: ReadonlyArray<{ flag: ExportIncludeFlag; label: string }>
   { flag: "statusHistory", label: "Status history" },
   { flag: "thumbnails", label: "Thumbnails" },
 ];
+
+function initialScope(selectedMiniatureIds?: string[]): ExportScope {
+  return selectedMiniatureIds && selectedMiniatureIds.length > 0 ? "selected" : "whole";
+}
 
 function defaultSelectedIds(collections: ArmyCollection[], initialSelectedIds?: string[]): string[] {
   if (initialSelectedIds && initialSelectedIds.length > 0) {
@@ -98,18 +106,23 @@ export default function ExportCollectionsModal({
   onClose,
   collections,
   initialSelectedIds,
+  selectedMiniatureIds,
   showCollectionPicker,
 }: ExportCollectionsModalProps) {
   const { exporting, progress, exportCollections } = useCollectionExport();
-  const [format, setFormat] = useState<ExportFormat>("json");
-  const [detail, setDetail] = useState<ExportDetail>("summary");
+  const [format, setFormat] = useState<ExportFormat>("html");
+  const [detail, setDetail] = useState<ExportDetail>("every");
   const [include, setInclude] = useState<CollectionExportInclude>(DEFAULT_INCLUDE);
+  const [includeTimes, setIncludeTimes] = useState(false);
+  const [zoneChoice, setZoneChoice] = useState("iso");
+  const [scopedIds, setScopedIds] = useState<string[]>(() => [...(selectedMiniatureIds ?? [])]);
+  const [scope, setScope] = useState<ExportScope>(() => initialScope(selectedMiniatureIds));
   const [selectedIds, setSelectedIds] = useState<string[]>(() =>
     defaultSelectedIds(collections, initialSelectedIds),
   );
   const wasOpenedRef = useRef(false);
 
-  // Reset only on opened false→true (or mount-open). Keep collections/initialSelectedIds in
+  // Reset only on opened false→true (or mount-open). Keep collection and selection props in
   // deps for exhaustive-deps, but ignore identity changes while the dialog stays open.
   useEffect(() => {
     const justOpened = opened && !wasOpenedRef.current;
@@ -117,15 +130,20 @@ export default function ExportCollectionsModal({
     if (!justOpened) {
       return;
     }
-    setFormat("json");
-    setDetail("summary");
+    setFormat("html");
+    setDetail("every");
     setInclude(DEFAULT_INCLUDE);
+    setIncludeTimes(false);
+    setZoneChoice("iso");
+    setScopedIds([...(selectedMiniatureIds ?? [])]);
+    setScope(initialScope(selectedMiniatureIds));
     setSelectedIds(defaultSelectedIds(collections, initialSelectedIds));
-  }, [opened, collections, initialSelectedIds]);
+  }, [opened, collections, initialSelectedIds, selectedMiniatureIds]);
 
   const selectedCollections = collections.filter((c) => c.id && selectedIds.includes(c.id));
   const hasSelection = selectedCollections.length > 0;
   const detailDisabled = format === "json";
+  const timesAvailable = !!include.status || !!include.statusHistory;
   const allSelected =
     collections.length > 0 && collections.every((c) => c.id && selectedIds.includes(c.id));
 
@@ -152,6 +170,8 @@ export default function ExportCollectionsModal({
         include,
         collections: selectedCollections.map((c) => ({ id: c.id as string, name: c.name })),
         mode,
+        time: resolveTimeDisplay(includeTimes && timesAvailable, zoneChoice),
+        collectionModelIds: scope === "selected" && scopedIds.length > 0 ? scopedIds : undefined,
       });
       onClose();
     } catch {
@@ -243,7 +263,35 @@ export default function ExportCollectionsModal({
               />
             );
           })}
+          <Checkbox
+            label="Include times"
+            description={timesAvailable ? undefined : "Requires status or status history"}
+            checked={includeTimes}
+            disabled={!timesAvailable}
+            onChange={(e) => setIncludeTimes(e.currentTarget.checked)}
+          />
+          <Select
+            label="Timezone"
+            data={listTimeZoneOptions()}
+            value={zoneChoice}
+            onChange={(value) => {
+              if (value) {
+                setZoneChoice(value);
+              }
+            }}
+            searchable
+            allowDeselect={false}
+            disabled={!includeTimes || !timesAvailable}
+          />
         </Stack>
+        {scopedIds.length > 0 && (
+          <Radio.Group label="Scope" value={scope} onChange={(value) => setScope(value as ExportScope)}>
+            <Group mt="xs">
+              <Radio value="whole" label="Whole collection" />
+              <Radio value="selected" label={`Only the ${scopedIds.length} selected`} />
+            </Group>
+          </Radio.Group>
+        )}
       </Stack>
     </ResponsiveModal>
   );

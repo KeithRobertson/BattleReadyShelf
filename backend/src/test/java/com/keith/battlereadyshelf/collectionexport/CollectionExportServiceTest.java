@@ -220,6 +220,151 @@ class CollectionExportServiceTest {
     }
 
     @Test
+    void export_collectionModelIdsWithTwoCollections_throwsBadRequest() {
+        var request =
+                new CollectionExportRequest(
+                                List.of(collectionAId, collectionBId), new CollectionExportInclude())
+                        .collectionModelIds(List.of(miniNamedId));
+
+        assertThatThrownBy(() -> collectionExportService.export(userId, request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("collectionModelIds requires exactly one collection");
+    }
+
+    @Test
+    void export_emptyCollectionModelIds_throwsBadRequest() {
+        var request =
+                new CollectionExportRequest(List.of(collectionAId), new CollectionExportInclude())
+                        .collectionModelIds(List.of());
+
+        assertThatThrownBy(() -> collectionExportService.export(userId, request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("collectionModelIds must not be empty");
+    }
+
+    @Test
+    void export_collectionModelIdNotInCollection_throwsNotFoundAndDoesNotAssemble() {
+        stubOwned(collectionAId, collectionA);
+        when(armyCollectionRepository.findAllByUserIdOrderByDisplayOrderAsc(userId))
+                .thenReturn(List.of(collectionA));
+        when(collectionModelRepository.findAllByArmyCollectionId(collectionAId))
+                .thenReturn(List.of(champion, unnamed));
+
+        var missingId = UUID.fromString("abcdefab-cdef-abcd-efab-cdefabcdefab");
+        var request =
+                new CollectionExportRequest(List.of(collectionAId), new CollectionExportInclude())
+                        .collectionModelIds(List.of(missingId));
+
+        assertThatThrownBy(() -> collectionExportService.export(userId, request))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("Collection model not found: " + missingId);
+
+        verify(collectionModelRepository).findAllByArmyCollectionId(collectionAId);
+        verify(collectionModelWargearSelectionRepository, never()).findAllByCollectionModelIdIn(any());
+        verify(collectionModelMagnetizedSlotRepository, never()).findAllByCollectionModelIdIn(any());
+        verify(collectionModelStatusEventRepository, never()).findAllByCollectionModelIdIn(any());
+        verify(collectionModelImageRepository, never()).findAllByCollectionModelIdIn(any());
+        verify(paintRecipeRepository, never()).findAllByArmyCollectionId(any());
+    }
+
+    @Test
+    void export_collectionModelIds_keepsRequestedMiniatureAndDropsEmptyModelType() {
+        stubOwned(collectionAId, collectionA);
+        when(armyCollectionRepository.findAllByUserIdOrderByDisplayOrderAsc(userId))
+                .thenReturn(List.of(collectionA));
+
+        var zebra =
+                ModelDefinitionEntity.builder()
+                        .id(zebraDefId)
+                        .name("Zebra Marine")
+                        .factionId(factionId)
+                        .build();
+        var zebraMini =
+                CollectionModelEntity.builder()
+                        .id(miniZedId)
+                        .armyCollectionId(collectionAId)
+                        .modelDefinition(zebra)
+                        .name("Zebra")
+                        .status(CollectionModelStatus.BOXED)
+                        .build();
+        when(collectionModelRepository.findAllByArmyCollectionId(collectionAId))
+                .thenReturn(List.of(champion, zebraMini));
+
+        var collectionRecipe =
+                recipe(
+                        PaintRecipeScope.COLLECTION,
+                        collectionAId,
+                        null,
+                        null,
+                        "Collection notes",
+                        "Death Guard Green");
+        var keptTypeRecipe =
+                recipe(
+                        PaintRecipeScope.MODEL_TYPE,
+                        collectionAId,
+                        modelDefId,
+                        null,
+                        "Type notes",
+                        "Leadbelcher");
+        var droppedTypeRecipe =
+                recipe(
+                        PaintRecipeScope.MODEL_TYPE,
+                        collectionAId,
+                        zebraDefId,
+                        null,
+                        "Dropped type notes",
+                        "Abaddon Black");
+        when(paintRecipeRepository.findAllByArmyCollectionId(collectionAId))
+                .thenReturn(List.of(collectionRecipe, keptTypeRecipe, droppedTypeRecipe));
+
+        var result =
+                collectionExportService.export(
+                        userId,
+                        new CollectionExportRequest(
+                                        List.of(collectionAId),
+                                        new CollectionExportInclude()
+                                                .status(true)
+                                                .paintRecipes(true)
+                                                .miniatureDetails(true))
+                                .collectionModelIds(List.of(miniNamedId)));
+
+        var collection = result.getCollections().getFirst();
+        assertThat(collection.getModelCount()).isEqualTo(1);
+        assertThat(collection.getStatusCounts()).containsEntry("PAINTED", 1).hasSize(1);
+        assertThat(collection.getPaintRecipe().getNotes()).isEqualTo("Collection notes");
+        assertThat(collection.getModelTypes()).extracting("name").containsExactly("Plague Marine");
+        assertThat(collection.getModelTypes().getFirst().getModelCount()).isEqualTo(1);
+        assertThat(collection.getModelTypes().getFirst().getStatusCounts())
+                .containsEntry("PAINTED", 1)
+                .hasSize(1);
+        assertThat(collection.getModelTypes().getFirst().getPaintRecipe().getNotes())
+                .isEqualTo("Type notes");
+        assertThat(collection.getModelTypes().getFirst().getMiniatures())
+                .extracting(m -> m.getName())
+                .containsExactly("Champion");
+    }
+
+    @Test
+    void export_duplicateCollectionModelIds_exportsMiniatureOnce() {
+        stubBasicCollectionWithThreeMiniatures();
+
+        var result =
+                collectionExportService.export(
+                        userId,
+                        new CollectionExportRequest(
+                                        List.of(collectionAId),
+                                        new CollectionExportInclude().miniatureDetails(true))
+                                .collectionModelIds(List.of(miniNamedId, miniNamedId)));
+
+        var collection = result.getCollections().getFirst();
+        assertThat(collection.getModelCount()).isEqualTo(1);
+        assertThat(collection.getModelTypes()).extracting("name").containsExactly("Plague Marine");
+        assertThat(collection.getModelTypes().getFirst().getMiniatures())
+                .extracting(m -> m.getName())
+                .containsExactly("Champion");
+    }
+
+    @Test
     void export_collections_followDisplayOrderNotRequestOrder() {
         stubOwned(collectionAId, collectionA);
         stubOwned(collectionBId, collectionB);

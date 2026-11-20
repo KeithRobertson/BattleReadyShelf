@@ -17,6 +17,7 @@ import com.keith.battlereadyshelf.collectionmodel.CollectionModelStatusEventRepo
 import com.keith.battlereadyshelf.collectionmodel.CollectionModelWargearSelectionEntity;
 import com.keith.battlereadyshelf.collectionmodel.CollectionModelWargearSelectionRepository;
 import com.keith.battlereadyshelf.error.BadRequestException;
+import com.keith.battlereadyshelf.error.NotFoundException;
 import com.keith.battlereadyshelf.factiondefinition.FactionEntity;
 import com.keith.battlereadyshelf.factiondefinition.FactionRepository;
 import com.keith.battlereadyshelf.generated.model.CollectionExport;
@@ -112,6 +113,18 @@ public class CollectionExportService {
         }
 
         var distinctIds = new LinkedHashSet<>(requestedIds);
+        Set<UUID> allowed = null;
+        var miniatureIds = request.getCollectionModelIds();
+        if (miniatureIds != null) {
+            if (miniatureIds.isEmpty()) {
+                throw new BadRequestException("collectionModelIds must not be empty");
+            }
+            if (distinctIds.size() != 1) {
+                throw new BadRequestException("collectionModelIds requires exactly one collection");
+            }
+            allowed = new LinkedHashSet<>(miniatureIds);
+        }
+
         for (var collectionId : distinctIds) {
             armyCollectionsService.requireOwnedArmyCollection(userId, collectionId);
         }
@@ -124,7 +137,7 @@ public class CollectionExportService {
 
         var collections = new ArrayList<CollectionExportCollection>();
         for (var collection : ownedInDisplayOrder) {
-            collections.add(exportCollection(collection, include));
+            collections.add(exportCollection(collection, include, allowed));
         }
 
         return new CollectionExport(
@@ -136,8 +149,18 @@ public class CollectionExportService {
     }
 
     private CollectionExportCollection exportCollection(
-            ArmyCollectionEntity collection, CollectionExportInclude include) {
+            ArmyCollectionEntity collection, CollectionExportInclude include, Set<UUID> allowed) {
         var models = collectionModelRepository.findAllByArmyCollectionId(collection.getId());
+        if (allowed != null) {
+            var loadedIds =
+                    models.stream().map(CollectionModelEntity::getId).collect(Collectors.toSet());
+            for (var id : allowed) {
+                if (!loadedIds.contains(id)) {
+                    throw new NotFoundException("Collection model not found: " + id);
+                }
+            }
+            models = models.stream().filter(model -> allowed.contains(model.getId())).toList();
+        }
         var modelIds = models.stream().map(CollectionModelEntity::getId).toList();
 
         var selectionsByModelId =

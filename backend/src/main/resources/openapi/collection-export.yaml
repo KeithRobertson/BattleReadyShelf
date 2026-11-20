@@ -45,6 +45,16 @@ components:
           description: Collections to export. Duplicates are ignored. Order is ignored; display order wins.
         include:
           $ref: '#/components/schemas/CollectionExportInclude'
+        collectionModelIds:
+          type: array
+          description: >-
+            When set, the single requested collection is limited to these miniatures.
+            Duplicates are ignored. Omit the field to export every miniature.
+            An empty array is rejected. Combining this field with more than one
+            armyCollectionId is rejected.
+          items:
+            type: string
+            format: uuid
       required: [ armyCollectionIds, include ]
     CollectionExport:
       type: object

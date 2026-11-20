@@ -6,6 +6,7 @@ import useCollectionExport from "@/hooks/collections/useCollectionExport";
 import { resetApiStubs, stubApi, stubApiWith } from "@/testing/stubApi";
 import { ALL_INCLUDED, makeExportDoc } from "@/utils/collectionExport/exportFixture";
 import { includeFlagsForRequest } from "@/utils/collectionExport/exportOptions";
+import type { TimeDisplay } from "@/utils/collectionExport/formatExportTime";
 
 vi.mock("@/utils/downloadFile", () => ({
   default: vi.fn(),
@@ -27,7 +28,10 @@ const baseInclude: CollectionExportInclude = {
 };
 
 function exportArgs(
-  overrides: Partial<Parameters<ReturnType<typeof useCollectionExport>["exportCollections"]>[0]> = {},
+  overrides: Partial<Parameters<ReturnType<typeof useCollectionExport>["exportCollections"]>[0]> & {
+    time?: TimeDisplay;
+    collectionModelIds?: string[];
+  } = {},
 ) {
   return {
     format: "json" as const,
@@ -35,6 +39,7 @@ function exportArgs(
     include: baseInclude,
     collections: [{ id: COLLECTION_ID, name: "Death Guard" }],
     mode: "download" as const,
+    time: { kind: "iso" as const },
     ...overrides,
   };
 }
@@ -203,5 +208,82 @@ describe("useCollectionExport", () => {
     expect(fileName).toMatch(/\.html$/);
     expect(contents).toContain("<!DOCTYPE html>");
     expect(contents).toContain("data:image/jpeg;base64,");
+  });
+
+  it("formats a markdown download in the chosen zone without sending that zone", async () => {
+    const doc = makeExportDoc();
+    const miniature = doc.collections[0]?.modelTypes[0]?.miniatures[0];
+    if (!miniature) {
+      throw new Error("fixture miniature missing");
+    }
+    miniature.statusChangedAt = "2026-01-15T12:00:00Z";
+    miniature.statusHistory = [{ status: "PAINTED", changedAt: "2026-01-15T12:00:00Z" }];
+
+    const captured = stubExportSuccess(doc);
+    const { result } = renderHook(() => useCollectionExport());
+
+    await act(async () => {
+      await result.current.exportCollections(
+        exportArgs({
+          format: "markdown",
+          detail: "every",
+          time: { kind: "zone", timeZone: "Europe/London" },
+        }),
+      );
+    });
+
+    expect(captured[0]).toEqual({
+      armyCollectionIds: [COLLECTION_ID],
+      include: includeFlagsForRequest({
+        format: "markdown",
+        detail: "every",
+        include: baseInclude,
+      }),
+    });
+    expect(JSON.stringify(captured[0])).not.toContain("Europe/London");
+
+    const contents = vi.mocked(downloadFile).mock.calls[0]?.[0] ?? "";
+    expect(contents).toContain("15 Jan 2026, 12:00 GMT");
+    expect(contents).not.toContain("2026-01-15T12:00:00Z");
+  });
+
+  it("keeps raw ISO instants in a JSON download when a zone is chosen", async () => {
+    const doc = makeExportDoc();
+    stubExportSuccess(doc);
+    const { result } = renderHook(() => useCollectionExport());
+
+    await act(async () => {
+      await result.current.exportCollections(
+        exportArgs({
+          format: "json",
+          time: { kind: "zone", timeZone: "Europe/London" },
+        }),
+      );
+    });
+
+    expect(vi.mocked(downloadFile).mock.calls[0]?.[0]).toBe(JSON.stringify(doc, null, 2));
+  });
+
+  it("sends collectionModelIds only when the list is non-empty", async () => {
+    const captured = stubExportSuccess();
+    const { result } = renderHook(() => useCollectionExport());
+
+    await act(async () => {
+      await result.current.exportCollections(exportArgs({ collectionModelIds: ["m1", "m2"] }));
+    });
+
+    expect(captured[0]).toMatchObject({ collectionModelIds: ["m1", "m2"] });
+
+    captured.length = 0;
+    await act(async () => {
+      await result.current.exportCollections(exportArgs({ collectionModelIds: [] }));
+    });
+    expect(captured[0]).not.toHaveProperty("collectionModelIds");
+
+    captured.length = 0;
+    await act(async () => {
+      await result.current.exportCollections(exportArgs());
+    });
+    expect(captured[0]).not.toHaveProperty("collectionModelIds");
   });
 });

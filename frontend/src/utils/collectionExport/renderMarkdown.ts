@@ -7,6 +7,7 @@ import type {
 } from "@/generated";
 import { escapeMarkdownInline } from "@/utils/collectionExport/escape";
 import type { ExportDetail } from "@/utils/collectionExport/exportOptions";
+import { type TimeDisplay, formatExportTime } from "@/utils/collectionExport/formatExportTime";
 import {
   footerLine,
   formatLoadoutGroupLine,
@@ -46,15 +47,25 @@ function miniatureHeading(miniature: CollectionExportMiniature, index: number, s
   return `### ${escapeMarkdownInline(raw)}`;
 }
 
+function markdownTime(iso: string | null | undefined, time: TimeDisplay): string | null {
+  if (!iso) {
+    return null;
+  }
+  const formatted = formatExportTime(iso, time);
+  return formatted === null ? null : escapeMarkdownInline(formatted);
+}
+
 function appendMiniatureStatus(
   lines: string[],
   miniature: CollectionExportMiniature,
   included: CollectionExport["included"],
+  time: TimeDisplay,
 ): void {
   if (!isIncluded(included, "status") || !miniature.status) {
     return;
   }
-  const when = miniature.statusChangedAt ? ` (${miniature.statusChangedAt})` : "";
+  const formatted = markdownTime(miniature.statusChangedAt, time);
+  const when = formatted !== null ? ` (${formatted})` : "";
   lines.push(`- Status: ${escapeMarkdownInline(formatStatusLabel(miniature.status))}${when}`);
 }
 
@@ -62,13 +73,16 @@ function appendMiniatureStatusHistory(
   lines: string[],
   miniature: CollectionExportMiniature,
   included: CollectionExport["included"],
+  time: TimeDisplay,
 ): void {
   if (!isIncluded(included, "statusHistory") || !miniature.statusHistory?.length) {
     return;
   }
   lines.push("- Status history:");
   for (const event of miniature.statusHistory) {
-    lines.push(`  - ${escapeMarkdownInline(formatStatusLabel(event.status))} · ${event.changedAt}`);
+    const formatted = markdownTime(event.changedAt, time);
+    const when = formatted !== null ? ` · ${formatted}` : "";
+    lines.push(`  - ${escapeMarkdownInline(formatStatusLabel(event.status))}${when}`);
   }
 }
 
@@ -108,6 +122,7 @@ function renderMiniature(
   miniature: CollectionExportMiniature,
   index: number,
   included: CollectionExport["included"],
+  time: TimeDisplay,
 ): string[] {
   const lines: string[] = [
     miniatureHeading(miniature, index, isIncluded(included, "miniatureDetails")),
@@ -118,8 +133,8 @@ function renderMiniature(
     lines.push(escapeMarkdownInline(miniature.description.trim()), "");
   }
 
-  appendMiniatureStatus(lines, miniature, included);
-  appendMiniatureStatusHistory(lines, miniature, included);
+  appendMiniatureStatus(lines, miniature, included, time);
+  appendMiniatureStatusHistory(lines, miniature, included, time);
   appendMiniatureLoadout(lines, miniature, included);
   appendMiniaturePaintRecipe(lines, miniature, included);
 
@@ -158,6 +173,7 @@ function renderModelTypeSummary(
 function renderModelTypeEvery(
   type: CollectionExportModelType,
   included: CollectionExport["included"],
+  time: TimeDisplay,
 ): string[] {
   const lines: string[] = [modelTypeHeading(type, isIncluded(included, "faction")), ""];
 
@@ -173,7 +189,7 @@ function renderModelTypeEvery(
   }
 
   type.miniatures.forEach((miniature, index) => {
-    lines.push(...renderMiniature(miniature, index, included));
+    lines.push(...renderMiniature(miniature, index, included, time));
   });
 
   return lines;
@@ -183,6 +199,7 @@ function renderCollection(
   collection: CollectionExportCollection,
   detail: ExportDetail,
   included: CollectionExport["included"],
+  time: TimeDisplay,
 ): string[] {
   const lines: string[] = [`# ${escapeMarkdownInline(collection.name)}`, ""];
 
@@ -209,18 +226,18 @@ function renderCollection(
     if (detail === "summary") {
       lines.push(...renderModelTypeSummary(type, included));
     } else {
-      lines.push(...renderModelTypeEvery(type, included));
+      lines.push(...renderModelTypeEvery(type, included, time));
     }
   }
 
   return lines;
 }
 
-export function renderMarkdown(doc: CollectionExport, detail: ExportDetail): string {
+export function renderMarkdown(doc: CollectionExport, detail: ExportDetail, time: TimeDisplay): string {
   const lines: string[] = [];
 
   for (const collection of doc.collections) {
-    lines.push(...renderCollection(collection, detail, doc.included));
+    lines.push(...renderCollection(collection, detail, doc.included, time));
   }
 
   lines.push("---", "", footerLine(doc.exportedAt), "");

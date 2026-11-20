@@ -4,7 +4,7 @@ import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ExportCollectionsModal from "@/components/collections/export/ExportCollectionsModal";
 import type { ArmyCollection } from "@/generated";
-import { resetApiStubs, stubApi } from "@/testing/stubApi";
+import { resetApiStubs, type StubbedRequest, stubApi } from "@/testing/stubApi";
 import { makeExportDoc } from "@/utils/collectionExport/exportFixture";
 
 vi.mock("@/utils/downloadFile", () => ({
@@ -21,6 +21,10 @@ const collections: ArmyCollection[] = [
   { id: "11111111-1111-1111-1111-111111111111", name: "Death Guard" },
   { id: "22222222-2222-2222-2222-222222222222", name: "Orks" },
 ];
+
+function exportRequest(requests: StubbedRequest[]): StubbedRequest | undefined {
+  return requests.find((request) => request.url.includes("/army-collections/export"));
+}
 
 function renderModal(props: Partial<ComponentProps<typeof ExportCollectionsModal>> = {}) {
   return render(
@@ -48,13 +52,97 @@ describe("ExportCollectionsModal", () => {
     resetApiStubs();
   });
 
-  it("defaults to JSON with detail and thumbnails disabled", () => {
+  it("opens on HTML with every miniature selected", () => {
     renderModal();
 
-    expect((screen.getByRole("radio", { name: "JSON" }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("radio", { name: "HTML" }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("radio", { name: "Every miniature" }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("disables detail and thumbnails when format is JSON", () => {
+    renderModal();
+
+    fireEvent.click(screen.getByRole("radio", { name: "JSON" }));
+
     expect((screen.getByRole("radio", { name: "Summary" }) as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByRole("radio", { name: "Every miniature" }) as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByRole("checkbox", { name: /Thumbnails/i }) as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it("keeps Include times unchecked and disabled until status is on", () => {
+    renderModal();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /^Status$/i }));
+
+    const includeTimes = screen.getByRole("checkbox", { name: /Include times/i }) as HTMLInputElement;
+    expect(includeTimes.checked).toBe(false);
+    expect(includeTimes.disabled).toBe(true);
+    expect(screen.getByText("Requires status or status history")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /^Status$/i }));
+
+    expect(includeTimes.disabled).toBe(false);
+    expect(includeTimes.checked).toBe(false);
+    expect((screen.getByRole("combobox", { name: "Timezone" }) as HTMLInputElement).disabled).toBe(true);
+
+    fireEvent.click(includeTimes);
+
+    expect((screen.getByRole("combobox", { name: "Timezone" }) as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it("downloads only the selected miniatures when that scope is chosen", async () => {
+    const requests = stubApi({
+      "/army-collections/export": { status: 200, body: makeExportDoc() },
+    });
+    renderModal({ selectedMiniatureIds: ["m1"] });
+
+    expect((screen.getByRole("radio", { name: "Only the 1 selected" }) as HTMLInputElement).checked).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Download" }));
+
+    await waitFor(() => {
+      expect(exportRequest(requests)?.body).toMatchObject({ collectionModelIds: ["m1"] });
+    });
+  });
+
+  it.each<[string, string[] | undefined]>([
+    ["omitted", undefined],
+    ["empty", []],
+  ])(
+    "omits miniature scope and collectionModelIds when selected ids are %s",
+    async (_label, selectedMiniatureIds) => {
+      const requests = stubApi({
+        "/army-collections/export": { status: 200, body: makeExportDoc() },
+      });
+      renderModal({ selectedMiniatureIds });
+
+      expect(screen.queryByRole("radio", { name: /Only the \d+ selected/ })).toBeNull();
+      expect(screen.queryByRole("radio", { name: "Whole collection" })).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "Download" }));
+
+      await waitFor(() => {
+        const body = exportRequest(requests)?.body;
+        expect(body).toEqual(expect.objectContaining({ armyCollectionIds: expect.any(Array) }));
+        expect(body).not.toHaveProperty("collectionModelIds");
+      });
+    },
+  );
+
+  it("omits collectionModelIds when Whole collection is chosen", async () => {
+    const requests = stubApi({
+      "/army-collections/export": { status: 200, body: makeExportDoc() },
+    });
+    renderModal({ selectedMiniatureIds: ["m1", "m2"] });
+
+    fireEvent.click(screen.getByRole("radio", { name: "Whole collection" }));
+    fireEvent.click(screen.getByRole("button", { name: "Download" }));
+
+    await waitFor(() => {
+      const body = exportRequest(requests)?.body;
+      expect(body).toEqual(expect.objectContaining({ armyCollectionIds: expect.any(Array) }));
+      expect(body).not.toHaveProperty("collectionModelIds");
+    });
   });
 
   it("enables thumbnails when format is HTML and detail is Every miniature", () => {
@@ -167,7 +255,8 @@ describe("ExportCollectionsModal", () => {
       </MantineProvider>,
     );
 
-    fireEvent.click(screen.getByRole("radio", { name: "HTML" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Markdown" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Summary" }));
 
     rerender(
       <MantineProvider>
@@ -190,6 +279,42 @@ describe("ExportCollectionsModal", () => {
       </MantineProvider>,
     );
 
-    expect((screen.getByRole("radio", { name: "JSON" }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("radio", { name: "HTML" }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("radio", { name: "Every miniature" }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("does not reset include times or scope when props change identity while open", () => {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <MantineProvider>
+        <ExportCollectionsModal
+          opened
+          onClose={onClose}
+          collections={collections}
+          showCollectionPicker
+          selectedMiniatureIds={["m1"]}
+        />
+      </MantineProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Include times/i }));
+    fireEvent.click(screen.getByRole("radio", { name: "Whole collection" }));
+
+    rerender(
+      <MantineProvider>
+        <ExportCollectionsModal
+          opened
+          onClose={onClose}
+          collections={[...collections]}
+          showCollectionPicker
+          selectedMiniatureIds={["a", "b"]}
+        />
+      </MantineProvider>,
+    );
+
+    expect((screen.getByRole("checkbox", { name: /Include times/i }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("radio", { name: "Whole collection" }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByRole("radio", { name: "Only the 1 selected" })).toBeTruthy();
+    expect(screen.queryByRole("radio", { name: "Only the 2 selected" })).toBeNull();
   });
 });
