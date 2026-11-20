@@ -1,0 +1,216 @@
+components:
+  schemas:
+    CollectionExportInclude:
+      type: object
+      description: >-
+        Which content an export includes. Omitted flags are false. The response echoes the
+        normalised values in CollectionExport.included.
+      properties:
+        collectionDescription:
+          type: boolean
+          default: false
+        faction:
+          type: boolean
+          default: false
+        status:
+          type: boolean
+          default: false
+        statusHistory:
+          type: boolean
+          default: false
+        wargear:
+          type: boolean
+          default: false
+        spareBits:
+          type: boolean
+          default: false
+        paintRecipes:
+          type: boolean
+          default: false
+        miniatureDetails:
+          type: boolean
+          default: false
+        thumbnails:
+          type: boolean
+          default: false
+    CollectionExportRequest:
+      type: object
+      properties:
+        armyCollectionIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            format: uuid
+          description: Collections to export. Duplicates are ignored. Order is ignored; display order wins.
+        include:
+          $ref: '#/components/schemas/CollectionExportInclude'
+      required: [ armyCollectionIds, include ]
+    CollectionExport:
+      type: object
+      description: A one-way snapshot of one or more army collections. Not designed for import.
+      properties:
+        schemaVersion:
+          type: integer
+          format: int32
+        exportedAt:
+          type: string
+          format: date-time
+        ownerDisplayName:
+          type: string
+          nullable: true
+        included:
+          $ref: '#/components/schemas/CollectionExportInclude'
+        collections:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectionExportCollection'
+      required: [ schemaVersion, exportedAt, included, collections ]
+    CollectionExportCollection:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        modelCount:
+          type: integer
+          format: int32
+        statusCounts:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
+          description: Status name to count. Statuses with none are omitted.
+        paintRecipe:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/CollectionExportPaintRecipe'
+        modelTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectionExportModelType'
+      required: [ name, modelCount, modelTypes ]
+    CollectionExportModelType:
+      type: object
+      properties:
+        name:
+          type: string
+        faction:
+          type: string
+          nullable: true
+        modelCount:
+          type: integer
+          format: int32
+        statusCounts:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
+        paintRecipe:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/CollectionExportPaintRecipe'
+        miniatures:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectionExportMiniature'
+      required: [ name, modelCount, miniatures ]
+    CollectionExportMiniature:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+          description: A CollectionModelStatus name when status is included.
+        statusChangedAt:
+          type: string
+          format: date-time
+          nullable: true
+        statusHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectionExportStatusEvent'
+        loadout:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectionExportLoadoutEntry'
+        paintRecipe:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/CollectionExportPaintRecipe'
+        thumbnailUrl:
+          type: string
+          format: uri
+          nullable: true
+    CollectionExportLoadoutEntry:
+      type: object
+      properties:
+        slots:
+          type: array
+          items:
+            type: string
+          description: Slot names this physical item occupies.
+        wargear:
+          type: string
+          nullable: true
+          description: Equipped bit name, or null when the slot holds only spares.
+        custom:
+          type: boolean
+          description: True when wargear is a custom label rather than a catalogue option.
+        spares:
+          type: array
+          items:
+            type: string
+          description: Owned but unequipped bits on magnetised slots. Absent when spareBits is off.
+      required: [ slots, custom ]
+    CollectionExportStatusEvent:
+      type: object
+      properties:
+        status:
+          type: string
+        changedAt:
+          type: string
+          format: date-time
+      required: [ status, changedAt ]
+    CollectionExportPaintRecipe:
+      type: object
+      properties:
+        notes:
+          type: string
+          nullable: true
+        paints:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectionExportPaint'
+      required: [ paints ]
+    CollectionExportPaint:
+      type: object
+      properties:
+        name:
+          type: string
+        brand:
+          type: string
+          nullable: true
+        paintType:
+          type: string
+          enum: [ BASE, LAYER, SHADE, CONTRAST, DRY, TECHNICAL, PRIMER, VARNISH, OTHER ]
+          nullable: true
+        hexColour:
+          type: string
+          nullable: true
+          pattern: '^#[0-9A-Fa-f]{6}$'
+        step:
+          type: string
+          nullable: true
+        note:
+          type: string
+          nullable: true
+      required: [ name ]

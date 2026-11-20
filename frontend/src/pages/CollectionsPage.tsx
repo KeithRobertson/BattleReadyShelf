@@ -1,10 +1,12 @@
 import { Stack } from "@mantine/core";
+import { useState } from "react";
 import { useAuth } from "@/auth/useAuth.ts";
 import { CollectionsContent } from "@/components/collections/CollectionsContent.tsx";
 import { CollectionsError } from "@/components/collections/CollectionsError.tsx";
 import { CollectionsHeader } from "@/components/collections/CollectionsHeader.tsx";
 import { CreateCollectionModal } from "@/components/collections/CreateCollectionModal.tsx";
 import DeleteCollectionModal from "@/components/collections/DeleteCollectionModal.tsx";
+import ExportCollectionsModal from "@/components/collections/export/ExportCollectionsModal.tsx";
 import { useCollections } from "@/hooks/collections/useCollections.tsx";
 import useDeleteCollection from "@/hooks/collections/useDeleteCollection.ts";
 
@@ -29,10 +31,18 @@ export default function CollectionsPage() {
     dragSensors,
   } = useCollections();
   const deletion = useDeleteCollection();
+  const [exportOpened, setExportOpened] = useState(false);
+  const canExport = isUser && collections.length > 0;
 
   return (
     <Stack gap="md">
-      <CollectionsHeader isAuthenticated={isAuthenticated} isUser={isUser} open={open} />
+      <CollectionsHeader
+        isAuthenticated={isAuthenticated}
+        isUser={isUser}
+        open={open}
+        onExport={() => setExportOpened(true)}
+        canExport={canExport}
+      />
 
       <CollectionsError error={error} />
 
@@ -57,6 +67,13 @@ export default function CollectionsPage() {
       />
 
       <DeleteCollectionModal deletion={deletion} />
+
+      <ExportCollectionsModal
+        opened={exportOpened}
+        onClose={() => setExportOpened(false)}
+        collections={collections}
+        showCollectionPicker
+      />
     </Stack>
   );
 }

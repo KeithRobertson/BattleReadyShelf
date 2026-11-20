@@ -2,6 +2,7 @@ import { Button, FileButton, Group } from "@mantine/core";
 import { IconDownload, IconUpload } from "@tabler/icons-react";
 import { isAxiosError } from "axios";
 import { useState } from "react";
+import downloadFile from "@/utils/downloadFile";
 import showErrorNotification from "@/utils/showErrorNotification";
 
 type Props<TExport, TResult> = {
@@ -33,13 +34,11 @@ export function DefinitionTransferButtons<TExport, TResult>({
     try {
       const exportData = await onExport();
       if (!exportData) return;
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${fileNamePrefix}-export-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadFile(
+        JSON.stringify(exportData, null, 2),
+        `${fileNamePrefix}-export-${new Date().toISOString().slice(0, 10)}.json`,
+        "application/json",
+      );
     } catch (e) {
       // Writing the file happens in the browser, so a failure there is invisible to the API layer
       // and would otherwise leave the Export button looking like it had simply done nothing.

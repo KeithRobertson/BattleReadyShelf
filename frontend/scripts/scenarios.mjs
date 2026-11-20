@@ -82,6 +82,31 @@ export const SCENARIOS = [
     prepare: (page) => openModal(page, "Create collection"),
   },
   {
+    name: "collections-export-modal",
+    route: "/collections",
+    prepare: (page) => openModal(page, "Export"),
+  },
+  {
+    name: "collections-export-error",
+    route: "/collections",
+    failApi: [
+      {
+        url: "**/api/v1/army-collections/export",
+        method: "POST",
+        status: 500,
+        message: "The export service is unavailable.",
+      },
+    ],
+    prepare: async (page) => {
+      await openModal(page, "Export");
+      await page.getByRole("button", { name: "Download" }).click();
+      await expectMessage(page, "The export service is unavailable.");
+      await expectStillSignedIn(page);
+      await page.getByRole("dialog").waitFor();
+      await settle(page);
+    },
+  },
+  {
     name: "collections-public",
     route: "/collections/public",
     fullPage: true,
